@@ -210,7 +210,7 @@ class ResultProcessor:
 
         return data
 
-    def _compress_actions(self, actions: List[Any]) -> List[Any]:
+    def _compress_actions(self, actions: list[Any]) -> list[Any]:
         """
         アクションリストを圧縮
 

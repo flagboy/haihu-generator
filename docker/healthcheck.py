@@ -12,7 +12,6 @@ sys.path.insert(0, "/app")
 
 try:
     from src.utils.config import ConfigManager
-    from src.utils.logger import get_logger
 except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
