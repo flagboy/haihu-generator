@@ -24,7 +24,8 @@
       "Bash(git commit:*)",
       "Bash(git checkout:*)",
       "Bash(uv python install:*)",
-      "Bash(uv python pin:*)"
+      "Bash(uv python pin:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": []
   }
