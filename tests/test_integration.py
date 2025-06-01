@@ -219,9 +219,7 @@ directories:
             output_path = os.path.join(temp_dir, "test_output.json")
 
             # 処理実行
-            system_integrator.process_video_complete(
-                video_path=video_path, output_path=output_path
-            )
+            system_integrator.process_video_complete(video_path=video_path, output_path=output_path)
 
             # 進捗更新の確認
             assert len(progress_updates) > 0

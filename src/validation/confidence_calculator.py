@@ -401,13 +401,9 @@ class ConfidenceCalculator:
             # 検出信頼度
             if hasattr(detection_result, "detections") and detection_result.detections:
                 detection_confidences = [
-                    d.confidence
-                    for d in detection_result.detections
-                    if hasattr(d, "confidence")
+                    d.confidence for d in detection_result.detections if hasattr(d, "confidence")
                 ]
-                detection_conf = (
-                    np.mean(detection_confidences) if detection_confidences else 0.0
-                )
+                detection_conf = np.mean(detection_confidences) if detection_confidences else 0.0
 
             # 分類信頼度
             if hasattr(classification_result, "classifications"):

@@ -19,6 +19,7 @@ ModelManager = None
 AIPipeline = None
 VideoProcessor = None
 
+
 def _lazy_import():
     """重い依存関係の遅延読み込み"""
     global TileClassifier, TileDetector, ModelManager, AIPipeline, VideoProcessor
@@ -32,6 +33,7 @@ def _lazy_import():
     except ImportError:
         # 依存関係が不足している場合はスキップ
         pass
+
 
 __all__ = [
     # 基本モジュール

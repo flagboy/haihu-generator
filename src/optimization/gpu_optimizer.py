@@ -453,9 +453,7 @@ class GPUOptimizer:
 
             # 温度チェック
             if gpu_info.temperature and gpu_info.temperature > 85:
-                recommendations.append(
-                    f"GPU {gpu_id}: 温度が高いです（{gpu_info.temperature}°C）"
-                )
+                recommendations.append(f"GPU {gpu_id}: 温度が高いです（{gpu_info.temperature}°C）")
 
         # 一般的な推奨
         if not recommendations:
