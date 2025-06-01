@@ -108,7 +108,7 @@ class StateTracker:
 
             if success:
                 # 検出された行動を適用
-                applied_actions = self.game_state.apply_pending_actions()
+                self.game_state.apply_pending_actions()
 
                 # スナップショットを作成
                 self._create_snapshot(frame_number, timestamp, detection_result)

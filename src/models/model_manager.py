@@ -179,7 +179,7 @@ class ModelManager:
         """
         matching_models = []
 
-        for model_id, model_info in self.metadata["models"].items():
+        for _model_id, model_info in self.metadata["models"].items():
             if model_info["type"] == model_type:
                 if model_name is None or model_info["name"] == model_name:
                     matching_models.append(model_info)
@@ -398,7 +398,7 @@ class ModelManager:
                 import torch.nn.utils.prune as prune
 
                 for module in model.modules():
-                    if isinstance(module, (nn.Conv2d, nn.Linear)):
+                    if isinstance(module, nn.Conv2d | nn.Linear):
                         prune.l1_unstructured(module, name="weight", amount=0.2)
 
                 self.logger.info("Model pruned successfully")
@@ -464,10 +464,7 @@ class ModelManager:
 
             # チェックサムチェック
             current_checksum = self._calculate_checksum(model_path)
-            if current_checksum != model_info["checksum"]:
-                return False
-
-            return True
+            return current_checksum == model_info["checksum"]
 
         except Exception as e:
             self.logger.error(f"Failed to verify model integrity: {e}")

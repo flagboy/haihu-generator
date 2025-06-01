@@ -380,7 +380,7 @@ class TestIntegration(TestLearningSystem):
         self.assertIsNotNone(version_id)
 
         # 2. 学習設定
-        config = TrainingConfig(
+        TrainingConfig(
             model_type="classification",
             model_name="test_model",
             dataset_version_id=version_id,
@@ -394,7 +394,7 @@ class TestIntegration(TestLearningSystem):
 
         # セッション管理のテスト
         sessions = training_manager.list_sessions()
-        initial_count = len(sessions)
+        len(sessions)
 
         # 4. 評価システム
         evaluator = ModelEvaluator(self.config_manager)

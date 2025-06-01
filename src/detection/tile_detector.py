@@ -29,7 +29,7 @@ class SimpleCNN(nn.Module):
     """基本的なCNNモデル（YOLOv8の代替として使用）"""
 
     def __init__(self, num_classes: int = 1):
-        super(SimpleCNN, self).__init__()
+        super().__init__()
 
         # 特徴抽出層
         self.features = nn.Sequential(
@@ -184,10 +184,9 @@ class TileDetector:
         Returns:
             検出結果のリスト
         """
-        if self.model is None:
-            if not self.load_model():
-                self.logger.error("Model not loaded")
-                return []
+        if self.model is None and not self.load_model():
+            self.logger.error("Model not loaded")
+            return []
 
         try:
             if self.model_type == "yolo":
@@ -280,7 +279,7 @@ class TileDetector:
         for detection in detections:
             x1, y1, x2, y2 = detection.bbox
             center_y = (y1 + y2) / 2
-            center_x = (x1 + x2) / 2
+            (x1 + x2) / 2
 
             # 画面下部を手牌エリアとする
             if center_y > h * 0.7:

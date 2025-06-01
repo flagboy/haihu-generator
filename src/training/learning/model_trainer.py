@@ -130,10 +130,7 @@ class TileDataset(Dataset):
         image = image.resize(target_size)
 
         # 画像変換
-        if self.transform:
-            image = self.transform(image)
-        else:
-            image = transforms.ToTensor()(image)
+        image = self.transform(image) if self.transform else transforms.ToTensor()(image)
 
         # ターゲット作成（簡易版）
         # 実際のYOLOでは複雑なターゲット形式が必要
@@ -175,10 +172,7 @@ class TileDataset(Dataset):
             image = self._apply_augmentation(image)
 
         # 画像変換
-        if self.transform:
-            image = self.transform(image)
-        else:
-            image = transforms.ToTensor()(image)
+        image = self.transform(image) if self.transform else transforms.ToTensor()(image)
 
         # ラベル
         class_id = self.class_mapping.get(sample["tile_id"], 0)
@@ -286,7 +280,6 @@ class ModelTrainer(LoggerMixin):
             criterion = self._create_criterion(config)
 
             # 訓練ループ
-            best_model_state = None
             best_model_path = None
             early_stopping_counter = 0
 
@@ -341,7 +334,7 @@ class ModelTrainer(LoggerMixin):
                         is_best = True
 
                 if is_best:
-                    best_model_state = model.state_dict().copy()
+                    model.state_dict().copy()
                     best_model_path = self._save_checkpoint(
                         model, optimizer, epoch, val_metrics, config, session_id, is_best=True
                     )
@@ -429,15 +422,12 @@ class ModelTrainer(LoggerMixin):
             batch_size=config.batch_size,
             shuffle=is_training,
             num_workers=config.num_workers,
-            pin_memory=True if self.device.type == "cuda" else False,
+            pin_memory=self.device.type == "cuda",
         )
 
     def _create_optimizer(self, model: nn.Module, config: Any) -> optim.Optimizer:
         """最適化器を作成"""
-        if hasattr(config, "optimizer_type"):
-            optimizer_type = config.optimizer_type
-        else:
-            optimizer_type = "adam"
+        optimizer_type = config.optimizer_type if hasattr(config, "optimizer_type") else "adam"
 
         if optimizer_type.lower() == "adam":
             return optim.Adam(model.parameters(), lr=config.learning_rate)
@@ -491,7 +481,7 @@ class ModelTrainer(LoggerMixin):
         correct = 0
         total = 0
 
-        for batch_idx, (data, target) in enumerate(dataloader):
+        for _batch_idx, (data, target) in enumerate(dataloader):
             if self.stop_flags.get(session_id, False):
                 break
 
@@ -598,10 +588,7 @@ class ModelTrainer(LoggerMixin):
             )
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-            if is_best:
-                filename = "best_model.pt"
-            else:
-                filename = f"checkpoint_epoch_{epoch}.pt"
+            filename = "best_model.pt" if is_best else f"checkpoint_epoch_{epoch}.pt"
 
             filepath = checkpoint_dir / filename
 

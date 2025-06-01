@@ -171,17 +171,14 @@ class TenhouValidator:
                 result.add_warning(f"ルールフィールド '{field}' が見つかりません")
 
         # 各フィールドの値検証
-        if "aka" in rules:
-            if rules["aka"] not in [0, 1]:
-                result.add_error("'aka'フィールドは0または1である必要があります")
+        if "aka" in rules and rules["aka"] not in [0, 1]:
+            result.add_error("'aka'フィールドは0または1である必要があります")
 
-        if "kuitan" in rules:
-            if rules["kuitan"] not in [0, 1]:
-                result.add_error("'kuitan'フィールドは0または1である必要があります")
+        if "kuitan" in rules and rules["kuitan"] not in [0, 1]:
+            result.add_error("'kuitan'フィールドは0または1である必要があります")
 
-        if "tonnan" in rules:
-            if rules["tonnan"] not in [0, 1]:
-                result.add_error("'tonnan'フィールドは0または1である必要があります")
+        if "tonnan" in rules and rules["tonnan"] not in [0, 1]:
+            result.add_error("'tonnan'フィールドは0または1である必要があります")
 
     def _validate_game_log(self, log: list[list[Any]], result: ValidationResult) -> None:
         """ゲームログの検証"""

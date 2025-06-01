@@ -85,7 +85,7 @@ class TestPerformanceOptimization:
 
         # 大量データ処理
         results = []
-        for i in range(10):
+        for _i in range(10):
             result = self.formatter.format_game_data(self.large_game_data)
             results.append(result)
 
@@ -190,7 +190,7 @@ class TestPerformanceOptimization:
 
         # 5つのスレッドで並行処理
         threads = []
-        for i in range(5):
+        for _i in range(5):
             thread = threading.Thread(target=process_data)
             threads.append(thread)
             thread.start()
@@ -242,7 +242,7 @@ class TestPerformanceOptimization:
         """性能劣化検出テスト"""
         # 複数回実行して安定性確認
         times = []
-        for i in range(5):
+        for _i in range(5):
             start_time = time.time()
             result = self.formatter.format_game_data(self.large_game_data)
             processing_time = time.time() - start_time

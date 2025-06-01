@@ -307,7 +307,7 @@ class ActionDetector:
         actions = []
 
         hand_added = [c for c in changes if c.location == "hand" and c.change_type == "added"]
-        hand_removed = [c for c in changes if c.location == "hand" and c.change_type == "removed"]
+        [c for c in changes if c.location == "hand" and c.change_type == "removed"]
         discard_added = [c for c in changes if c.location == "discard" and c.change_type == "added"]
         call_added = [c for c in changes if c.location == "call" and c.change_type == "added"]
 

@@ -373,7 +373,7 @@ class LearningScheduler(LoggerMixin):
         """ランダムサーチ"""
         trial_ids = []
 
-        for i in range(n_trials):
+        for _i in range(n_trials):
             import uuid
 
             trial_id = str(uuid.uuid4())

@@ -84,8 +84,7 @@ system:
 
     def test_memory_usage_tracking(self, performance_optimizer):
         """メモリ使用量追跡テスト"""
-        initial_metrics = performance_optimizer.get_current_metrics()
-        initial_memory = initial_metrics.memory_usage
+        performance_optimizer.get_current_metrics()
 
         # 大きなデータを作成してメモリ使用量を増加
         large_data = [np.random.rand(1000, 1000) for _ in range(10)]
@@ -286,7 +285,7 @@ system:
 
             # 大容量データを処理
             large_arrays = []
-            for i in range(10):
+            for _i in range(10):
                 # 100MB程度のデータを作成
                 array = np.random.rand(1000, 1000, 10).astype(np.float32)
                 large_arrays.append(array)
@@ -319,7 +318,7 @@ system:
 
         try:
             config_manager = ConfigManager(config_path)
-            optimizer = PerformanceOptimizer(config_manager)
+            PerformanceOptimizer(config_manager)
 
             # 異なるバッチサイズでの処理時間を測定
             batch_sizes = [1, 2, 4, 8, 16]
@@ -332,7 +331,7 @@ system:
                 for _ in range(10):
                     # バッチサイズに応じた処理をシミュレート
                     data = [np.random.rand(100, 100) for _ in range(batch_size)]
-                    results = [d.sum() for d in data]
+                    [d.sum() for d in data]
 
                 processing_time = time.time() - start_time
                 processing_times.append(processing_time)
@@ -367,7 +366,7 @@ system:
 
             # 結果が正しく取得できることを確認
             assert len(results) == task_count
-            assert all(isinstance(r, (int, float)) for r in results)
+            assert all(isinstance(r, int | float) for r in results)
 
             # 処理時間が合理的な範囲内であることを確認
             assert processing_time < 2.0, (

@@ -74,7 +74,7 @@ class TestAdvancedMemoryOptimizer:
         large_list = [list(range(1000)) for _ in range(100)]
 
         # GC実行前のオブジェクト数を記録
-        initial_objects = len(gc.get_objects())
+        len(gc.get_objects())
 
         # ガベージコレクション実行
         result = memory_optimizer._aggressive_garbage_collection()

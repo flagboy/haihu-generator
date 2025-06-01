@@ -20,6 +20,8 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
+import contextlib
+
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
 from .memory_optimizer import MemoryOptimizer
@@ -150,10 +152,8 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
                     if isinstance(obj, np.ndarray) and obj.nbytes > 1024 * 1024:  # 1MB以上
                         # 読み取り専用フラグを設定してメモリマップ化を促進
                         if obj.flags.writeable:
-                            try:
+                            with contextlib.suppress(Exception):
                                 obj.flags.writeable = False
-                            except:
-                                pass
 
                 # NumPyの内部キャッシュをクリア
                 if hasattr(np, "get_default_memory_pool"):
@@ -281,7 +281,7 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
         result = {"operation": "pool_cleanup", "pools_cleaned": 0, "memory_freed": 0}
 
         # カスタムメモリプールのクリーンアップ
-        for pool_name, pool in list(self._memory_pools.items()):
+        for _pool_name, pool in list(self._memory_pools.items()):
             try:
                 if hasattr(pool, "clear"):
                     pool.clear()

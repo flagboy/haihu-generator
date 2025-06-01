@@ -578,7 +578,7 @@ class SemiAutoLabeler(LoggerMixin):
             "avg_confidence": np.mean(confidence_scores) if confidence_scores else 0.0,
             "confidence_std": np.std(confidence_scores) if confidence_scores else 0.0,
             "unique_tile_types": len(tile_types),
-            "tile_types": sorted(list(tile_types)),
+            "tile_types": sorted(tile_types),
             "area_distribution": area_distribution,
             "high_confidence_frames": sum(1 for score in confidence_scores if score >= 0.8),
             "low_confidence_frames": sum(1 for score in confidence_scores if score < 0.5),

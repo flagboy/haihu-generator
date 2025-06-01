@@ -164,11 +164,11 @@ class DatasetManager(LoggerMixin):
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                for video_id, video_annotation in annotation_data.video_annotations.items():
+                for _video_id, video_annotation in annotation_data.video_annotations.items():
                     # 動画情報を保存
                     cursor.execute(
                         """
-                        INSERT OR REPLACE INTO videos 
+                        INSERT OR REPLACE INTO videos
                         (id, name, path, duration, fps, width, height, created_at, updated_at, metadata)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
@@ -197,7 +197,7 @@ class DatasetManager(LoggerMixin):
                         cursor.execute(
                             """
                             INSERT OR REPLACE INTO frames
-                            (id, video_id, image_path, timestamp, width, height, quality_score, 
+                            (id, video_id, image_path, timestamp, width, height, quality_score,
                              is_valid, scene_type, game_phase, annotated_at, annotator, notes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,

@@ -240,7 +240,7 @@ tiles:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             out = cv2.VideoWriter(video_path, fourcc, 1.0, (320, 240))
 
-            for j in range(5):
+            for _j in range(5):
                 frame = np.random.randint(0, 255, (240, 320, 3), dtype=np.uint8)
                 out.write(frame)
 
@@ -450,7 +450,7 @@ directories:
             out = cv2.VideoWriter(video_path, fourcc, 2.0, (640, 480))
 
             # 50フレームの動画を作成
-            for i in range(50):
+            for _i in range(50):
                 frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
                 out.write(frame)
 

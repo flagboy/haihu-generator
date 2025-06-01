@@ -219,7 +219,7 @@ directories:
             output_path = os.path.join(temp_dir, "test_output.json")
 
             # 処理実行
-            result = system_integrator.process_video_complete(
+            system_integrator.process_video_complete(
                 video_path=video_path, output_path=output_path
             )
 

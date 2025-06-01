@@ -69,12 +69,12 @@ directories:
         out = cv2.VideoWriter(path, fourcc, fps, resolution)
 
         total_frames = duration_seconds * fps
-        for i in range(total_frames):
+        for _i in range(total_frames):
             # 複雑なフレームを生成（処理負荷をシミュレート）
             frame = np.random.randint(0, 255, (resolution[1], resolution[0], 3), dtype=np.uint8)
 
             # 麻雀牌のような矩形を追加
-            for j in range(10):
+            for _j in range(10):
                 x = np.random.randint(0, resolution[0] - 100)
                 y = np.random.randint(0, resolution[1] - 150)
                 color = (
@@ -245,7 +245,7 @@ directories:
 
         # 大量のデータを作成してメモリ負荷をシミュレート
         large_arrays = []
-        for i in range(10):
+        for _i in range(10):
             # 100MB相当のデータを作成
             array = np.random.random((1000, 1000, 10)).astype(np.float32)
             large_arrays.append(array)
@@ -288,7 +288,7 @@ directories:
 
         # 複数スレッドでCPU負荷を生成
         threads = []
-        for i in range(2):
+        for _i in range(2):
             thread = threading.Thread(target=cpu_intensive_task)
             threads.append(thread)
             thread.start()
@@ -411,7 +411,7 @@ directories:
             assert memory_limit == 1024  # 1GB = 1024MB
 
             # 現在のメモリ使用量
-            current_memory = memory_optimizer.get_memory_usage()
+            memory_optimizer.get_memory_usage()
 
             # メモリ制限チェック
             is_within_limit = memory_optimizer.is_within_memory_limit()

@@ -127,12 +127,12 @@ class SystemBenchmark:
             out = cv2.VideoWriter(path, fourcc, fps, resolution)
 
             total_frames = duration_seconds * fps
-            for i in range(total_frames):
+            for _i in range(total_frames):
                 # 複雑なフレームを生成
                 frame = np.random.randint(0, 255, (resolution[1], resolution[0], 3), dtype=np.uint8)
 
                 # 麻雀牌のような矩形を追加
-                for j in range(20):
+                for _j in range(20):
                     x = np.random.randint(0, resolution[0] - 100)
                     y = np.random.randint(0, resolution[1] - 150)
                     color = (
@@ -333,13 +333,13 @@ class SystemBenchmark:
             # CPU集約的な処理
             def cpu_intensive_task(iterations: int) -> int:
                 result = 0
-                for i in range(iterations):
+                for _i in range(iterations):
                     result += sum(range(1000))
                 return result
 
             # シングルスレッド性能
             single_start = time.time()
-            single_result = cpu_intensive_task(10000)
+            cpu_intensive_task(10000)
             single_time = time.time() - single_start
 
             # マルチスレッド性能
@@ -347,7 +347,7 @@ class SystemBenchmark:
             threads = []
             thread_count = psutil.cpu_count()
 
-            for i in range(thread_count):
+            for _i in range(thread_count):
                 thread = threading.Thread(target=cpu_intensive_task, args=(10000 // thread_count,))
                 threads.append(thread)
                 thread.start()
@@ -413,7 +413,7 @@ class SystemBenchmark:
             chunk_size = 1024 * 1024  # 1MB chunks
 
             with open(test_file, "wb") as f:
-                for i in range(data_size_mb):
+                for _i in range(data_size_mb):
                     data = np.random.bytes(chunk_size)
                     f.write(data)
 

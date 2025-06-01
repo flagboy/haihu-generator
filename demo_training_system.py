@@ -313,7 +313,7 @@ def demo_integration():
 
         # 4. 半自動ラベリング
         logger.info("4. 半自動ラベリング")
-        semi_auto_labeler = demo_semi_auto_labeler()
+        demo_semi_auto_labeler()
 
         # 5. 全体統計
         logger.info("5. 全体統計")

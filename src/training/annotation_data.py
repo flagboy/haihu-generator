@@ -214,7 +214,7 @@ class VideoAnnotation:
         for frame in annotated:
             all_tiles.extend(frame.tiles)
 
-        tile_types = list(set(tile.tile_id for tile in all_tiles))
+        tile_types = list({tile.tile_id for tile in all_tiles})
 
         area_counts = {}
         for tile in all_tiles:
@@ -446,7 +446,7 @@ class AnnotationData(LoggerMixin):
             )
 
         # 統計値を計算
-        total_stats["all_tile_types"] = sorted(list(total_stats["all_tile_types"]))
+        total_stats["all_tile_types"] = sorted(total_stats["all_tile_types"])
         total_stats["annotation_ratio"] = (
             total_stats["total_annotated_frames"] / total_stats["total_frames"]
             if total_stats["total_frames"] > 0

@@ -257,7 +257,7 @@ class TestTenhouOptimization:
         try:
             result = self.formatter.format_game_data(None)
             # エラーが発生するはず
-            assert False, "エラーが発生すべき"
+            raise AssertionError("エラーが発生すべき")
         except Exception:
             # 期待される動作
             pass
@@ -320,7 +320,7 @@ class TestTenhouOptimization:
 
         # 複数スレッドで同時実行
         threads = []
-        for i in range(3):
+        for _i in range(3):
             thread = threading.Thread(target=format_data)
             threads.append(thread)
             thread.start()

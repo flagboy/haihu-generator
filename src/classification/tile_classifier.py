@@ -31,7 +31,7 @@ class TileClassificationCNN(nn.Module):
     """麻雀牌分類用CNNモデル"""
 
     def __init__(self, num_classes: int = 37):
-        super(TileClassificationCNN, self).__init__()
+        super().__init__()
 
         # 特徴抽出層
         self.features = nn.Sequential(
@@ -98,7 +98,7 @@ class ResNetBlock(nn.Module):
     """ResNetブロック"""
 
     def __init__(self, in_channels, out_channels, stride=1):
-        super(ResNetBlock, self).__init__()
+        super().__init__()
 
         self.conv1 = nn.Conv2d(
             in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
@@ -128,7 +128,7 @@ class TileResNet(nn.Module):
     """麻雀牌分類用ResNetモデル"""
 
     def __init__(self, num_classes: int = 37):
-        super(TileResNet, self).__init__()
+        super().__init__()
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -272,10 +272,9 @@ class TileClassifier:
         Returns:
             分類結果
         """
-        if self.model is None:
-            if not self.load_model():
-                self.logger.error("Model not loaded")
-                return ClassificationResult("unknown", 0.0, -1, {})
+        if self.model is None and not self.load_model():
+            self.logger.error("Model not loaded")
+            return ClassificationResult("unknown", 0.0, -1, {})
 
         try:
             # 画像前処理
@@ -327,10 +326,9 @@ class TileClassifier:
         if not images:
             return []
 
-        if self.model is None:
-            if not self.load_model():
-                self.logger.error("Model not loaded")
-                return [ClassificationResult("unknown", 0.0, -1, {}) for _ in images]
+        if self.model is None and not self.load_model():
+            self.logger.error("Model not loaded")
+            return [ClassificationResult("unknown", 0.0, -1, {}) for _ in images]
 
         try:
             # バッチ用テンソルを準備
@@ -491,9 +489,8 @@ class TileClassifier:
         Returns:
             特徴量ベクトル
         """
-        if self.model is None:
-            if not self.load_model():
-                return np.array([])
+        if self.model is None and not self.load_model():
+            return np.array([])
 
         try:
             # 画像前処理

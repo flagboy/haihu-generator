@@ -114,7 +114,7 @@ class TestStatisticsCollector:
         assert len(tile_dist) > 0
 
         # 各牌種の統計情報を確認
-        for tile_type, tile_stats in tile_dist.items():
+        for _tile_type, tile_stats in tile_dist.items():
             assert "count" in tile_stats
             assert "average_confidence" in tile_stats
             assert "frequency" in tile_stats

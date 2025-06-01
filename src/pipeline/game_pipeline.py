@@ -248,7 +248,7 @@ class GamePipeline:
         for pos_str, tiles in player_hands.items():
             try:
                 # プレイヤー位置の検証
-                pos = PlayerPosition(int(pos_str))
+                PlayerPosition(int(pos_str))
 
                 # 牌の検証
                 valid_tiles = [tile for tile in tiles if self.tile_definitions.is_valid_tile(tile)]
@@ -269,7 +269,7 @@ class GamePipeline:
         for pos_str, tiles in discarded_tiles.items():
             try:
                 # プレイヤー位置の検証
-                pos = PlayerPosition(int(pos_str))
+                PlayerPosition(int(pos_str))
 
                 # 牌の検証
                 valid_tiles = [tile for tile in tiles if self.tile_definitions.is_valid_tile(tile)]

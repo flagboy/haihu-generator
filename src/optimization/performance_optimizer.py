@@ -353,7 +353,7 @@ class PerformanceOptimizer:
         """CPU使用率を最適化"""
         try:
             # 並列処理数を調整
-            cpu_count = mp.cpu_count()
+            mp.cpu_count()
             current_workers = self.optimization_config["max_workers"]
 
             # CPU使用率が高い場合は並列数を減らす

@@ -750,7 +750,7 @@ class ModelEvaluator(LoggerMixin):
                 <p><strong>モデルタイプ:</strong> {model_type}</p>
                 <p><strong>評価日時:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
             </div>
-            
+
             <div class="section">
                 <h2>評価メトリクス</h2>
                 <table class="metrics-table">
@@ -857,10 +857,7 @@ class ModelEvaluator(LoggerMixin):
 
         if all_metrics:
             # 最良モデルを決定
-            if model_type == "classification":
-                best_metric = "accuracy"
-            else:
-                best_metric = "mean_iou"
+            best_metric = "accuracy" if model_type == "classification" else "mean_iou"
 
             best_model = max(all_metrics.items(), key=lambda x: x[1].get(best_metric, 0))
             comparison_results["best_model"] = {

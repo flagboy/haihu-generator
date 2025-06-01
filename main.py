@@ -93,7 +93,7 @@ class MahjongSystemApp:
         """必要なディレクトリを作成"""
         directories = self.config_manager.get_config().get("directories", {})
 
-        for dir_type, dir_path in directories.items():
+        for _dir_type, dir_path in directories.items():
             Path(dir_path).mkdir(parents=True, exist_ok=True)
             self.logger.debug(f"Created directory: {dir_path}")
 
@@ -311,16 +311,16 @@ def create_parser() -> argparse.ArgumentParser:
 使用例:
   # 単一動画を処理（天鳳JSON形式で出力）
   python main.py process video.mp4
-  
+
   # バッチ処理（天鳳JSON形式で出力）
   python main.py batch input_dir output_dir
-  
+
   # 牌譜検証
   python main.py validate record.json
-  
+
   # システム最適化
   python main.py optimize
-  
+
   # システム状態確認
   python main.py status
         """,

@@ -41,7 +41,7 @@ class ConfigManager:
     def _ensure_directories(self):
         """必要なディレクトリを作成"""
         directories = self.get("directories", {})
-        for dir_name, dir_path in directories.items():
+        for _dir_name, dir_path in directories.items():
             Path(dir_path).mkdir(parents=True, exist_ok=True)
 
     def get(self, key: str, default: Any = None) -> Any:
