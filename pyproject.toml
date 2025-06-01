@@ -13,40 +13,22 @@ authors = [
 ]
 keywords = ["mahjong", "ai", "computer-vision", "game-analysis", "tenhou"]
 dependencies = [
-    "torch>=1.12.0,<2.0.0",
-    "torchvision>=0.13.0,<0.16.0", 
-    "opencv-python>=4.5.0",
-    "loguru>=0.7.3",
-    "matplotlib>=3.5.0",
-    "numpy<2",
-    "pandas>=2.2.3",
-    "pillow>=11.2.1",
-    "psutil>=7.0.0",
-    "pyyaml>=6.0.2",
-    "scikit-learn>=1.6.1",
-    "seaborn>=0.13.2",
-    "tqdm>=4.64.0",
-    "sqlalchemy>=1.4.0",
-    "flask>=2.2.0",
+    "loguru>=0.6.0",
+    "pyyaml>=6.0.0",
+    "tqdm>=4.62.0",
+    "flask>=2.0.0",
+    "numpy>=1.21.0",
+    "psutil>=5.8.0",
 ]
 
 [dependency-groups]
 dev = [
-    "poethepoet>=0.29.0",
-    "pytest>=8.3.3",
-    "pytest-cov>=5.0.0",
-    "pytest-xdist>=3.0.0",
-    "pytest-mock>=3.8.0",
-    "pytest-benchmark>=4.0.0",
-    "ruff>=0.7.1",
-    "mypy>=0.991",
+    "poethepoet>=0.20.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
     "bandit>=1.7.0",
-    "safety>=2.0.0",
-    "pre-commit>=3.5.0",
-]
-gpu = [
-    "torch>=1.12.0,<2.0.0",
-    "torchvision>=0.13.0,<0.16.0",
 ]
 docs = [
     "sphinx>=5.0.0",
@@ -63,12 +45,8 @@ Documentation = "https://flagboy.github.io/haihu-generator"
 [project.scripts]
 haihu = "src.main:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
-
-[tool.setuptools.package-data]
-"*" = ["*.yaml", "*.yml", "*.json", "*.txt"]
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 # Ruff configuration (replaces black, isort, flake8, pylint)
 [tool.ruff]

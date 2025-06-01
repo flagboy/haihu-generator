@@ -5,6 +5,4 @@
 
 from .tenhou_json_formatter import TenhouJsonFormatter
 
-__all__ = [
-    'TenhouJsonFormatter'
-]
+__all__ = ["TenhouJsonFormatter"]

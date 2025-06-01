@@ -466,14 +466,6 @@ class SystemIntegrator:
             ai_results=ai_results,
             game_results=game_results
         )
-                for round_data in data['rounds']:
-                    if 'actions' in round_data and isinstance(round_data['actions'], list):
-                        round_data['actions'] = self._merge_consecutive_actions(round_data['actions'])
-            
-            return data
-        except (TypeError, AttributeError):
-            # Mockオブジェクトなどでエラーが発生した場合は元のデータを返す
-            return data
     
     def _merge_consecutive_actions(self, actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """連続する同じアクションをマージ"""

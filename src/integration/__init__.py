@@ -5,6 +5,4 @@
 
 from .system_integrator import SystemIntegrator
 
-__all__ = [
-    'SystemIntegrator'
-]
+__all__ = ["SystemIntegrator"]
