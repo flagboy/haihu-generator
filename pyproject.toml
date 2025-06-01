@@ -7,7 +7,7 @@ name = "haihu-generator"
 version = "1.0.0"
 description = "AI-powered mahjong game analysis system for generating Tenhou JSON records"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 authors = [
     {name = "Haihu Generator Team"}
 ]
@@ -73,7 +73,7 @@ include = ["src*"]
 # Ruff configuration (replaces black, isort, flake8, pylint)
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -101,7 +101,7 @@ line-ending = "auto"
 
 # MyPy configuration
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
