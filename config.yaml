@@ -6,21 +6,21 @@ tenhou_json:
   format_version: "1.0"
   encoding: "utf-8"
   pretty_print: true
-  
+
   # 牌譜メタデータ
   metadata:
     include_timestamp: true
     include_player_names: true
     include_game_rules: true
     include_score_details: true
-  
+
   # 局面データ設定
   game_data:
     include_dora_indicators: true
     include_hand_states: true
     include_action_details: true
     include_timing_info: false  # パフォーマンス最適化のため無効
-  
+
   # 圧縮・最適化設定
   optimization:
     compress_redundant_data: true
@@ -34,7 +34,7 @@ video:
     fps: 1  # 1秒間に1フレーム抽出
     output_format: "jpg"
     quality: 95
-  
+
   # 前処理設定
   preprocessing:
     target_width: 1920
@@ -49,7 +49,7 @@ image:
     min_tile_size: 20  # 最小牌サイズ（ピクセル）
     max_tile_size: 200  # 最大牌サイズ（ピクセル）
     confidence_threshold: 0.5
-  
+
   # 前処理設定
   preprocessing:
     gaussian_blur_kernel: 3
@@ -92,7 +92,7 @@ ai:
     confidence_threshold: 0.5
     nms_threshold: 0.4
     input_size: [640, 640]
-    
+
   # 牌分類設定
   classification:
     model_type: "cnn"  # cnn または resnet
@@ -100,14 +100,14 @@ ai:
     confidence_threshold: 0.8
     input_size: [224, 224]
     num_classes: 37  # 34種類の牌 + 3種類の赤ドラ
-    
+
   # 学習設定
   training:
     batch_size: 32
     learning_rate: 0.001
     epochs: 100
     device: "auto"  # auto, cpu, cuda
-    
+
   # データ拡張設定
   augmentation:
     rotation_range: 15
@@ -120,7 +120,7 @@ training:
   # データベース設定
   database_path: "data/training/dataset.db"
   dataset_root: "data/training"
-  
+
   # フレーム抽出設定
   frame_extraction:
     min_quality_score: 0.6
@@ -128,14 +128,14 @@ training:
     frame_interval_seconds: 2.0
     diversity_threshold: 0.3
     output_dir: "data/training/extracted_frames"
-  
+
   # 半自動ラベリング設定
   semi_auto_labeling:
     confidence_threshold: 0.5
     auto_area_classification: true
     enable_occlusion_detection: true
     labeling_output_dir: "data/training/labeling"
-  
+
   # データセット管理設定
   dataset_management:
     max_versions: 10
@@ -150,14 +150,14 @@ performance:
     max_cache_size: "2GB"
     enable_garbage_collection: true
     gc_threshold: 1000
-  
+
   # 処理最適化
   processing:
     enable_parallel_processing: true
     max_workers: 4
     chunk_size: 100
     enable_batch_optimization: true
-  
+
   # I/O最適化
   io:
     buffer_size: 8192
@@ -170,7 +170,7 @@ system:
   memory_limit: "8GB"
   gpu_enabled: true  # フェーズ2で有効化
   output_format: "tenhou_json"  # 固定値：天鳳JSON形式
-  
+
   # パフォーマンス定数
   constants:
     min_tile_size: 10  # タイル画像の最小サイズ（ピクセル）
@@ -187,14 +187,14 @@ validation:
     invalid_structure: 10  # 構造エラー
     no_actions: 25     # アクションデータなし
     invalid_player_count: 20  # プレイヤー数エラー
-  
+
   # 品質スコアのしきい値
   quality_thresholds:
     excellent: 90
     good: 70
     acceptable: 50
     poor: 30
-  
+
   # 検証設定
   settings:
     skip_optional_fields: false

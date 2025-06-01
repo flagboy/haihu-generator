@@ -417,15 +417,15 @@ Response:
 ```python
 class SystemIntegrator:
     def process_video_complete(
-        self, 
-        video_path: str, 
+        self,
+        video_path: str,
         output_path: str,
         format_type: str = "tenhou_json",
         enable_optimization: bool = True,
         enable_validation: bool = True
     ) -> IntegrationResult:
         """動画を完全処理"""
-        
+
     def process_batch(
         self,
         video_files: List[str],
@@ -434,7 +434,7 @@ class SystemIntegrator:
         max_workers: int = None
     ) -> Dict[str, Any]:
         """バッチ処理"""
-        
+
     def get_system_info(self) -> Dict[str, Any]:
         """システム情報取得"""
 ```
@@ -445,17 +445,17 @@ class SystemIntegrator:
 class TrainingManager:
     def start_training(self, config: TrainingConfig) -> str:
         """学習開始"""
-        
+
     def continue_training(
-        self, 
-        base_session_id: str, 
+        self,
+        base_session_id: str,
         new_config: TrainingConfig
     ) -> str:
         """継続学習"""
-        
+
     def get_session_status(self, session_id: str) -> Dict[str, Any]:
         """学習状況取得"""
-        
+
     def compare_models(self, session_ids: List[str]) -> Dict[str, Any]:
         """モデル比較"""
 ```
@@ -544,7 +544,7 @@ system:
 
 web:
   debug: true
-  
+
 logging:
   level: "DEBUG"
 ```
@@ -559,7 +559,7 @@ system:
 
 web:
   debug: false
-  
+
 logging:
   level: "INFO"
 ```
@@ -705,7 +705,7 @@ python main.py status
 # GPU使用
 system:
   gpu_enabled: true
-  
+
 # 並列処理
 system:
   max_workers: 8  # CPU数に応じて調整
@@ -718,7 +718,7 @@ system:
 ai:
   training:
     batch_size: 16  # メモリ使用量に応じて調整
-    
+
 # フレーム制限
 video:
   frame_extraction:
@@ -732,7 +732,7 @@ video:
 video:
   frame_extraction:
     fps: 0.5  # 必要に応じて下げる
-    
+
 # 信頼度閾値調整
 ai:
   detection:
@@ -877,7 +877,7 @@ class NewTileDetector(TileDetector):
     def __init__(self, config_manager):
         super().__init__(config_manager)
         # 新しい実装
-        
+
     def detect_tiles(self, frame):
         # 新しい検出ロジック
         pass

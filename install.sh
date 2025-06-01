@@ -42,14 +42,14 @@ detect_system() {
     else
         SYSTEM="unknown"
     fi
-    
+
     log_info "検出されたシステム: $SYSTEM"
 }
 
 # システム依存関係のインストール
 install_system_dependencies() {
     log_info "システム依存関係をインストール中..."
-    
+
     case $SYSTEM in
         "ubuntu")
             sudo apt-get update
@@ -98,7 +98,7 @@ install_system_dependencies() {
                 log_info "Homebrew インストール: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
                 exit 1
             fi
-            
+
             brew update
             brew install python@3.9 opencv git wget
             ;;
@@ -106,14 +106,14 @@ install_system_dependencies() {
             log_warning "未対応のシステムです。手動で依存関係をインストールしてください。"
             ;;
     esac
-    
+
     log_success "システム依存関係のインストールが完了しました"
 }
 
 # Python仮想環境の作成
 create_virtual_environment() {
     log_info "Python仮想環境を作成中..."
-    
+
     if [ -d "venv" ]; then
         log_warning "既存の仮想環境が見つかりました。削除して再作成しますか? (y/N)"
         read -r response
@@ -124,30 +124,30 @@ create_virtual_environment() {
             return
         fi
     fi
-    
+
     python3 -m venv venv
     source venv/bin/activate
-    
+
     # pipのアップグレード
     pip install --upgrade pip
-    
+
     log_success "仮想環境の作成が完了しました"
 }
 
 # Python依存関係のインストール
 install_python_dependencies() {
     log_info "Python依存関係をインストール中..."
-    
+
     if [ ! -f "venv/bin/activate" ]; then
         log_error "仮想環境が見つかりません"
         exit 1
     fi
-    
+
     source venv/bin/activate
-    
+
     # 基本的な依存関係
     pip install -r requirements.txt
-    
+
     # 開発用依存関係（オプション）
     if [ "$1" == "--dev" ]; then
         log_info "開発用依存関係をインストール中..."
@@ -162,34 +162,34 @@ install_python_dependencies() {
             sphinx \
             sphinx-rtd-theme
     fi
-    
+
     log_success "Python依存関係のインストールが完了しました"
 }
 
 # ディレクトリ構造の作成
 create_directories() {
     log_info "ディレクトリ構造を作成中..."
-    
+
     mkdir -p data/input
     mkdir -p data/output
     mkdir -p data/temp
     mkdir -p logs
     mkdir -p models
-    
+
     # .gitkeepファイルの作成（既に存在する場合はスキップ）
     touch data/input/.gitkeep
     touch data/output/.gitkeep
     touch data/temp/.gitkeep
     touch logs/.gitkeep
     touch models/.gitkeep
-    
+
     log_success "ディレクトリ構造の作成が完了しました"
 }
 
 # 設定ファイルの初期化
 initialize_config() {
     log_info "設定ファイルを初期化中..."
-    
+
     if [ ! -f "config.yaml" ]; then
         log_warning "config.yamlが見つかりません。デフォルト設定を作成しますか? (Y/n)"
         read -r response
@@ -238,9 +238,9 @@ EOF
 # インストール検証
 verify_installation() {
     log_info "インストールを検証中..."
-    
+
     source venv/bin/activate
-    
+
     # Pythonモジュールのインポートテスト
     python -c "
 import sys
@@ -266,7 +266,7 @@ except ImportError as e:
 
 print('✓ インストール検証完了')
 "
-    
+
     if [ $? -eq 0 ]; then
         log_success "インストール検証が完了しました"
     else
@@ -303,19 +303,19 @@ install_gpu_support() {
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         log_info "GPU サポートをインストール中..."
-        
+
         source venv/bin/activate
-        
+
         # PyTorch GPU版
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-        
+
         # TensorFlow GPU版（オプション）
         log_info "TensorFlow GPU版もインストールしますか? (y/N)"
         read -r tf_response
         if [[ "$tf_response" =~ ^[Yy]$ ]]; then
             pip install tensorflow[and-cuda]
         fi
-        
+
         log_success "GPU サポートのインストールが完了しました"
     fi
 }
@@ -326,11 +326,11 @@ main() {
     echo "  麻雀牌譜作成システム インストーラー"
     echo "========================================"
     echo
-    
+
     # コマンドライン引数の解析
     DEV_MODE=false
     SKIP_SYSTEM=false
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             --dev)
@@ -356,32 +356,32 @@ main() {
                 ;;
         esac
     done
-    
+
     # システム検出
     detect_system
-    
+
     # インストール手順の実行
     if [ "$SKIP_SYSTEM" = false ]; then
         install_system_dependencies
     fi
-    
+
     create_virtual_environment
-    
+
     if [ "$DEV_MODE" = true ]; then
         install_python_dependencies --dev
     else
         install_python_dependencies
     fi
-    
+
     create_directories
     initialize_config
     verify_installation
-    
+
     # GPU サポート（オプション）
     install_gpu_support
-    
+
     show_usage
-    
+
     log_success "インストールが正常に完了しました！"
 }
 

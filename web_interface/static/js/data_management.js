@@ -19,13 +19,13 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeDataManagement() {
     // イベントリスナー設定
     setupEventListeners();
-    
+
     // データを読み込み
     loadInitialData();
-    
+
     // WebSocketイベント設定
     setupWebSocketEvents();
-    
+
     console.log('データ管理機能が初期化されました');
 }
 
@@ -36,24 +36,24 @@ function setupEventListeners() {
     // ファイルアップロード
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('video-file-input');
-    
+
     uploadArea.addEventListener('click', () => fileInput.click());
     uploadArea.addEventListener('dragover', onDragOver);
     uploadArea.addEventListener('dragleave', onDragLeave);
     uploadArea.addEventListener('drop', onDrop);
-    
+
     fileInput.addEventListener('change', onFileSelect);
-    
+
     // エクスポート形式選択
     document.querySelectorAll('.format-option').forEach(option => {
         option.addEventListener('click', onFormatSelect);
     });
-    
+
     // モーダルイベント
     document.getElementById('createVersionModal').addEventListener('show.bs.modal', onCreateVersionModalShow);
     document.getElementById('exportModal').addEventListener('show.bs.modal', onExportModalShow);
     document.getElementById('videoDetailModal').addEventListener('show.bs.modal', onVideoDetailModalShow);
-    
+
     // ボタンイベント
     document.getElementById('create-version-btn').addEventListener('click', createDatasetVersion);
     document.getElementById('start-export-btn').addEventListener('click', startExport);
@@ -68,11 +68,11 @@ function setupWebSocketEvents() {
     socket.on('frame_extraction_progress', function(data) {
         updateExtractionProgress(data);
     });
-    
+
     socket.on('export_progress', function(data) {
         updateExportProgress(data);
     });
-    
+
     socket.on('version_creation_progress', function(data) {
         updateVersionCreationProgress(data);
     });
@@ -84,18 +84,18 @@ function setupWebSocketEvents() {
 async function loadInitialData() {
     try {
         showLoading('データを読み込み中...');
-        
+
         // 動画一覧を読み込み
         await loadVideoList();
-        
+
         // データセット統計を読み込み
         await loadDatasetStatistics();
-        
+
         // データセットバージョンを読み込み
         await loadDatasetVersions();
-        
+
         hideLoading();
-        
+
     } catch (error) {
         console.error('初期データ読み込みエラー:', error);
         showNotification('データの読み込みに失敗しました', 'error');
@@ -110,9 +110,9 @@ async function loadVideoList() {
     try {
         const response = await apiRequest('/api/videos');
         uploadedVideos = response.videos || [];
-        
+
         displayVideoList(uploadedVideos);
-        
+
     } catch (error) {
         console.error('動画一覧読み込みエラー:', error);
         throw error;
@@ -124,7 +124,7 @@ async function loadVideoList() {
  */
 function displayVideoList(videos) {
     const container = document.getElementById('video-list');
-    
+
     if (videos.length === 0) {
         container.innerHTML = `
             <div class="text-center text-muted p-4">
@@ -137,9 +137,9 @@ function displayVideoList(videos) {
         `;
         return;
     }
-    
+
     container.innerHTML = '';
-    
+
     videos.forEach(video => {
         const item = createVideoListItem(video);
         container.appendChild(item);
@@ -152,11 +152,11 @@ function displayVideoList(videos) {
 function createVideoListItem(video) {
     const item = document.createElement('div');
     item.className = 'list-group-item';
-    
+
     item.innerHTML = `
         <div class="row align-items-center">
             <div class="col-md-3">
-                <img src="${video.thumbnail_path || '/static/images/video-placeholder.png'}" 
+                <img src="${video.thumbnail_path || '/static/images/video-placeholder.png'}"
                      class="video-thumbnail" alt="動画サムネイル">
             </div>
             <div class="col-md-6">
@@ -177,11 +177,11 @@ function createVideoListItem(video) {
                     <div class="fw-bold">${video.extracted_frames || 0}</div>
                 </div>
                 <div class="btn-group-vertical w-100">
-                    <button class="btn btn-sm btn-outline-primary" 
+                    <button class="btn btn-sm btn-outline-primary"
                             onclick="showVideoDetail('${video.id}')">
                         <i class="fas fa-eye"></i> 詳細
                     </button>
-                    <button class="btn btn-sm btn-outline-info" 
+                    <button class="btn btn-sm btn-outline-info"
                             onclick="extractFrames('${video.id}')">
                         <i class="fas fa-images"></i> フレーム抽出
                     </button>
@@ -189,7 +189,7 @@ function createVideoListItem(video) {
             </div>
         </div>
     `;
-    
+
     return item;
 }
 
@@ -199,11 +199,11 @@ function createVideoListItem(video) {
 async function loadDatasetStatistics() {
     try {
         const response = await apiRequest('/api/dataset/statistics');
-        
+
         document.getElementById('total-videos').textContent = formatNumber(response.video_count || 0);
         document.getElementById('total-frames').textContent = formatNumber(response.frame_count || 0);
         document.getElementById('total-annotations').textContent = formatNumber(response.tile_count || 0);
-        
+
     } catch (error) {
         console.error('データセット統計読み込みエラー:', error);
         throw error;
@@ -217,11 +217,11 @@ async function loadDatasetVersions() {
     try {
         const response = await apiRequest('/api/dataset/versions');
         datasetVersions = response;
-        
+
         document.getElementById('dataset-versions-count').textContent = formatNumber(datasetVersions.length);
-        
+
         displayDatasetVersions(datasetVersions);
-        
+
     } catch (error) {
         console.error('データセットバージョン読み込みエラー:', error);
         throw error;
@@ -233,7 +233,7 @@ async function loadDatasetVersions() {
  */
 function displayDatasetVersions(versions) {
     const container = document.getElementById('dataset-versions-container');
-    
+
     if (versions.length === 0) {
         container.innerHTML = `
             <div class="text-center text-muted py-4">
@@ -246,9 +246,9 @@ function displayDatasetVersions(versions) {
         `;
         return;
     }
-    
+
     container.innerHTML = '';
-    
+
     versions.forEach(version => {
         const card = createVersionCard(version);
         container.appendChild(card);
@@ -261,7 +261,7 @@ function displayDatasetVersions(versions) {
 function createVersionCard(version) {
     const card = document.createElement('div');
     card.className = 'col-md-4 mb-3';
-    
+
     card.innerHTML = `
         <div class="card dataset-version-card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -283,20 +283,20 @@ function createVersionCard(version) {
                         </div>
                     </div>
                 </div>
-                
+
                 ${version.description ? `
                     <div class="mb-3">
                         <small class="text-muted">説明</small>
                         <div class="small">${version.description}</div>
                     </div>
                 ` : ''}
-                
+
                 <div class="d-grid gap-2">
-                    <button class="btn btn-sm btn-outline-info" 
+                    <button class="btn btn-sm btn-outline-info"
                             onclick="exportVersion('${version.id}')">
                         <i class="fas fa-download"></i> エクスポート
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" 
+                    <button class="btn btn-sm btn-outline-danger"
                             onclick="deleteVersion('${version.id}')">
                         <i class="fas fa-trash"></i> 削除
                     </button>
@@ -304,7 +304,7 @@ function createVersionCard(version) {
             </div>
         </div>
     `;
-    
+
     return card;
 }
 
@@ -330,10 +330,10 @@ function onDragLeave(event) {
 function onDrop(event) {
     event.preventDefault();
     event.currentTarget.classList.remove('dragover');
-    
+
     const files = Array.from(event.dataTransfer.files);
     const videoFiles = files.filter(file => file.type.startsWith('video/'));
-    
+
     if (videoFiles.length > 0) {
         uploadFiles(videoFiles);
     } else {
@@ -366,13 +366,13 @@ async function uploadFiles(files) {
 async function uploadSingleFile(file) {
     const formData = new FormData();
     formData.append('video', file);
-    
+
     // 進捗表示を開始
     showUploadProgress(file.name);
-    
+
     try {
         const xhr = new XMLHttpRequest();
-        
+
         // 進捗イベント
         xhr.upload.addEventListener('progress', (event) => {
             if (event.lengthComputable) {
@@ -380,7 +380,7 @@ async function uploadSingleFile(file) {
                 updateUploadProgress(progress, `アップロード中: ${file.name}`);
             }
         });
-        
+
         // 完了イベント
         xhr.addEventListener('load', () => {
             if (xhr.status === 200) {
@@ -388,7 +388,7 @@ async function uploadSingleFile(file) {
                 if (response.success) {
                     updateUploadProgress(100, `完了: ${file.name}`);
                     showNotification(`${file.name} のアップロードが完了しました`, 'success');
-                    
+
                     // 自動フレーム抽出が有効な場合
                     const autoExtract = document.getElementById('auto-extract').checked;
                     if (autoExtract) {
@@ -396,7 +396,7 @@ async function uploadSingleFile(file) {
                             extractFramesFromUploadedVideo(response.video_info);
                         }, 1000);
                     }
-                    
+
                     // 動画一覧を更新
                     setTimeout(() => {
                         loadVideoList();
@@ -409,16 +409,16 @@ async function uploadSingleFile(file) {
                 throw new Error(`HTTP error! status: ${xhr.status}`);
             }
         });
-        
+
         // エラーイベント
         xhr.addEventListener('error', () => {
             throw new Error('ネットワークエラーが発生しました');
         });
-        
+
         // リクエスト送信
         xhr.open('POST', '/api/upload_video');
         xhr.send(formData);
-        
+
     } catch (error) {
         console.error('アップロードエラー:', error);
         showNotification(`${file.name} のアップロードに失敗しました: ${error.message}`, 'error');
@@ -434,7 +434,7 @@ function showUploadProgress(filename) {
     const progressBar = document.getElementById('upload-progress-bar');
     const progressText = document.getElementById('upload-progress-text');
     const statusText = document.getElementById('upload-status');
-    
+
     container.style.display = 'block';
     progressBar.style.width = '0%';
     progressText.textContent = '0%';
@@ -448,7 +448,7 @@ function updateUploadProgress(progress, status) {
     const progressBar = document.getElementById('upload-progress-bar');
     const progressText = document.getElementById('upload-progress-text');
     const statusText = document.getElementById('upload-status');
-    
+
     progressBar.style.width = `${progress}%`;
     progressText.textContent = `${Math.round(progress)}%`;
     statusText.textContent = status;
@@ -472,7 +472,7 @@ async function extractFramesFromUploadedVideo(videoInfo) {
         max_frames: parseInt(document.getElementById('max-frames').value),
         resize_width: parseInt(document.getElementById('resize-width').value)
     };
-    
+
     try {
         const response = await apiRequest('/api/extract_frames', {
             method: 'POST',
@@ -481,12 +481,12 @@ async function extractFramesFromUploadedVideo(videoInfo) {
                 config: config
             })
         });
-        
+
         if (response.session_id) {
             socket.emit('join_session', { session_id: response.session_id });
             showNotification('フレーム抽出を開始しました', 'info');
         }
-        
+
     } catch (error) {
         console.error('フレーム抽出エラー:', error);
         showNotification('フレーム抽出の開始に失敗しました', 'error');
@@ -513,7 +513,7 @@ async function showVideoDetail(videoId) {
     try {
         const response = await apiRequest(`/api/videos/${videoId}`);
         const video = response.video;
-        
+
         // 動画情報を設定
         document.getElementById('detail-filename').textContent = video.name;
         document.getElementById('detail-resolution').textContent = `${video.width}x${video.height}`;
@@ -521,22 +521,22 @@ async function showVideoDetail(videoId) {
         document.getElementById('detail-duration').textContent = formatDuration(video.duration);
         document.getElementById('detail-filesize').textContent = formatFileSize(video.file_size || 0);
         document.getElementById('detail-upload-time').textContent = formatDateTime(video.upload_time);
-        
+
         // 動画プレビューを設定
         const videoPreview = document.getElementById('video-preview');
         videoPreview.src = video.path;
-        
+
         // フレーム情報を読み込み
         await loadExtractedFramesInfo(videoId);
-        
+
         // モーダルにvideoIdを保存
         const modal = document.getElementById('videoDetailModal');
         modal.dataset.videoId = videoId;
-        
+
         // モーダルを表示
         const modalInstance = new bootstrap.Modal(modal);
         modalInstance.show();
-        
+
     } catch (error) {
         console.error('動画詳細読み込みエラー:', error);
         showNotification('動画詳細の読み込みに失敗しました', 'error');
@@ -550,9 +550,9 @@ async function loadExtractedFramesInfo(videoId) {
     try {
         const response = await apiRequest(`/api/videos/${videoId}/frames`);
         const frames = response.frames || [];
-        
+
         const container = document.getElementById('extracted-frames-info');
-        
+
         if (frames.length === 0) {
             container.innerHTML = '<div class="text-muted">抽出済みフレームはありません</div>';
         } else {
@@ -580,10 +580,10 @@ async function loadExtractedFramesInfo(videoId) {
                 </div>
             `;
         }
-        
+
     } catch (error) {
         console.error('フレーム情報読み込みエラー:', error);
-        document.getElementById('extracted-frames-info').innerHTML = 
+        document.getElementById('extracted-frames-info').innerHTML =
             '<div class="text-danger">フレーム情報の読み込みに失敗しました</div>';
     }
 }
@@ -594,7 +594,7 @@ async function loadExtractedFramesInfo(videoId) {
 function extractFrames(videoId) {
     const video = uploadedVideos.find(v => v.id === videoId);
     if (!video) return;
-    
+
     extractFramesFromUploadedVideo({
         filepath: video.path
     });
@@ -606,10 +606,10 @@ function extractFrames(videoId) {
 function extractFramesFromVideo() {
     const modal = document.getElementById('videoDetailModal');
     const videoId = modal.dataset.videoId;
-    
+
     if (videoId) {
         extractFrames(videoId);
-        
+
         // モーダルを閉じる
         const modalInstance = bootstrap.Modal.getInstance(modal);
         modalInstance.hide();
@@ -622,25 +622,25 @@ function extractFramesFromVideo() {
 async function deleteVideo() {
     const modal = document.getElementById('videoDetailModal');
     const videoId = modal.dataset.videoId;
-    
+
     if (!videoId) return;
-    
+
     if (confirm('この動画を削除しますか？関連するフレームとアノテーションも削除されます。')) {
         try {
             await apiRequest(`/api/videos/${videoId}`, {
                 method: 'DELETE'
             });
-            
+
             showNotification('動画を削除しました', 'success');
-            
+
             // モーダルを閉じる
             const modalInstance = bootstrap.Modal.getInstance(modal);
             modalInstance.hide();
-            
+
             // 動画一覧を更新
             await loadVideoList();
             await loadDatasetStatistics();
-            
+
         } catch (error) {
             console.error('動画削除エラー:', error);
             showNotification('動画の削除に失敗しました', 'error');
@@ -677,15 +677,15 @@ function onCreateVersionModalShow(event) {
 async function createDatasetVersion() {
     const form = document.getElementById('create-version-form');
     const formData = getFormData(form);
-    
+
     if (!formData['version-name']) {
         showNotification('バージョン名を入力してください', 'warning');
         return;
     }
-    
+
     try {
         showLoading('データセットバージョンを作成中...');
-        
+
         const response = await apiRequest('/api/dataset/create_version', {
             method: 'POST',
             body: JSON.stringify({
@@ -694,20 +694,20 @@ async function createDatasetVersion() {
                 include_all_data: formData['include-all-data']
             })
         });
-        
+
         if (response.version_id) {
             showNotification('データセットバージョンを作成しました', 'success');
-            
+
             // モーダルを閉じる
             const modal = bootstrap.Modal.getInstance(document.getElementById('createVersionModal'));
             modal.hide();
-            
+
             // バージョン一覧を更新
             await loadDatasetVersions();
         }
-        
+
         hideLoading();
-        
+
     } catch (error) {
         console.error('バージョン作成エラー:', error);
         showNotification('バージョンの作成に失敗しました', 'error');
@@ -730,14 +730,14 @@ function onExportModalShow(event) {
     // バージョン選択肢を更新
     const selector = document.getElementById('export-version-select');
     selector.innerHTML = '<option value="">選択してください...</option>';
-    
+
     datasetVersions.forEach(version => {
         const option = document.createElement('option');
         option.value = version.id;
         option.textContent = `${version.version} (${version.frame_count}フレーム)`;
         selector.appendChild(option);
     });
-    
+
     // フォーマット選択をリセット
     document.querySelectorAll('.format-option').forEach(option => {
         option.classList.remove('selected');
@@ -754,11 +754,11 @@ function onFormatSelect(event) {
     document.querySelectorAll('.format-option').forEach(option => {
         option.classList.remove('selected');
     });
-    
+
     // 新しい選択を設定
     event.currentTarget.classList.add('selected');
     selectedExportFormat = event.currentTarget.dataset.format;
-    
+
     // エクスポートボタンの有効/無効を更新
     updateExportButton();
 }
@@ -769,7 +769,7 @@ function onFormatSelect(event) {
 function updateExportButton() {
     const versionSelected = document.getElementById('export-version-select').value;
     const formatSelected = selectedExportFormat;
-    
+
     document.getElementById('start-export-btn').disabled = !(versionSelected && formatSelected);
 }
 
@@ -779,12 +779,12 @@ function updateExportButton() {
 async function startExport() {
     const versionId = document.getElementById('export-version-select').value;
     const outputDir = document.getElementById('export-output-dir').value;
-    
+
     if (!versionId || !selectedExportFormat) {
         showNotification('バージョンと形式を選択してください', 'warning');
         return;
     }
-    
+
     try {
         const response = await apiRequest('/api/dataset/export', {
             method: 'POST',
@@ -794,16 +794,16 @@ async function startExport() {
                 output_dir: outputDir || null
             })
         });
-        
+
         if (response.session_id) {
             socket.emit('join_session', { session_id: response.session_id });
             showNotification('エクスポートを開始しました', 'info');
-            
+
             // モーダルを閉じる
             const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
             modal.hide();
         }
-        
+
     } catch (error) {
         console.error('エクスポートエラー:', error);
         showNotification('エクスポートの開始に失敗しました', 'error');
@@ -824,18 +824,18 @@ function exportVersion(versionId) {
 async function deleteVersion(versionId) {
     const version = datasetVersions.find(v => v.id === versionId);
     if (!version) return;
-    
+
     if (confirm(`データセットバージョン "${version.version}" を削除しますか？`)) {
         try {
             await apiRequest(`/api/dataset/versions/${versionId}`, {
                 method: 'DELETE'
             });
-            
+
             showNotification('データセットバージョンを削除しました', 'success');
-            
+
             // バージョン一覧を更新
             await loadDatasetVersions();
-            
+
         } catch (error) {
             console.error('バージョン削除エラー:', error);
             showNotification('バージョンの削除に失敗しました', 'error');

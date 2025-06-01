@@ -74,7 +74,7 @@ output:
   file_extension: ".json"
   include_metadata: true
   validation_enabled: true
-  
+
 # 天鳳形式固有設定
 tenhou:
   rule_type: "hanchan"  # 東南戦
@@ -123,12 +123,12 @@ def process_video(self, video_path: str, output_path: Optional[str] = None,
                  enable_validation: bool = True) -> Dict[str, Any]:
     """
     動画を処理して天鳳JSON形式の牌譜を生成
-    
+
     Args:
         video_path: 入力動画パス
         output_path: 出力パス（Noneの場合は自動生成）
         enable_validation: 品質検証を有効にするか
-        
+
     Returns:
         処理結果
     """
@@ -148,12 +148,12 @@ def batch_process(self, input_directory: str, output_directory: str,
                  max_workers: int = None) -> Dict[str, Any]:
     """
     バッチ処理（天鳳JSON形式固定）
-    
+
     Args:
         input_directory: 入力ディレクトリ
         output_directory: 出力ディレクトリ
         max_workers: 最大並列数
-        
+
     Returns:
         バッチ処理結果
     """
@@ -167,12 +167,12 @@ def _generate_output_path(self, video_path: str, format_type: str) -> str:
     """出力パスを生成"""
     video_name = Path(video_path).stem
     output_dir = self.config_manager.get_config()['directories']['output']
-    
+
     if format_type.lower() == 'tenhou':
         extension = '.xml'
     else:
         extension = '.json'
-    
+
     return os.path.join(output_dir, f"{video_name}_record{extension}")
 ```
 
@@ -182,10 +182,10 @@ def _generate_output_path(self, video_path: str) -> str:
     """出力パスを生成（天鳳JSON形式固定）"""
     video_name = Path(video_path).stem
     output_dir = self.config_manager.get_config()['directories']['output']
-    
+
     # 天鳳JSON形式固定
     extension = '.json'
-    
+
     return os.path.join(output_dir, f"{video_name}_tenhou{extension}")
 ```
 
@@ -299,16 +299,16 @@ class TenhouGameData:
 
 class TenhouJsonFormatter:
     """天鳳JSON形式フォーマッター"""
-    
+
     def __init__(self, config_manager):
         self.config = config_manager.get_config()
         self.tenhou_config = self.config.get('tenhou', {})
-    
+
     def format_game_record(self, game_data: Any) -> str:
         """ゲームデータを天鳳JSON形式に変換"""
         tenhou_data = self._convert_to_tenhou_format(game_data)
         return json.dumps(tenhou_data, ensure_ascii=False, indent=2)
-    
+
     def _convert_to_tenhou_format(self, game_data: Any) -> Dict[str, Any]:
         """内部データ形式から天鳳形式に変換"""
         return {
@@ -317,24 +317,24 @@ class TenhouJsonFormatter:
             "rule": self._get_rule_settings(),
             "log": self._convert_game_log(game_data)
         }
-    
+
     def _generate_title(self, game_data: Any) -> List[str]:
         """タイトル情報を生成"""
         # 実装詳細
         pass
-    
+
     def _get_player_names(self) -> List[str]:
         """プレイヤー名を取得"""
-        return self.tenhou_config.get('player_names', 
+        return self.tenhou_config.get('player_names',
                                      ["プレイヤー1", "プレイヤー2", "プレイヤー3", "プレイヤー4"])
-    
+
     def _get_rule_settings(self) -> Dict[str, Any]:
         """ルール設定を取得"""
         return {
             "disp": self.tenhou_config.get('rule_type', '東南戦'),
             "aka": 1 if self.tenhou_config.get('aka_dora_enabled', True) else 0
         }
-    
+
     def _convert_game_log(self, game_data: Any) -> List[List[Dict[str, Any]]]:
         """ゲームログを天鳳形式に変換"""
         # 実装詳細

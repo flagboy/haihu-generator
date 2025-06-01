@@ -7,36 +7,36 @@
     .session-card {
         transition: all 0.3s ease;
     }
-    
+
     .session-card:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
-    
+
     .status-badge {
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
     }
-    
+
     .metrics-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         gap: 1rem;
     }
-    
+
     .metric-card {
         text-align: center;
         padding: 1rem;
         background: #f8f9fa;
         border-radius: 8px;
     }
-    
+
     .progress-ring {
         width: 60px;
         height: 60px;
         margin: 0 auto;
     }
-    
+
     .progress-ring circle {
         fill: transparent;
         stroke-width: 4;
@@ -44,7 +44,7 @@
         transform: rotate(-90deg);
         transform-origin: 50% 50%;
     }
-    
+
     .training-log {
         max-height: 300px;
         overflow-y: auto;
@@ -75,7 +75,7 @@
                         <label class="form-label">モデル名</label>
                         <input type="text" class="form-control" id="model-name" placeholder="例: tile_detector_v1" required>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">モデルタイプ</label>
                         <select class="form-select" id="model-type" required>
@@ -83,14 +83,14 @@
                             <option value="classification">分類</option>
                         </select>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">データセットバージョン</label>
                         <select class="form-select" id="dataset-version" required>
                             <option value="">選択してください...</option>
                         </select>
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-6">
                             <div class="mb-3">
@@ -105,12 +105,12 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">学習率</label>
                         <input type="number" class="form-control" id="learning-rate" value="0.001" step="0.0001" min="0.0001">
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-6">
                             <div class="mb-3">
@@ -125,7 +125,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="use-data-augmentation" checked>
@@ -134,7 +134,7 @@
                             </label>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="transfer-learning">
@@ -143,14 +143,14 @@
                             </label>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3" id="pretrained-model-group" style="display: none;">
                         <label class="form-label">事前学習済みモデル</label>
                         <select class="form-select" id="pretrained-model">
                             <option value="">選択してください...</option>
                         </select>
                     </div>
-                    
+
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-play me-2"></i>学習開始
@@ -258,7 +258,7 @@
                             </tr>
                         </table>
                     </div>
-                    
+
                     <!-- 設定情報 -->
                     <div class="col-md-6">
                         <h6>学習設定</h6>
@@ -286,7 +286,7 @@
                         </table>
                     </div>
                 </div>
-                
+
                 <!-- メトリクス -->
                 <div class="row mt-4">
                     <div class="col-12">
@@ -296,7 +296,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- 学習履歴グラフ -->
                 <div class="row mt-4">
                     <div class="col-12">
@@ -304,7 +304,7 @@
                         <canvas id="training-history-chart" height="100"></canvas>
                     </div>
                 </div>
-                
+
                 <!-- 学習ログ -->
                 <div class="row mt-4">
                     <div class="col-12">
@@ -351,11 +351,11 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <div id="comparison-results" style="display: none;">
                     <h6>比較結果</h6>
                     <canvas id="comparison-chart" height="100"></canvas>
-                    
+
                     <div class="table-responsive mt-3">
                         <table class="table table-striped">
                             <thead>
