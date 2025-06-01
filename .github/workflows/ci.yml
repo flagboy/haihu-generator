@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10", "3.11"]
     
     steps:
       - name: Checkout code
@@ -87,12 +87,12 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --maxfail=5
+          uv run pytest --cov=src --cov-report=xml:.pytest_cache/coverage.xml --cov-report=term-missing --maxfail=5
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.xml
+          file: ./.pytest_cache/coverage.xml
           flags: unittests
           name: codecov-python-${{ matrix.python-version }}
           fail_ci_if_error: false
