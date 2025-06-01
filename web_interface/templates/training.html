@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}学習管理 - 麻雀牌検出システム{% endblock %}
+
+{% block head %}
+<style>
+    .session-card {
+        transition: all 0.3s ease;
+    }
+    
+    .session-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+    }
+    
+    .metric-card {
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .progress-ring {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto;
+    }
+    
+    .progress-ring circle {
+        fill: transparent;
+        stroke-width: 4;
+        stroke-linecap: round;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+    }
+    
+    .training-log {
+        max-height: 300px;
+        overflow-y: auto;
+        background: #1e1e1e;
+        color: #fff;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        padding: 1rem;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 左側パネル: 学習設定・開始 -->
+    <div class="col-md-4">
+        <!-- 新規学習設定 -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-play me-2"></i>新規学習開始
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="training-config-form">
+                    <div class="mb-3">
+                        <label class="form-label">モデル名</label>
+                        <input type="text" class="form-control" id="model-name" placeholder="例: tile_detector_v1" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">モデルタイプ</label>
+                        <select class="form-select" id="model-type" required>
+                            <option value="detection">物体検出</option>
+                            <option value="classification">分類</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">データセットバージョン</label>
+                        <select class="form-select" id="dataset-version" required>
+                            <option value="">選択してください...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <label class="form-label">エポック数</label>
+                                <input type="number" class="form-control" id="epochs" value="100" min="1">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <label class="form-label">バッチサイズ</label>
+                                <input type="number" class="form-control" id="batch-size" value="32" min="1">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">学習率</label>
+                        <input type="number" class="form-control" id="learning-rate" value="0.001" step="0.0001" min="0.0001">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <label class="form-label">検証データ割合</label>
+                                <input type="number" class="form-control" id="validation-split" value="0.2" step="0.1" min="0.1" max="0.5">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <label class="form-label">テストデータ割合</label>
+                                <input type="number" class="form-control" id="test-split" value="0.1" step="0.1" min="0.1" max="0.3">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-data-augmentation" checked>
+                            <label class="form-check-label" for="use-data-augmentation">
+                                データ拡張を使用
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="transfer-learning">
+                            <label class="form-check-label" for="transfer-learning">
+                                転移学習を使用
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="pretrained-model-group" style="display: none;">
+                        <label class="form-label">事前学習済みモデル</label>
+                        <select class="form-select" id="pretrained-model">
+                            <option value="">選択してください...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-play me-2"></i>学習開始
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- データセット情報 -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-database me-2"></i>データセット情報
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="dataset-info" class="text-muted">
+                    データセットを選択してください
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 中央パネル: 学習セッション一覧 -->
+    <div class="col-md-8">
+        <!-- フィルター -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-list me-2"></i>学習セッション一覧
+                        </h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-6">
+                                <select class="form-select form-select-sm" id="status-filter">
+                                    <option value="">全ステータス</option>
+                                    <option value="running">実行中</option>
+                                    <option value="completed">完了</option>
+                                    <option value="failed">失敗</option>
+                                    <option value="stopped">停止</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-sm btn-outline-primary w-100" onclick="refreshSessions()">
+                                    <i class="fas fa-sync-alt"></i> 更新
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- セッション一覧 -->
+        <div id="sessions-container">
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                <div>学習セッションを読み込み中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 学習詳細モーダル -->
+<div class="modal fade" id="sessionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">学習セッション詳細</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- 基本情報 -->
+                    <div class="col-md-6">
+                        <h6>基本情報</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td>セッションID</td>
+                                <td id="detail-session-id">-</td>
+                            </tr>
+                            <tr>
+                                <td>モデル名</td>
+                                <td id="detail-model-name">-</td>
+                            </tr>
+                            <tr>
+                                <td>モデルタイプ</td>
+                                <td id="detail-model-type">-</td>
+                            </tr>
+                            <tr>
+                                <td>ステータス</td>
+                                <td id="detail-status">-</td>
+                            </tr>
+                            <tr>
+                                <td>開始時刻</td>
+                                <td id="detail-start-time">-</td>
+                            </tr>
+                            <tr>
+                                <td>終了時刻</td>
+                                <td id="detail-end-time">-</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- 設定情報 -->
+                    <div class="col-md-6">
+                        <h6>学習設定</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td>エポック数</td>
+                                <td id="detail-epochs">-</td>
+                            </tr>
+                            <tr>
+                                <td>バッチサイズ</td>
+                                <td id="detail-batch-size">-</td>
+                            </tr>
+                            <tr>
+                                <td>学習率</td>
+                                <td id="detail-learning-rate">-</td>
+                            </tr>
+                            <tr>
+                                <td>データ拡張</td>
+                                <td id="detail-data-augmentation">-</td>
+                            </tr>
+                            <tr>
+                                <td>転移学習</td>
+                                <td id="detail-transfer-learning">-</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- メトリクス -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6>学習メトリクス</h6>
+                        <div id="metrics-container" class="metrics-grid">
+                            <!-- メトリクスがここに表示される -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 学習履歴グラフ -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6>学習履歴</h6>
+                        <canvas id="training-history-chart" height="100"></canvas>
+                    </div>
+                </div>
+                
+                <!-- 学習ログ -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6>学習ログ</h6>
+                        <div id="training-log" class="training-log">
+                            ログを読み込み中...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-warning" id="stop-training-btn" style="display: none;">
+                    <i class="fas fa-stop"></i> 学習停止
+                </button>
+                <button type="button" class="btn btn-info" id="continue-training-btn" style="display: none;">
+                    <i class="fas fa-play"></i> 継続学習
+                </button>
+                <button type="button" class="btn btn-success" id="download-model-btn" style="display: none;">
+                    <i class="fas fa-download"></i> モデルダウンロード
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- モデル比較モーダル -->
+<div class="modal fade" id="compareModelsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">モデル比較</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h6>比較するモデルを選択</h6>
+                        <div id="model-selection-list">
+                            <!-- モデル選択チェックボックスがここに表示される -->
+                        </div>
+                        <button class="btn btn-primary mt-2" onclick="compareSelectedModels()">
+                            <i class="fas fa-chart-bar"></i> 比較実行
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="comparison-results" style="display: none;">
+                    <h6>比較結果</h6>
+                    <canvas id="comparison-chart" height="100"></canvas>
+                    
+                    <div class="table-responsive mt-3">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>モデル名</th>
+                                    <th>精度</th>
+                                    <th>損失</th>
+                                    <th>学習時間</th>
+                                    <th>パラメータ数</th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparison-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/training.js') }}"></script>
+{% endblock %}

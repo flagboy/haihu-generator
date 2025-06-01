@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}ラベリング - 麻雀牌検出システム{% endblock %}
+
+{% block head %}
+<style>
+    #canvas-container {
+        position: relative;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f8f9fa;
+    }
+    
+    #labeling-canvas {
+        cursor: crosshair;
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
+    
+    .bbox-overlay {
+        position: absolute;
+        border: 2px solid #007bff;
+        background: rgba(0, 123, 255, 0.1);
+        pointer-events: none;
+    }
+    
+    .bbox-selected {
+        border-color: #dc3545 !important;
+        background: rgba(220, 53, 69, 0.1) !important;
+    }
+    
+    .tile-selector {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .tile-button {
+        width: 60px;
+        height: 60px;
+        margin: 2px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .progress-indicator {
+        height: 4px;
+        background: #e9ecef;
+        border-radius: 2px;
+        overflow: hidden;
+    }
+    
+    .progress-bar-custom {
+        height: 100%;
+        background: linear-gradient(90deg, #007bff, #28a745);
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 左側パネル: 動画・フレーム選択 -->
+    <div class="col-md-3">
+        <!-- 動画選択 -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-video me-2"></i>動画選択
+                </h6>
+            </div>
+            <div class="card-body">
+                <select id="video-selector" class="form-select mb-2">
+                    <option value="">動画を選択...</option>
+                </select>
+                <div id="video-info" class="small text-muted" style="display: none;">
+                    <div>解像度: <span id="video-resolution">-</span></div>
+                    <div>FPS: <span id="video-fps">-</span></div>
+                    <div>時間: <span id="video-duration">-</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- フレーム一覧 -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-images me-2"></i>フレーム一覧
+                </h6>
+                <button id="extract-frames-btn" class="btn btn-sm btn-outline-primary" disabled>
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div id="frame-list" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted p-3">
+                        動画を選択してください
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 進捗情報 -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-chart-line me-2"></i>進捗情報
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <small class="text-muted">ラベリング進捗</small>
+                    <div class="progress-indicator">
+                        <div id="labeling-progress" class="progress-bar-custom" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted">
+                        <span id="labeled-count">0</span> / <span id="total-count">0</span> フレーム
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">総牌数: <span id="total-tiles">0</span></small>
+                </div>
+                <div>
+                    <button id="save-progress-btn" class="btn btn-sm btn-success w-100">
+                        <i class="fas fa-save me-1"></i>進捗保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 中央パネル: キャンバス -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-edit me-2"></i>ラベリングエリア
+                </h6>
+                <div class="btn-group btn-group-sm">
+                    <button id="zoom-in-btn" class="btn btn-outline-secondary">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <button id="zoom-out-btn" class="btn btn-outline-secondary">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <button id="zoom-reset-btn" class="btn btn-outline-secondary">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="canvas-container">
+                    <canvas id="labeling-canvas"></canvas>
+                </div>
+                
+                <!-- フレーム情報 -->
+                <div class="p-3 border-top">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                フレーム: <span id="current-frame-info">-</span>
+                            </small>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <small class="text-muted">
+                                座標: <span id="mouse-coordinates">-</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作パネル -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="btn-group w-100">
+                            <button id="prev-frame-btn" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-chevron-left"></i> 前
+                            </button>
+                            <button id="next-frame-btn" class="btn btn-outline-primary" disabled>
+                                次 <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="btn-group w-100">
+                            <button id="auto-label-btn" class="btn btn-outline-info">
+                                <i class="fas fa-magic"></i> 自動ラベリング
+                            </button>
+                            <button id="clear-labels-btn" class="btn btn-outline-danger">
+                                <i class="fas fa-trash"></i> クリア
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右側パネル: 牌選択・アノテーション -->
+    <div class="col-md-3">
+        <!-- 牌種類選択 -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-cube me-2"></i>牌種類選択
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="selected-tile-info" class="alert alert-info text-center mb-3" style="display: none;">
+                    選択中: <span id="selected-tile-name">-</span>
+                </div>
+                
+                <!-- 萬子 -->
+                <div class="mb-3">
+                    <h6 class="text-muted">萬子</h6>
+                    <div class="tile-selector">
+                        <button class="btn btn-outline-primary tile-button" data-tile="1m">1萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="2m">2萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="3m">3萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="4m">4萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="5m">5萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="6m">6萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="7m">7萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="8m">8萬</button>
+                        <button class="btn btn-outline-primary tile-button" data-tile="9m">9萬</button>
+                    </div>
+                </div>
+                
+                <!-- 筒子 -->
+                <div class="mb-3">
+                    <h6 class="text-muted">筒子</h6>
+                    <div class="tile-selector">
+                        <button class="btn btn-outline-success tile-button" data-tile="1p">1筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="2p">2筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="3p">3筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="4p">4筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="5p">5筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="6p">6筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="7p">7筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="8p">8筒</button>
+                        <button class="btn btn-outline-success tile-button" data-tile="9p">9筒</button>
+                    </div>
+                </div>
+                
+                <!-- 索子 -->
+                <div class="mb-3">
+                    <h6 class="text-muted">索子</h6>
+                    <div class="tile-selector">
+                        <button class="btn btn-outline-warning tile-button" data-tile="1s">1索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="2s">2索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="3s">3索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="4s">4索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="5s">5索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="6s">6索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="7s">7索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="8s">8索</button>
+                        <button class="btn btn-outline-warning tile-button" data-tile="9s">9索</button>
+                    </div>
+                </div>
+                
+                <!-- 字牌 -->
+                <div class="mb-3">
+                    <h6 class="text-muted">字牌</h6>
+                    <div class="tile-selector">
+                        <button class="btn btn-outline-danger tile-button" data-tile="1z">東</button>
+                        <button class="btn btn-outline-danger tile-button" data-tile="2z">南</button>
+                        <button class="btn btn-outline-danger tile-button" data-tile="3z">西</button>
+                        <button class="btn btn-outline-danger tile-button" data-tile="4z">北</button>
+                        <button class="btn btn-outline-danger tile-button" data-tile="5z">白</button>
+                        <button class="btn btn-outline-danger tile-button" data-tile="6z">發</button>
+                        <button class="btn btn-outline-danger tile-button" data-tile="7z">中</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 現在のアノテーション -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>現在のアノテーション
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="annotation-list" class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                    <div class="text-center text-muted p-3">
+                        アノテーションはありません
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- フレーム抽出モーダル -->
+<div class="modal fade" id="extractFramesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">フレーム抽出設定</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="extract-frames-form">
+                    <div class="mb-3">
+                        <label class="form-label">抽出間隔（秒）</label>
+                        <input type="number" class="form-control" id="interval-seconds" value="1.0" step="0.1" min="0.1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">品質閾値</label>
+                        <input type="number" class="form-control" id="quality-threshold" value="0.5" step="0.1" min="0" max="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">最大フレーム数</label>
+                        <input type="number" class="form-control" id="max-frames" value="1000" min="1">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" id="start-extraction-btn">抽出開始</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/labeling.js') }}"></script>
+{% endblock %}

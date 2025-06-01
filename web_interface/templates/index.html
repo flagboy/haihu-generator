@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}ホーム - 麻雀牌検出システム{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- システム概要 -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tachometer-alt me-2"></i>システム概要
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-video fa-2x mb-2"></i>
+                                <h6>動画数</h6>
+                                <h4 id="video-count">-</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-images fa-2x mb-2"></i>
+                                <h6>フレーム数</h6>
+                                <h4 id="frame-count">-</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-cube fa-2x mb-2"></i>
+                                <h6>牌アノテーション数</h6>
+                                <h4 id="tile-count">-</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-brain fa-2x mb-2"></i>
+                                <h6>学習セッション数</h6>
+                                <h4 id="session-count">-</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- クイックアクション -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt me-2"></i>クイックアクション
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('data_management') }}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>動画をアップロード
+                    </a>
+                    <a href="{{ url_for('labeling') }}" class="btn btn-success">
+                        <i class="fas fa-tags me-2"></i>ラベリングを開始
+                    </a>
+                    <a href="{{ url_for('training') }}" class="btn btn-info">
+                        <i class="fas fa-play me-2"></i>学習を開始
+                    </a>
+                    <button class="btn btn-warning" onclick="showModelEvaluation()">
+                        <i class="fas fa-chart-line me-2"></i>モデル評価
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近のアクティビティ -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>最近のアクティビティ
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="recent-activities" class="list-group list-group-flush">
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-spinner fa-spin me-2"></i>読み込み中...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 学習進捗 -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-area me-2"></i>学習進捗
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <canvas id="training-progress-chart" height="100"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <div id="active-training-sessions">
+                            <h6>実行中の学習セッション</h6>
+                            <div id="active-sessions-list">
+                                <div class="text-muted">実行中のセッションはありません</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- データセット統計 -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>牌種類別統計
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="tile-distribution-chart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- システム状態 -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-server me-2"></i>システム状態
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="text-center">
+                            <div class="text-success">
+                                <i class="fas fa-check-circle fa-2x"></i>
+                            </div>
+                            <small class="text-muted">データベース</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center">
+                            <div class="text-success">
+                                <i class="fas fa-check-circle fa-2x"></i>
+                            </div>
+                            <small class="text-muted">WebSocket</small>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-12">
+                        <small class="text-muted">最終更新: <span id="last-update">-</span></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let trainingProgressChart = null;
+let tileDistributionChart = null;
+
+// ページ読み込み時の初期化
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    initializeCharts();
+    
+    // 定期的にデータを更新
+    setInterval(loadDashboardData, 30000); // 30秒間隔
+});
+
+// ダッシュボードデータの読み込み
+async function loadDashboardData() {
+    try {
+        // データセット統計を取得
+        const statsResponse = await fetch('/api/dataset/statistics');
+        const stats = await statsResponse.json();
+        
+        // 統計情報を更新
+        document.getElementById('video-count').textContent = stats.video_count || 0;
+        document.getElementById('frame-count').textContent = stats.frame_count || 0;
+        document.getElementById('tile-count').textContent = stats.tile_count || 0;
+        
+        // 学習セッション数を取得
+        const sessionsResponse = await fetch('/api/training/sessions');
+        const sessions = await sessionsResponse.json();
+        document.getElementById('session-count').textContent = sessions.length || 0;
+        
+        // 最近のアクティビティを更新
+        updateRecentActivities(sessions);
+        
+        // アクティブな学習セッションを更新
+        updateActiveTrainingSessions(sessions);
+        
+        // 牌種類別統計を更新
+        updateTileDistributionChart(stats.tile_distribution || {});
+        
+        // 最終更新時刻を更新
+        document.getElementById('last-update').textContent = new Date().toLocaleString('ja-JP');
+        
+    } catch (error) {
+        console.error('ダッシュボードデータの読み込みエラー:', error);
+        showNotification('データの読み込みに失敗しました', 'error');
+    }
+}
+
+// チャートの初期化
+function initializeCharts() {
+    // 学習進捗チャート
+    const trainingCtx = document.getElementById('training-progress-chart').getContext('2d');
+    trainingProgressChart = new Chart(trainingCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: '損失',
+                data: [],
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                tension: 0.1
+            }, {
+                label: '精度',
+                data: [],
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // 牌種類別分布チャート
+    const tileCtx = document.getElementById('tile-distribution-chart').getContext('2d');
+    tileDistributionChart = new Chart(tileCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+// 最近のアクティビティを更新
+function updateRecentActivities(sessions) {
+    const container = document.getElementById('recent-activities');
+    container.innerHTML = '';
+    
+    if (sessions.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">アクティビティはありません</div>';
+        return;
+    }
+    
+    // 最新の5件を表示
+    const recentSessions = sessions.slice(0, 5);
+    
+    recentSessions.forEach(session => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item';
+        
+        const statusIcon = getStatusIcon(session.status);
+        const timeAgo = getTimeAgo(session.start_time);
+        
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="${statusIcon.icon} me-2 text-${statusIcon.color}"></i>
+                    <strong>${session.config.model_name}</strong> - ${session.config.model_type}
+                </div>
+                <small class="text-muted">${timeAgo}</small>
+            </div>
+            <small class="text-muted">状態: ${session.status}</small>
+        `;
+        
+        container.appendChild(item);
+    });
+}
+
+// アクティブな学習セッションを更新
+function updateActiveTrainingSessions(sessions) {
+    const container = document.getElementById('active-sessions-list');
+    const activeSessions = sessions.filter(s => s.status === 'running');
+    
+    if (activeSessions.length === 0) {
+        container.innerHTML = '<div class="text-muted">実行中のセッションはありません</div>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    activeSessions.forEach(session => {
+        const item = document.createElement('div');
+        item.className = 'card mb-2';
+        item.innerHTML = `
+            <div class="card-body p-2">
+                <small class="fw-bold">${session.config.model_name}</small>
+                <div class="progress mt-1" style="height: 5px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         style="width: ${session.current_progress?.progress || 0}%"></div>
+                </div>
+                <small class="text-muted">エポック: ${session.current_progress?.epoch || 0}/${session.config.epochs}</small>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+// 牌種類別分布チャートを更新
+function updateTileDistributionChart(distribution) {
+    if (!tileDistributionChart) return;
+    
+    const labels = Object.keys(distribution);
+    const data = Object.values(distribution);
+    
+    tileDistributionChart.data.labels = labels;
+    tileDistributionChart.data.datasets[0].data = data;
+    tileDistributionChart.update();
+}
+
+// ステータスアイコンを取得
+function getStatusIcon(status) {
+    switch (status) {
+        case 'running':
+            return { icon: 'fas fa-spinner fa-spin', color: 'primary' };
+        case 'completed':
+            return { icon: 'fas fa-check-circle', color: 'success' };
+        case 'failed':
+            return { icon: 'fas fa-times-circle', color: 'danger' };
+        case 'stopped':
+            return { icon: 'fas fa-stop-circle', color: 'warning' };
+        default:
+            return { icon: 'fas fa-question-circle', color: 'secondary' };
+    }
+}
+
+// 時間差を取得
+function getTimeAgo(timestamp) {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffMs = now - time;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffDays > 0) return `${diffDays}日前`;
+    if (diffHours > 0) return `${diffHours}時間前`;
+    if (diffMins > 0) return `${diffMins}分前`;
+    return '今';
+}
+
+// モデル評価表示
+function showModelEvaluation() {
+    showNotification('モデル評価機能は開発中です', 'info');
+}
+
+// WebSocketイベントリスナー
+socket.on('training_progress', function(data) {
+    console.log('学習進捗更新:', data);
+    // リアルタイムで学習進捗を更新
+    loadDashboardData();
+});
+
+socket.on('frame_extraction_progress', function(data) {
+    console.log('フレーム抽出進捗:', data);
+    showNotification(`フレーム抽出: ${data.message}`, 
+                    data.status === 'completed' ? 'success' : 
+                    data.status === 'failed' ? 'error' : 'info');
+});
+</script>
+{% endblock %}

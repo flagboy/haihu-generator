@@ -1,0 +1,29 @@
+# 基盤ライブラリ
+opencv-python==4.8.1.78
+numpy==1.24.3
+pillow==10.0.0
+pyyaml==6.0.1
+
+# 機械学習（フェーズ2で本格利用）
+torch==2.0.1
+torchvision==0.15.2
+ultralytics==8.0.196  # YOLOv8
+scikit-image==0.21.0
+matplotlib==3.7.2
+
+# データ処理
+pandas==2.0.3
+
+# 動画処理
+ffmpeg-python==0.2.0
+
+# ログ・設定
+loguru==0.7.0
+
+# テスト
+pytest==7.4.0
+pytest-cov==4.1.0
+
+# 開発ツール
+black==23.7.0
+flake8==6.0.0

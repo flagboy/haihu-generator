@@ -1,0 +1,294 @@
+version: '3.8'
+
+services:
+  # 本番用サービス
+  mahjong-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mahjong-system
+    volumes:
+      # データディレクトリをマウント
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+      - ./data/temp:/app/data/temp
+      - ./data/training:/app/data/training
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./web_interface/uploads:/app/web_interface/uploads
+      - ./web_interface/logs:/app/web_interface/logs
+      # 設定ファイルをマウント
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - GPU_ENABLED=0
+    ports:
+      - "5000:5000"  # Webインターフェース
+      - "8080:8080"  # API
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # リソース制限
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    networks:
+      - mahjong-network
+
+  # 開発用サービス
+  mahjong-system-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: mahjong-system-dev
+    volumes:
+      # 開発時はソースコードもマウント
+      - .:/app
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+      - ./data/temp:/app/data/temp
+      - ./data/training:/app/data/training
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./web_interface/uploads:/app/web_interface/uploads
+      - ./web_interface/logs:/app/web_interface/logs
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=DEBUG
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - GPU_ENABLED=0
+    ports:
+      - "5001:5000"  # 開発用Webインターフェース
+      - "8081:8080"  # 開発用API
+    command: ["python", "main.py", "status"]
+    profiles:
+      - dev
+    networks:
+      - mahjong-network
+
+  # GPU対応版
+  mahjong-system-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: gpu
+    container_name: mahjong-system-gpu
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - GPU_ENABLED=1
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+      - ./data/temp:/app/data/temp
+      - ./data/training:/app/data/training
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./web_interface/uploads:/app/web_interface/uploads
+      - ./web_interface/logs:/app/web_interface/logs
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "5002:5000"  # GPU用Webインターフェース
+      - "8082:8080"  # GPU用API
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - mahjong-network
+
+  # Webインターフェース専用サービス
+  web-interface:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mahjong-web-interface
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./web_interface/uploads:/app/web_interface/uploads
+      - ./web_interface/logs:/app/web_interface/logs
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - FLASK_ENV=production
+    ports:
+      - "5000:5000"
+    command: ["python", "web_interface/run.py"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - web
+    networks:
+      - mahjong-network
+
+  # データベース（将来的な拡張用）
+  database:
+    image: postgres:13
+    container_name: mahjong-database
+    environment:
+      - POSTGRES_DB=mahjong_system
+      - POSTGRES_USER=mahjong
+      - POSTGRES_PASSWORD=mahjong_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    profiles:
+      - database
+    networks:
+      - mahjong-network
+
+  # Redis（キャッシュ用）
+  redis:
+    image: redis:7-alpine
+    container_name: mahjong-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    profiles:
+      - cache
+    networks:
+      - mahjong-network
+
+  # 監視用サービス（Prometheus）
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mahjong-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    networks:
+      - mahjong-network
+
+  # 可視化用サービス（Grafana）
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mahjong-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    networks:
+      - mahjong-network
+
+  # ログ集約（ELK Stack - Elasticsearch）
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    container_name: mahjong-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    profiles:
+      - logging
+    networks:
+      - mahjong-network
+
+  # ログ集約（ELK Stack - Kibana）
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.0
+    container_name: mahjong-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    profiles:
+      - logging
+    networks:
+      - mahjong-network
+
+  # テスト実行用サービス
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: mahjong-test-runner
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=DEBUG
+    command: ["python", "-m", "pytest", "tests/", "-v", "--cov=src"]
+    profiles:
+      - test
+    networks:
+      - mahjong-network
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+
+networks:
+  mahjong-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

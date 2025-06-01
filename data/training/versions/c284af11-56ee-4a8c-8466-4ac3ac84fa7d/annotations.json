@@ -1,0 +1,103 @@
+{
+  "sample_video_001": {
+    "video_id": "sample_video_001",
+    "video_path": "data/sample/video_001.mp4",
+    "video_name": "サンプル動画1",
+    "duration": 120.0,
+    "fps": 30.0,
+    "width": 1920,
+    "height": 1080,
+    "frames": [
+      {
+        "frame_id": "frame_000",
+        "image_path": "data/sample/frames/frame_000.jpg",
+        "image_width": 1920,
+        "image_height": 1080,
+        "timestamp": 0.0,
+        "tiles": [
+          {
+            "tile_id": "1m",
+            "bbox": {
+              "x1": 100,
+              "y1": 200,
+              "x2": 140,
+              "y2": 260
+            },
+            "confidence": 0.95,
+            "area_type": "hand",
+            "is_face_up": true,
+            "is_occluded": false,
+            "occlusion_ratio": 0.0,
+            "annotator": "demo_system",
+            "notes": ""
+          },
+          {
+            "tile_id": "2m",
+            "bbox": {
+              "x1": 150,
+              "y1": 200,
+              "x2": 190,
+              "y2": 260
+            },
+            "confidence": 0.95,
+            "area_type": "hand",
+            "is_face_up": true,
+            "is_occluded": false,
+            "occlusion_ratio": 0.0,
+            "annotator": "demo_system",
+            "notes": ""
+          },
+          {
+            "tile_id": "3m",
+            "bbox": {
+              "x1": 200,
+              "y1": 200,
+              "x2": 240,
+              "y2": 260
+            },
+            "confidence": 0.95,
+            "area_type": "hand",
+            "is_face_up": true,
+            "is_occluded": false,
+            "occlusion_ratio": 0.0,
+            "annotator": "demo_system",
+            "notes": ""
+          },
+          {
+            "tile_id": "1p",
+            "bbox": {
+              "x1": 250,
+              "y1": 200,
+              "x2": 290,
+              "y2": 260
+            },
+            "confidence": 0.95,
+            "area_type": "hand",
+            "is_face_up": true,
+            "is_occluded": false,
+            "occlusion_ratio": 0.0,
+            "annotator": "demo_system",
+            "notes": ""
+          },
+          {
+            "tile_id": "2p",
+            "bbox": {
+              "x1": 300,
+              "y1": 200,
+              "x2": 340,
+              "y2": 260
+            },
+            "confidence": 0.95,
+            "area_type": "hand",
+            "is_face_up": true,
+            "is_occluded": false,
+            "occlusion_ratio": 0.0,
+            "annotator": "demo_system",
+            "notes": ""
+          }
+        ],
+        "quality_score": 0.9,
+        "is_valid": true,
+        "scene_type": "game",
+        "game_phase": "playing",
+        "annotated_at": 
