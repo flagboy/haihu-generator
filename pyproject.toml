@@ -1,10 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "m-haihu2"
-version = "0.1.0"
-description = "Add your description here"
+name = "haihu-generator"
+version = "1.0.0"
+description = "AI-powered mahjong game analysis system for generating Tenhou JSON records"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
+authors = [
+    {name = "Haihu Generator Team"}
+]
+keywords = ["mahjong", "ai", "computer-vision", "game-analysis", "tenhou"]
 dependencies = [
+    "torch>=1.12.0",
+    "torchvision>=0.13.0", 
+    "opencv-python>=4.5.0",
     "loguru>=0.7.3",
     "matplotlib>=3.10.3",
     "numpy<2",
@@ -14,4 +25,179 @@ dependencies = [
     "pyyaml>=6.0.2",
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
+    "tqdm>=4.64.0",
+    "sqlalchemy>=1.4.0",
+    "flask>=2.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "poethepoet>=0.29.0",
+    "pytest>=8.3.3",
+    "pytest-cov>=5.0.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-mock>=3.8.0",
+    "pytest-benchmark>=4.0.0",
+    "ruff>=0.7.1",
+    "mypy>=0.991",
+    "bandit>=1.7.0",
+    "safety>=2.0.0",
+    "pre-commit>=3.5.0",
+]
+gpu = [
+    "torch>=1.12.0+cu117",
+    "torchvision>=0.13.0+cu117",
+]
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=0.18.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/flagboy/haihu-generator"
+Repository = "https://github.com/flagboy/haihu-generator"
+Documentation = "https://flagboy.github.io/haihu-generator"
+"Bug Reports" = "https://github.com/flagboy/haihu-generator/issues"
+
+[project.scripts]
+haihu = "src.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json", "*.txt"]
+
+# Ruff configuration (replaces black, isort, flake8, pylint)
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "E203",  # whitespace before ':'
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "torchvision.*",
+    "cv2.*",
+    "PIL.*",
+    "sklearn.*",
+    "matplotlib.*",
+    "seaborn.*",
+    "loguru.*",
+    "sqlalchemy.*",
+    "flask.*",
+    "tqdm.*",
+]
+ignore_missing_imports = true
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/demo*.py",
+    "*/simple_demo.py",
+    "*/benchmark_system.py",
+]
+branch = true
+data_file = ".pytest_cache/.coverage"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\bProtocol\):",
+    "@(abc\.)?abstractmethod",
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+]
+ignore_errors = true
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = ".pytest_cache/coverage.xml"
+
+# Poethepoet tasks (like npm scripts)
+[tool.poe.tasks]
+lint = "ruff check ."
+test = "pytest"
+cover = "pytest --cov=src --cov-report xml --cov-report term-missing"
+fmt = "ruff format . --check"
+fmt-fix = "ruff format ."
+lint-fix = "ruff check . --fix"
+typecheck = "mypy src/"
+security = ["bandit -r src/ -f txt", "safety check"]
+build = ["fmt", "lint", "typecheck", "test"]
+dev = ["fmt-fix", "lint-fix"]
+
+# Bandit configuration
+[tool.bandit]
+exclude_dirs = [
+    "tests",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "data",
+    "models",
+    "logs"
+]
+skips = [
+    "B101",  # assert_used
+    "B601",  # paramiko_calls
+    "B602",  # subprocess_popen_with_shell_equals_true
 ]

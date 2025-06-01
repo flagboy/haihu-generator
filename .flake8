@@ -1,0 +1,38 @@
+[flake8]
+max-line-length = 100
+max-complexity = 10
+ignore = 
+    E203,  # whitespace before ':'
+    W503,  # line break before binary operator
+    E501,  # line too long (handled by black)
+    E731,  # do not assign a lambda expression, use a def
+    W504,  # line break after binary operator
+    F401,  # module imported but unused (in __init__.py files)
+    
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    .tox,
+    .eggs,
+    *.egg,
+    htmlcov,
+    .pytest_cache,
+    node_modules,
+    data,
+    models,
+    logs,
+    test_*
+
+per-file-ignores =
+    __init__.py:F401
+    tests/*:S101,S311
+    demo*.py:S311,S605
+    
+doctests = True
+statistics = True
+count = True
+show-source = True
