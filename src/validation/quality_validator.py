@@ -15,6 +15,7 @@ from pathlib import Path
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
 from ..utils.tile_definitions import TileDefinitions
+from ..utils.file_io import FileIOHelper
 
 
 class ValidationLevel(Enum):
@@ -77,6 +78,11 @@ class QualityValidator:
     
     def _load_validation_config(self) -> Dict[str, Any]:
         """検証設定を読み込み"""
+        # 設定ファイルから値を取得
+        config = self.config.get_config()
+        validation_config = config.get('validation', {})
+        quality_thresholds = validation_config.get('quality_thresholds', {})
+        
         return {
             'validation_level': ValidationLevel.STANDARD,
             'score_weights': {
@@ -86,15 +92,16 @@ class QualityValidator:
                 'consistency': 0.15
             },
             'thresholds': {
-                'pass_score': 70.0,
-                'good_score': 85.0,
-                'excellent_score': 95.0
+                'pass_score': quality_thresholds.get('acceptable', 70.0),
+                'good_score': quality_thresholds.get('good', 85.0),
+                'excellent_score': quality_thresholds.get('excellent', 95.0)
             },
             'tile_count_limits': {
                 'min_total_tiles': 50,
                 'max_total_tiles': 200,
                 'expected_hand_size': 13
-            }
+            },
+            'penalties': validation_config.get('penalties', {})
         }
     
     def _setup_validation_rules(self) -> Dict[str, Any]:
@@ -275,13 +282,12 @@ class QualityValidator:
                 self.logger.error(f"Record file not found: {record_path}")
                 return None
             
-            with open(file_path, 'r', encoding='utf-8') as f:
-                if file_path.suffix.lower() == '.json':
-                    return json.load(f)
-                else:
-                    # 天鳳JSON形式以外はサポート外
-                    self.logger.warning(f"Unsupported file format: {file_path.suffix}")
-                    return None
+            if file_path.suffix.lower() == '.json':
+                return FileIOHelper.load_json(file_path)
+            else:
+                # 天鳳JSON形式以外はサポート外
+                self.logger.warning(f"Unsupported file format: {file_path.suffix}")
+                return None
                     
         except Exception as e:
             self.logger.error(f"Failed to load record file: {e}")
@@ -306,7 +312,8 @@ class QualityValidator:
                         f"Missing required field: {field}",
                         suggestion=f"Add {field} field to record data"
                     ))
-                    score -= 20
+                    penalty = self.validation_config.get('penalties', {}).get('missing_field', 20)
+                    score -= penalty
             
             # データ型チェック
             if 'rounds' in record_data:
@@ -316,7 +323,8 @@ class QualityValidator:
                         "error",
                         "rounds field must be a list"
                     ))
-                    score -= 15
+                    penalty = self.validation_config.get('penalties', {}).get('wrong_type', 15)
+                    score -= penalty
                 else:
                     statistics['total_rounds'] = len(record_data['rounds'])
             
@@ -324,7 +332,8 @@ class QualityValidator:
             if validation_level in [ValidationLevel.STANDARD, ValidationLevel.STRICT]:
                 structure_issues = self._check_json_structure(record_data)
                 issues.extend(structure_issues)
-                score -= len(structure_issues) * 5
+                penalty = self.validation_config.get('penalties', {}).get('invalid_structure', 10)
+                score -= len(structure_issues) * penalty
             
             score = max(0, score)
             
@@ -361,7 +370,8 @@ class QualityValidator:
                         "warning",
                         f"Expected 4 players, found {len(players)}"
                     ))
-                    score -= 10
+                    penalty = self.validation_config.get('penalties', {}).get('invalid_player_count', 20)
+                    score -= penalty
                 
                 statistics['player_count'] = len(players)
             
@@ -374,7 +384,8 @@ class QualityValidator:
                         "error",
                         "No rounds found in record"
                     ))
-                    score -= 30
+                    penalty = self.validation_config.get('penalties', {}).get('no_rounds', 30)
+                    score -= penalty
                 elif len(rounds) > 20:
                     issues.append(ValidationIssue(
                         ValidationCategory.CONTENT,
@@ -666,8 +677,7 @@ class QualityValidator:
                 'timestamp': time.time()
             }
             
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(report_data, f, indent=2, ensure_ascii=False)
+            FileIOHelper.save_json(report_data, output_path, pretty=True)
             
             self.logger.info(f"Validation report exported to {output_path}")
             

@@ -4,7 +4,16 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(true)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(pytest:*)",
+      "Bash(source:*)",
+      "Bash(python -m pytest --cov=src --cov-report=term-missing --no-header 2 >& 1)",
+      "Bash(for module in action_detector change_analyzer history_manager model_manager player table turn record_validator logger)",
+      "Bash(do if ! grep -q \"$module\" tests/test_*.py tests/integration/test_*.py)",
+      "Bash(then echo \"Not tested: $module.py\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

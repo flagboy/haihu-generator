@@ -16,9 +16,13 @@ import numpy as np
 
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
+from ..utils.file_io import FileIOHelper
 from ..video.video_processor import VideoProcessor
 from ..pipeline.ai_pipeline import AIPipeline
 from ..pipeline.game_pipeline import GamePipeline
+from .orchestrator import VideoProcessingOrchestrator, ProcessingOptions, ProcessingResult
+from .result_processor import ResultProcessor
+from .statistics_collector import StatisticsCollector
 
 
 @dataclass
@@ -48,7 +52,7 @@ class IntegrationResult:
 
 
 class SystemIntegrator:
-    """システム統合クラス"""
+    """システム統合クラス - リファクタリング版"""
     
     def __init__(self, config_manager: ConfigManager,
                  video_processor: VideoProcessor,
@@ -71,6 +75,13 @@ class SystemIntegrator:
         self.ai_pipeline = ai_pipeline
         self.game_pipeline = game_pipeline
         
+        # リファクタリングされたコンポーネント
+        self.orchestrator = VideoProcessingOrchestrator(
+            config_manager, video_processor, ai_pipeline, game_pipeline
+        )
+        self.result_processor = ResultProcessor(config_manager)
+        self.statistics_collector = StatisticsCollector(config_manager)
+        
         # 統合設定
         self.integration_config = self._load_integration_config()
         
@@ -78,7 +89,7 @@ class SystemIntegrator:
         self.current_progress: Optional[ProcessingProgress] = None
         self.progress_callbacks: List[callable] = []
         
-        self.logger.info("SystemIntegrator initialized")
+        self.logger.info("SystemIntegrator initialized with refactored components")
     
     def _load_integration_config(self) -> Dict[str, Any]:
         """天鳳JSON形式特化の統合設定を読み込み"""
@@ -144,6 +155,7 @@ class SystemIntegrator:
                              enable_validation: bool = True) -> IntegrationResult:
         """
         動画を完全処理（天鳳JSON形式専用エンドツーエンド処理）
+        リファクタリング版：責務を分離したコンポーネントを使用
         
         Args:
             video_path: 入力動画パス
@@ -159,11 +171,20 @@ class SystemIntegrator:
         try:
             self.logger.info(f"Starting complete video processing: {video_path}")
             
-            # 1. 動画前処理とフレーム抽出
-            self._update_progress("動画前処理", 0.0)
+            # 処理オプションを設定
+            options = ProcessingOptions(
+                enable_optimization=enable_optimization,
+                enable_validation=enable_validation,
+                enable_gpu=self.integration_config.get('enable_gpu', True),
+                batch_size=self.integration_config.get('batch_size', 32),
+                max_workers=self.integration_config.get('max_workers', 4)
+            )
             
-            frames_result = self.video_processor.extract_frames(video_path)
-            if not frames_result['success']:
+            # 1. オーケストレーターで動画処理を実行
+            self._update_progress("動画処理実行中", 0.0)
+            processing_result = self.orchestrator.process_video(video_path, options)
+            
+            if not processing_result.success:
                 return IntegrationResult(
                     success=False,
                     output_path="",
@@ -172,74 +193,28 @@ class SystemIntegrator:
                     frame_count=0,
                     detection_count=0,
                     classification_count=0,
-                    error_messages=[f"Frame extraction failed: {frames_result.get('error', 'Unknown error')}"],
-                    warnings=[],
+                    error_messages=processing_result.errors,
+                    warnings=processing_result.warnings,
                     statistics={}
                 )
             
-            frames = frames_result['frames']
-            total_frames = len(frames)
+            # 2. 結果を天鳳JSON形式で保存
+            self._update_progress("天鳳JSON保存中", 70.0)
             
-            self.logger.info(f"Extracted {total_frames} frames")
-            self._update_progress("フレーム抽出完了", 10.0, 0, total_frames)
+            game_data = processing_result.game_data
+            metadata = {
+                'video_path': video_path,
+                'processing_time': processing_result.processing_time,
+                'frame_count': processing_result.frame_count,
+                'detected_tiles': processing_result.detected_tiles
+            }
             
-            # 2. AI処理（検出・分類）
-            self._update_progress("AI処理開始", 15.0)
+            self.result_processor.save_results(game_data, output_path, metadata)
             
-            ai_results = []
-            batch_size = self.integration_config['batch_size']
-            
-            for i in range(0, total_frames, batch_size):
-                batch_frames = frames[i:i + batch_size]
-                batch_start_frame = i
-                
-                # バッチ処理
-                batch_results = self.ai_pipeline.process_frames_batch(
-                    batch_frames, batch_start_frame
-                )
-                ai_results.extend(batch_results)
-                
-                # 進捗更新
-                processed_frames = min(i + batch_size, total_frames)
-                progress = 15.0 + (processed_frames / total_frames) * 50.0
-                processing_speed = processed_frames / (time.time() - start_time)
-                
-                self._update_progress(
-                    "AI処理中", progress, processed_frames, total_frames, processing_speed
-                )
-                
-                self.logger.debug(f"Processed batch {i//batch_size + 1}/{(total_frames + batch_size - 1)//batch_size}")
-            
-            self.logger.info(f"AI processing completed for {len(ai_results)} frames")
-            
-            # 3. ゲーム状態追跡
-            self._update_progress("ゲーム状態追跡", 70.0)
-            
-            # ゲームパイプラインを初期化
-            self.game_pipeline.initialize_game()
-            
-            # AI結果をゲーム状態に変換
-            game_results = []
-            for ai_result in ai_results:
-                frame_data = self._convert_ai_to_game_data(ai_result)
-                game_result = self.game_pipeline.process_frame(frame_data)
-                game_results.append(game_result)
-            
-            self._update_progress("ゲーム状態追跡完了", 85.0)
-            
-            # 4. 天鳳JSON牌譜生成
-            self._update_progress("天鳳JSON牌譜生成", 90.0)
-            
-            record_data = self.game_pipeline.export_tenhou_json_record()
-            
-            # 5. 天鳳JSON出力保存
-            self._update_progress("天鳳JSON出力保存", 95.0)
-            
-            self._save_tenhou_json_record(record_data, output_path)
-            
-            # 6. 品質検証（有効な場合）
+            # 3. 品質検証（有効な場合）
             quality_score = None
             if enable_validation:
+                self._update_progress("品質検証中", 85.0)
                 try:
                     from ..validation.quality_validator import QualityValidator
                     validator = QualityValidator(self.config)
@@ -247,9 +222,18 @@ class SystemIntegrator:
                     quality_score = validation_result.overall_score
                 except Exception as e:
                     self.logger.warning(f"Quality validation failed: {e}")
+                    processing_result.warnings.append(f"Quality validation failed: {e}")
             
-            # 統計情報収集
-            statistics = self._collect_statistics(ai_results, game_results)
+            # 4. 統計情報収集
+            self._update_progress("統計情報収集中", 95.0)
+            statistics = self.statistics_collector.collect_statistics(
+                processing_result,
+                ai_results=None,  # オーケストレーター内部で処理済み
+                game_results=game_data
+            )
+            
+            # 統計情報をエクスポート
+            self.result_processor.export_statistics(statistics, output_path)
             
             processing_time = time.time() - start_time
             
@@ -259,11 +243,11 @@ class SystemIntegrator:
                 output_path=output_path,
                 processing_time=processing_time,
                 quality_score=quality_score,
-                frame_count=total_frames,
-                detection_count=sum(len(r.detections) for r in ai_results),
-                classification_count=sum(len(r.classifications) for r in ai_results),
-                error_messages=[],
-                warnings=[],
+                frame_count=processing_result.frame_count,
+                detection_count=processing_result.detected_tiles,
+                classification_count=processing_result.detected_tiles,  # 検出と分類は同数
+                error_messages=processing_result.errors,
+                warnings=processing_result.warnings,
                 statistics=statistics
             )
             
@@ -440,48 +424,12 @@ class SystemIntegrator:
             }
     
     def _save_tenhou_json_record(self, record_data: Dict[str, Any], output_path: str) -> None:
-        """天鳳JSON牌譜データを保存"""
-        try:
-            # 天鳳JSON形式設定を取得（安全な方法）
-            tenhou_config = {}
-            pretty_print = True
-            
-            try:
-                tenhou_config = self.integration_config.get('tenhou_optimization', {})
-                pretty_print = self.config.get('tenhou_json.pretty_print', True)
-            except (AttributeError, TypeError):
-                # Mockオブジェクトの場合はデフォルト値を使用
-                pass
-            
-            # JSON出力設定
-            json_kwargs = {
-                'ensure_ascii': False,
-                'separators': (',', ':') if not pretty_print else (',', ': '),
-            }
-            
-            if pretty_print:
-                json_kwargs['indent'] = 2
-            
-            # 最適化処理（辞書型の場合のみ実行）
-            if isinstance(tenhou_config, dict):
-                if tenhou_config.get('remove_empty_fields', True):
-                    record_data = self._remove_empty_fields(record_data)
-                
-                if tenhou_config.get('compress_redundant_data', True):
-                    record_data = self._compress_redundant_data(record_data)
-            
-            # Mockオブジェクトを安全な形式に変換
-            safe_record_data = self._convert_mock_to_serializable(record_data)
-            
-            # ファイル保存
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(safe_record_data, f, **json_kwargs)
-            
-            self.logger.info(f"天鳳JSON牌譜を保存しました: {output_path}")
-            
-        except Exception as e:
-            self.logger.error(f"天鳳JSON牌譜の保存に失敗しました: {e}")
-            raise
+        """天鳳JSON牌譜データを保存 - リファクタリング版
+        
+        Note: このメソッドは互換性のために残されていますが、
+              実際の処理はResultProcessorに委譲されます。
+        """
+        self.result_processor.save_results(record_data, output_path)
     
     def _convert_mock_to_serializable(self, data: Any) -> Any:
         """MockオブジェクトをJSONシリアライズ可能な形式に変換"""
@@ -495,34 +443,29 @@ class SystemIntegrator:
         else:
             return data
     
-    def _remove_empty_fields(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """空のフィールドを削除"""
-        if not isinstance(data, dict):
-            return data
-        
-        try:
-            cleaned_data = {}
-            for key, value in data.items():
-                if isinstance(value, dict):
-                    cleaned_value = self._remove_empty_fields(value)
-                    if cleaned_value:  # 空でない場合のみ追加
-                        cleaned_data[key] = cleaned_value
-                elif isinstance(value, list):
-                    if value:  # 空でないリストのみ追加
-                        cleaned_data[key] = value
-                elif value is not None and value != "":  # None や空文字列でない場合のみ追加
-                    cleaned_data[key] = value
-            
-            return cleaned_data
-        except (TypeError, AttributeError):
-            # Mockオブジェクトなどでエラーが発生した場合は元のデータを返す
-            return data
+    # _remove_empty_fieldsメソッドはResultProcessorに移動済み
     
-    def _compress_redundant_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """冗長なデータを圧縮"""
-        try:
-            # 連続する同じアクションをマージ
-            if 'rounds' in data and isinstance(data['rounds'], list):
+    # _compress_redundant_dataメソッドはResultProcessorに移動済み
+    
+    def _collect_statistics(self, ai_results: List[Any], game_results: List[Any]) -> Dict[str, Any]:
+        """統計情報を収集 - リファクタリング版
+        
+        Note: このメソッドは互換性のために残されていますが、
+              実際の処理はStatisticsCollectorに委譲されます。
+        """
+        # ダミーのProcessingResultを作成
+        from .orchestrator import ProcessingResult
+        dummy_result = ProcessingResult(
+            success=True,
+            video_path="",
+            processing_time=0.0
+        )
+        
+        return self.statistics_collector.collect_statistics(
+            dummy_result,
+            ai_results=ai_results,
+            game_results=game_results
+        )
                 for round_data in data['rounds']:
                     if 'actions' in round_data and isinstance(round_data['actions'], list):
                         round_data['actions'] = self._merge_consecutive_actions(round_data['actions'])
@@ -655,7 +598,8 @@ class SystemIntegrator:
             total_frames = video_info['frame_count']
             
             # 経験的な処理速度（フレーム/秒）
-            estimated_fps = 2.0  # 保守的な推定
+            # 設定から推定FPSを取得
+            estimated_fps = self.config.get_config().get('system', {}).get('constants', {}).get('estimated_fps', 2.0)
             
             estimated_time = total_frames / estimated_fps
             

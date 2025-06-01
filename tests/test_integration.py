@@ -75,18 +75,20 @@ directories:
         
         # AIPipeline のモック
         ai_pipeline = Mock()
-        ai_pipeline.process_frames_batch.return_value = [
+        ai_result = Mock()
+        ai_result.frame_results = [
             Mock(
                 frame_id=i,
                 detections=[Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name='tile')],
                 classifications=[(Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name='tile'), 
-                                Mock(tile_name='1m', confidence=0.9, class_id=1))],
+                                Mock(label='1m', confidence=0.9, class_id=1))],
                 processing_time=0.1,
                 tile_areas={'hand_tiles': [Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name='tile')]},
                 confidence_scores={'combined_confidence': 0.85}
             )
             for i in range(5)
         ]
+        ai_pipeline.process_frames_batch.return_value = ai_result
         
         # GamePipeline のモック
         game_pipeline = Mock()
@@ -98,6 +100,29 @@ directories:
             confidence=0.8,
             processing_time=0.05
         )
+        game_pipeline.process_game_data.return_value = Mock(
+            get_statistics=lambda: {'rounds': 1, 'actions': 10},
+            to_tenhou_format=lambda: {
+                'title': '天鳳サンプル牌譜',
+                'players': [
+                    {'name': 'プレイヤー1', 'score': 25000},
+                    {'name': 'プレイヤー2', 'score': 25000},
+                    {'name': 'プレイヤー3', 'score': 25000},
+                    {'name': 'プレイヤー4', 'score': 25000}
+                ],
+                'rounds': [{'round_number': 0, 'actions': [['T0', '1m']]}]
+            }
+        )
+        game_pipeline.export_tenhou_json_record.return_value = {
+            'title': '天鳳サンプル牌譜',
+            'players': [
+                {'name': 'プレイヤー1', 'score': 25000},
+                {'name': 'プレイヤー2', 'score': 25000},
+                {'name': 'プレイヤー3', 'score': 25000},
+                {'name': 'プレイヤー4', 'score': 25000}
+            ],
+            'rounds': [{'round_number': 0, 'actions': [['T0', '1m']]}]
+        }
         game_pipeline.export_game_record.return_value = '{"game": "test_record"}'
         
         return video_processor, ai_pipeline, game_pipeline
@@ -115,6 +140,10 @@ directories:
         assert system_integrator.ai_pipeline is not None
         assert system_integrator.game_pipeline is not None
         assert system_integrator.integration_config is not None
+        # リファクタリングされたコンポーネントの確認
+        assert system_integrator.orchestrator is not None
+        assert system_integrator.result_processor is not None
+        assert system_integrator.statistics_collector is not None
     
     def test_complete_video_processing(self, system_integrator):
         """完全な動画処理テスト"""

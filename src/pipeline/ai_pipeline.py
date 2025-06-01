@@ -215,6 +215,9 @@ class AIPipeline:
         """検出結果から牌画像を切り出し"""
         tile_images = []
         
+        # 設定から最小タイルサイズを取得
+        min_tile_size = self.config.get_config().get('system', {}).get('constants', {}).get('min_tile_size', 10)
+        
         for detection in detections:
             x1, y1, x2, y2 = detection.bbox
             
@@ -229,7 +232,7 @@ class AIPipeline:
             tile_image = frame[y1:y2, x1:x2]
             
             # 最小サイズチェック
-            if tile_image.shape[0] > 10 and tile_image.shape[1] > 10:
+            if tile_image.shape[0] > min_tile_size and tile_image.shape[1] > min_tile_size:
                 tile_images.append(tile_image)
             else:
                 # サイズが小さすぎる場合はダミー画像

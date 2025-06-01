@@ -170,3 +170,33 @@ system:
   memory_limit: "8GB"
   gpu_enabled: true  # フェーズ2で有効化
   output_format: "tenhou_json"  # 固定値：天鳳JSON形式
+  
+  # パフォーマンス定数
+  constants:
+    min_tile_size: 10  # タイル画像の最小サイズ（ピクセル）
+    estimated_fps: 2.0  # 推定処理速度（フレーム/秒）
+    default_batch_size: 32  # デフォルトのバッチサイズ
+
+# 検証設定
+validation:
+  # 品質スコアのペナルティ値
+  penalties:
+    missing_field: 20  # 必須フィールド不足
+    wrong_type: 15     # 型エラー
+    no_rounds: 30      # ラウンドデータなし
+    invalid_structure: 10  # 構造エラー
+    no_actions: 25     # アクションデータなし
+    invalid_player_count: 20  # プレイヤー数エラー
+  
+  # 品質スコアのしきい値
+  quality_thresholds:
+    excellent: 90
+    good: 70
+    acceptable: 50
+    poor: 30
+  
+  # 検証設定
+  settings:
+    skip_optional_fields: false
+    strict_mode: false
+    log_validation_details: true

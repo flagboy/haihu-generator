@@ -16,6 +16,7 @@ from ..detection.tile_detector import TileDetector, DetectionResult
 from ..classification.tile_classifier import TileClassifier, ClassificationResult
 from ..utils.logger import LoggerMixin
 from ..utils.config import ConfigManager
+from ..utils.file_io import FileIOHelper
 
 
 class PredictionResult:
@@ -415,8 +416,9 @@ class SemiAutoLabeler(LoggerMixin):
             # 統計情報も保存
             stats = self._calculate_prediction_statistics(prediction_results)
             stats_path = self.predictions_dir / f"{output_name}_stats.json"
-            with open(stats_path, 'w', encoding='utf-8') as f:
-                json.dump(stats, f, ensure_ascii=False, indent=2, default=str)
+            # default=str to handle any non-serializable objects
+            stats_json = json.loads(json.dumps(stats, default=str))
+            FileIOHelper.save_json(stats_json, stats_path, pretty=True)
             
             self.logger.info(f"予測結果を保存: {output_path}")
             return True

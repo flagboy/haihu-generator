@@ -16,6 +16,7 @@ import uuid
 from .annotation_data import AnnotationData, VideoAnnotation, FrameAnnotation
 from ..utils.logger import LoggerMixin
 from ..utils.config import ConfigManager
+from ..utils.file_io import FileIOHelper
 
 
 class DatasetManager(LoggerMixin):
@@ -355,8 +356,9 @@ class DatasetManager(LoggerMixin):
             # 統計情報を保存
             stats = annotation_data.get_all_statistics()
             stats_path = version_dir / "statistics.json"
-            with open(stats_path, 'w', encoding='utf-8') as f:
-                json.dump(stats, f, ensure_ascii=False, indent=2, default=str)
+            # default=str to handle datetime objects
+            stats_json = json.loads(json.dumps(stats, default=str))
+            FileIOHelper.save_json(stats_json, stats_path, pretty=True)
             
             # チェックサムを計算
             checksum = self._calculate_checksum(annotation_path)
