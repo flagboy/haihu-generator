@@ -32,7 +32,9 @@
       "Bash(mkdir:*)",
       "Bash(cat:*)",
       "Bash(pre-commit:*)",
-      "Bash(uv lock:*)"
+      "Bash(uv lock:*)",
+      "Bash(uv pip list:*)",
+      "Bash(uv pip install:*)"
     ],
     "deny": []
   }

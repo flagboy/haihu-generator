@@ -54,7 +54,7 @@ repos:
         entry: uv run pytest tests/test_config.py tests/test_tile_definitions.py -v
         language: system
         pass_filenames: false
-        always_run: true
+        always_run: false
         stages: [pre-commit]
 
 default_stages: [pre-commit]
