@@ -44,16 +44,16 @@ function initializeLabeling() {
     // キャンバス初期化
     canvas = document.getElementById('labeling-canvas');
     ctx = canvas.getContext('2d');
-    
+
     // イベントリスナー設定
     setupEventListeners();
-    
+
     // 動画一覧を読み込み
     loadVideoList();
-    
+
     // WebSocketイベント設定
     setupWebSocketEvents();
-    
+
     console.log('ラベリング機能が初期化されました');
 }
 
@@ -63,37 +63,37 @@ function initializeLabeling() {
 function setupEventListeners() {
     // 動画選択
     document.getElementById('video-selector').addEventListener('change', onVideoSelect);
-    
+
     // 牌種類選択
     document.querySelectorAll('.tile-button').forEach(button => {
         button.addEventListener('click', onTileSelect);
     });
-    
+
     // キャンバスイベント
     canvas.addEventListener('mousedown', onCanvasMouseDown);
     canvas.addEventListener('mousemove', onCanvasMouseMove);
     canvas.addEventListener('mouseup', onCanvasMouseUp);
     canvas.addEventListener('wheel', onCanvasWheel);
     canvas.addEventListener('contextmenu', e => e.preventDefault());
-    
+
     // ズームボタン
     document.getElementById('zoom-in-btn').addEventListener('click', () => zoomCanvas(1.2));
     document.getElementById('zoom-out-btn').addEventListener('click', () => zoomCanvas(0.8));
     document.getElementById('zoom-reset-btn').addEventListener('click', resetZoom);
-    
+
     // フレーム移動ボタン
     document.getElementById('prev-frame-btn').addEventListener('click', () => navigateFrame(-1));
     document.getElementById('next-frame-btn').addEventListener('click', () => navigateFrame(1));
-    
+
     // 操作ボタン
     document.getElementById('auto-label-btn').addEventListener('click', performAutoLabeling);
     document.getElementById('clear-labels-btn').addEventListener('click', clearAllLabels);
     document.getElementById('save-progress-btn').addEventListener('click', saveProgress);
-    
+
     // フレーム抽出
     document.getElementById('extract-frames-btn').addEventListener('click', showExtractFramesModal);
     document.getElementById('start-extraction-btn').addEventListener('click', startFrameExtraction);
-    
+
     // キーボードショートカット
     document.addEventListener('keydown', onKeyDown);
 }
@@ -121,17 +121,17 @@ async function loadVideoList() {
     try {
         const response = await apiRequest('/api/videos');
         const videos = response.videos || [];
-        
+
         const selector = document.getElementById('video-selector');
         selector.innerHTML = '<option value="">動画を選択...</option>';
-        
+
         videos.forEach(video => {
             const option = document.createElement('option');
             option.value = video.id;
             option.textContent = video.name;
             selector.appendChild(option);
         });
-        
+
     } catch (error) {
         console.error('動画一覧の読み込みエラー:', error);
         showNotification('動画一覧の読み込みに失敗しました', 'error');
@@ -143,29 +143,29 @@ async function loadVideoList() {
  */
 async function onVideoSelect(event) {
     const videoId = event.target.value;
-    
+
     if (!videoId) {
         currentVideo = null;
         clearVideoInfo();
         clearFrameList();
         return;
     }
-    
+
     try {
         showLoading('動画情報を読み込み中...');
-        
+
         // 動画情報を取得
         const response = await apiRequest(`/api/videos/${videoId}`);
         currentVideo = response.video;
-        
+
         // 動画情報を表示
         displayVideoInfo(currentVideo);
-        
+
         // フレーム一覧を読み込み
         await loadFrameList(videoId);
-        
+
         hideLoading();
-        
+
     } catch (error) {
         console.error('動画選択エラー:', error);
         showNotification('動画情報の読み込みに失敗しました', 'error');
@@ -199,14 +199,14 @@ async function loadFrameList(videoId) {
     try {
         const response = await apiRequest(`/api/videos/${videoId}/frames`);
         frameList = response.frames || [];
-        
+
         displayFrameList(frameList);
         updateProgress();
-        
+
         if (frameList.length > 0) {
             loadFrame(0);
         }
-        
+
     } catch (error) {
         console.error('フレーム一覧の読み込みエラー:', error);
         showNotification('フレーム一覧の読み込みに失敗しました', 'error');
@@ -218,19 +218,19 @@ async function loadFrameList(videoId) {
  */
 function displayFrameList(frames) {
     const container = document.getElementById('frame-list');
-    
+
     if (frames.length === 0) {
         container.innerHTML = '<div class="text-center text-muted p-3">フレームがありません</div>';
         return;
     }
-    
+
     container.innerHTML = '';
-    
+
     frames.forEach((frame, index) => {
         const item = document.createElement('div');
         item.className = 'list-group-item list-group-item-action d-flex align-items-center';
         item.style.cursor = 'pointer';
-        
+
         const thumbnail = document.createElement('img');
         thumbnail.src = frame.thumbnail_path || frame.image_path;
         thumbnail.className = 'me-3';
@@ -238,30 +238,30 @@ function displayFrameList(frames) {
         thumbnail.style.height = '40px';
         thumbnail.style.objectFit = 'cover';
         thumbnail.style.borderRadius = '4px';
-        
+
         const info = document.createElement('div');
         info.className = 'flex-grow-1';
         info.innerHTML = `
             <div class="fw-bold">フレーム ${index + 1}</div>
             <small class="text-muted">
-                ${formatDuration(frame.timestamp)} 
+                ${formatDuration(frame.timestamp)}
                 ${frame.tiles ? `(${frame.tiles.length}牌)` : ''}
             </small>
         `;
-        
+
         const status = document.createElement('div');
         if (frame.tiles && frame.tiles.length > 0) {
             status.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
         } else {
             status.innerHTML = '<i class="fas fa-circle text-muted"></i>';
         }
-        
+
         item.appendChild(thumbnail);
         item.appendChild(info);
         item.appendChild(status);
-        
+
         item.addEventListener('click', () => loadFrame(index));
-        
+
         container.appendChild(item);
     });
 }
@@ -270,7 +270,7 @@ function displayFrameList(frames) {
  * フレーム一覧をクリア
  */
 function clearFrameList() {
-    document.getElementById('frame-list').innerHTML = 
+    document.getElementById('frame-list').innerHTML =
         '<div class="text-center text-muted p-3">動画を選択してください</div>';
     frameList = [];
     currentFrameIndex = -1;
@@ -281,11 +281,11 @@ function clearFrameList() {
  */
 async function loadFrame(index) {
     if (index < 0 || index >= frameList.length) return;
-    
+
     try {
         currentFrameIndex = index;
         currentFrame = frameList[index];
-        
+
         // フレーム画像を読み込み
         const img = new Image();
         img.onload = function() {
@@ -296,13 +296,13 @@ async function loadFrame(index) {
             updateNavigationButtons();
         };
         img.src = currentFrame.image_path;
-        
+
         // アノテーションを読み込み
         await loadAnnotations(currentFrame.id);
-        
+
         // フレーム一覧のハイライトを更新
         updateFrameListHighlight(index);
-        
+
     } catch (error) {
         console.error('フレーム読み込みエラー:', error);
         showNotification('フレームの読み込みに失敗しました', 'error');
@@ -317,7 +317,7 @@ async function loadAnnotations(frameId) {
         const response = await apiRequest(`/api/frames/${frameId}/annotations`);
         annotations = response.annotations || [];
         updateAnnotationList();
-        
+
     } catch (error) {
         console.error('アノテーション読み込みエラー:', error);
         annotations = [];
@@ -329,14 +329,14 @@ async function loadAnnotations(frameId) {
  */
 function resizeCanvas() {
     if (!currentImage) return;
-    
+
     const container = document.getElementById('canvas-container');
     const containerWidth = container.clientWidth;
     const containerHeight = Math.min(600, container.clientHeight);
-    
+
     const imageAspect = currentImage.width / currentImage.height;
     const containerAspect = containerWidth / containerHeight;
-    
+
     if (imageAspect > containerAspect) {
         canvas.width = containerWidth;
         canvas.height = containerWidth / imageAspect;
@@ -344,7 +344,7 @@ function resizeCanvas() {
         canvas.width = containerHeight * imageAspect;
         canvas.height = containerHeight;
     }
-    
+
     resetZoom();
 }
 
@@ -353,19 +353,19 @@ function resizeCanvas() {
  */
 function redrawCanvas() {
     if (!currentImage) return;
-    
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // 画像を描画
     ctx.save();
     ctx.scale(zoomLevel, zoomLevel);
     ctx.translate(panX, panY);
     ctx.drawImage(currentImage, 0, 0, canvas.width / zoomLevel, canvas.height / zoomLevel);
     ctx.restore();
-    
+
     // アノテーションを描画
     drawAnnotations();
-    
+
     // 現在描画中のバウンディングボックスを描画
     if (currentBbox) {
         drawBoundingBox(currentBbox, '#ff0000', 2);
@@ -380,7 +380,7 @@ function drawAnnotations() {
         const color = annotation.selected ? '#dc3545' : '#007bff';
         const lineWidth = annotation.selected ? 3 : 2;
         drawBoundingBox(annotation.bbox, color, lineWidth);
-        
+
         // ラベルを描画
         drawLabel(annotation.bbox, annotation.tile_id, color);
     });
@@ -393,11 +393,11 @@ function drawBoundingBox(bbox, color, lineWidth) {
     ctx.save();
     ctx.scale(zoomLevel, zoomLevel);
     ctx.translate(panX, panY);
-    
+
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth / zoomLevel;
     ctx.strokeRect(bbox.x1, bbox.y1, bbox.x2 - bbox.x1, bbox.y2 - bbox.y1);
-    
+
     ctx.restore();
 }
 
@@ -406,19 +406,19 @@ function drawBoundingBox(bbox, color, lineWidth) {
  */
 function drawLabel(bbox, tileId, color) {
     const tileName = TILE_NAMES[tileId] || tileId;
-    
+
     ctx.save();
     ctx.scale(zoomLevel, zoomLevel);
     ctx.translate(panX, panY);
-    
+
     const fontSize = 14 / zoomLevel;
     ctx.font = `${fontSize}px Arial`;
     ctx.fillStyle = color;
     ctx.fillRect(bbox.x1, bbox.y1 - fontSize - 4, ctx.measureText(tileName).width + 8, fontSize + 4);
-    
+
     ctx.fillStyle = '#ffffff';
     ctx.fillText(tileName, bbox.x1 + 4, bbox.y1 - 4);
-    
+
     ctx.restore();
 }
 
@@ -430,11 +430,11 @@ function onTileSelect(event) {
     document.querySelectorAll('.tile-button').forEach(btn => {
         btn.classList.remove('active');
     });
-    
+
     // 新しい選択を設定
     event.target.classList.add('active');
     selectedTileType = event.target.dataset.tile;
-    
+
     // 選択情報を表示
     const selectedInfo = document.getElementById('selected-tile-info');
     const selectedName = document.getElementById('selected-tile-name');
@@ -447,11 +447,11 @@ function onTileSelect(event) {
  */
 function onCanvasMouseDown(event) {
     if (!currentImage || !selectedTileType) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) / zoomLevel - panX;
     const y = (event.clientY - rect.top) / zoomLevel - panY;
-    
+
     if (event.button === 0) { // 左クリック
         isDrawing = true;
         startX = x;
@@ -470,10 +470,10 @@ function onCanvasMouseMove(event) {
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) / zoomLevel - panX;
     const y = (event.clientY - rect.top) / zoomLevel - panY;
-    
+
     // 座標表示を更新
     document.getElementById('mouse-coordinates').textContent = `${Math.round(x)}, ${Math.round(y)}`;
-    
+
     if (isDrawing && currentBbox) {
         currentBbox.x2 = x;
         currentBbox.y2 = y;
@@ -486,13 +486,13 @@ function onCanvasMouseMove(event) {
  */
 function onCanvasMouseUp(event) {
     if (!isDrawing || !currentBbox) return;
-    
+
     isDrawing = false;
-    
+
     // バウンディングボックスのサイズをチェック
     const width = Math.abs(currentBbox.x2 - currentBbox.x1);
     const height = Math.abs(currentBbox.y2 - currentBbox.y1);
-    
+
     if (width > 10 && height > 10) {
         // 正規化
         const bbox = {
@@ -501,11 +501,11 @@ function onCanvasMouseUp(event) {
             x2: Math.max(currentBbox.x1, currentBbox.x2),
             y2: Math.max(currentBbox.y1, currentBbox.y2)
         };
-        
+
         // アノテーションを追加
         addAnnotation(bbox, selectedTileType);
     }
-    
+
     currentBbox = null;
     redrawCanvas();
 }
@@ -515,7 +515,7 @@ function onCanvasMouseUp(event) {
  */
 function onCanvasWheel(event) {
     event.preventDefault();
-    
+
     const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
     zoomCanvas(zoomFactor);
 }
@@ -554,7 +554,7 @@ function addAnnotation(bbox, tileId) {
         annotator: 'user',
         notes: ''
     };
-    
+
     annotations.push(annotation);
     updateAnnotationList();
     updateProgress();
@@ -569,7 +569,7 @@ function selectOrDeleteAnnotation(x, y) {
     for (let i = annotations.length - 1; i >= 0; i--) {
         const annotation = annotations[i];
         const bbox = annotation.bbox;
-        
+
         if (x >= bbox.x1 && x <= bbox.x2 && y >= bbox.y1 && y <= bbox.y2) {
             if (annotation.selected) {
                 // 既に選択されている場合は削除
@@ -585,7 +585,7 @@ function selectOrDeleteAnnotation(x, y) {
             return;
         }
     }
-    
+
     // どのアノテーションもクリックされていない場合は選択解除
     annotations.forEach(ann => ann.selected = false);
     redrawCanvas();
@@ -596,37 +596,37 @@ function selectOrDeleteAnnotation(x, y) {
  */
 function updateAnnotationList() {
     const container = document.getElementById('annotation-list');
-    
+
     if (annotations.length === 0) {
         container.innerHTML = '<div class="text-center text-muted p-3">アノテーションはありません</div>';
         return;
     }
-    
+
     container.innerHTML = '';
-    
+
     annotations.forEach((annotation, index) => {
         const item = document.createElement('div');
         item.className = 'list-group-item d-flex justify-content-between align-items-center';
-        
+
         const info = document.createElement('div');
         info.innerHTML = `
             <div class="fw-bold">${TILE_NAMES[annotation.tile_id] || annotation.tile_id}</div>
             <small class="text-muted">
-                (${Math.round(annotation.bbox.x1)}, ${Math.round(annotation.bbox.y1)}) - 
+                (${Math.round(annotation.bbox.x1)}, ${Math.round(annotation.bbox.y1)}) -
                 (${Math.round(annotation.bbox.x2)}, ${Math.round(annotation.bbox.y2)})
             </small>
         `;
-        
+
         const actions = document.createElement('div');
         actions.innerHTML = `
             <button class="btn btn-sm btn-outline-danger" onclick="deleteAnnotation(${index})">
                 <i class="fas fa-trash"></i>
             </button>
         `;
-        
+
         item.appendChild(info);
         item.appendChild(actions);
-        
+
         container.appendChild(item);
     });
 }
@@ -648,7 +648,7 @@ function deleteAnnotation(index) {
  */
 function clearAllLabels() {
     if (annotations.length === 0) return;
-    
+
     if (confirm('現在のフレームのすべてのアノテーションを削除しますか？')) {
         annotations = [];
         updateAnnotationList();
@@ -665,10 +665,10 @@ async function performAutoLabeling() {
         showNotification('フレームが選択されていません', 'warning');
         return;
     }
-    
+
     try {
         showLoading('自動ラベリング中...');
-        
+
         const response = await apiRequest('/api/auto_label', {
             method: 'POST',
             body: JSON.stringify({
@@ -676,7 +676,7 @@ async function performAutoLabeling() {
                 image_path: currentFrame.image_path
             })
         });
-        
+
         if (response.annotations) {
             annotations = response.annotations;
             updateAnnotationList();
@@ -684,9 +684,9 @@ async function performAutoLabeling() {
             redrawCanvas();
             showNotification('自動ラベリングが完了しました', 'success');
         }
-        
+
         hideLoading();
-        
+
     } catch (error) {
         console.error('自動ラベリングエラー:', error);
         showNotification('自動ラベリングに失敗しました', 'error');
@@ -709,7 +709,7 @@ function navigateFrame(direction) {
  */
 function updateFrameInfo() {
     if (currentFrame) {
-        document.getElementById('current-frame-info').textContent = 
+        document.getElementById('current-frame-info').textContent =
             `${currentFrameIndex + 1} / ${frameList.length} (${formatDuration(currentFrame.timestamp)})`;
     }
 }
@@ -742,11 +742,11 @@ function updateProgress() {
     const labeledCount = frameList.filter(frame => frame.tiles && frame.tiles.length > 0).length;
     const totalCount = frameList.length;
     const progress = totalCount > 0 ? (labeledCount / totalCount) * 100 : 0;
-    
+
     document.getElementById('labeling-progress').style.width = `${progress}%`;
     document.getElementById('labeled-count').textContent = labeledCount;
     document.getElementById('total-count').textContent = totalCount;
-    
+
     const totalTiles = frameList.reduce((sum, frame) => sum + (frame.tiles ? frame.tiles.length : 0), 0);
     document.getElementById('total-tiles').textContent = totalTiles;
 }
@@ -759,24 +759,24 @@ async function saveProgress() {
         showNotification('保存するアノテーションがありません', 'warning');
         return;
     }
-    
+
     try {
         showLoading('保存中...');
-        
+
         await apiRequest(`/api/frames/${currentFrame.id}/annotations`, {
             method: 'POST',
             body: JSON.stringify({
                 annotations: annotations
             })
         });
-        
+
         // フレーム情報を更新
         frameList[currentFrameIndex].tiles = annotations;
         updateProgress();
-        
+
         showNotification('アノテーションを保存しました', 'success');
         hideLoading();
-        
+
     } catch (error) {
         console.error('保存エラー:', error);
         showNotification('保存に失敗しました', 'error');
@@ -792,7 +792,7 @@ function showExtractFramesModal() {
         showNotification('動画が選択されていません', 'warning');
         return;
     }
-    
+
     const modal = new bootstrap.Modal(document.getElementById('extractFramesModal'));
     modal.show();
 }
@@ -806,7 +806,7 @@ async function startFrameExtraction() {
         quality_threshold: parseFloat(document.getElementById('quality-threshold').value),
         max_frames: parseInt(document.getElementById('max-frames').value)
     };
-    
+
     try {
         const response = await apiRequest('/api/extract_frames', {
             method: 'POST',
@@ -815,16 +815,16 @@ async function startFrameExtraction() {
                 config: config
             })
         });
-        
+
         if (response.session_id) {
             socket.emit('join_session', { session_id: response.session_id });
             showNotification('フレーム抽出を開始しました', 'info');
-            
+
             // モーダルを閉じる
             const modal = bootstrap.Modal.getInstance(document.getElementById('extractFramesModal'));
             modal.hide();
         }
-        
+
     } catch (error) {
         console.error('フレーム抽出エラー:', error);
         showNotification('フレーム抽出の開始に失敗しました', 'error');
@@ -838,7 +838,7 @@ function onKeyDown(event) {
     if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
         return;
     }
-    
+
     switch (event.key) {
         case 'ArrowLeft':
             event.preventDefault();

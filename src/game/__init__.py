@@ -7,9 +7,4 @@ from .player import Player
 from .table import Table
 from .turn import Turn
 
-__all__ = [
-    'GameState',
-    'Player', 
-    'Table',
-    'Turn'
-]
+__all__ = ["GameState", "Player", "Table", "Turn"]

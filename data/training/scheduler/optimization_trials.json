@@ -1,0 +1,65 @@
+{
+  "trials": [
+    {
+      "trial_id": "c3500031-43ba-41a8-b6d3-dabe818e9fd0",
+      "parameters": {
+        "learning_rate": 4.162432716056872e-05,
+        "batch_size": "64",
+        "epochs": 73,
+        "optimizer_type": "adamw",
+        "lr_scheduler_type": "cosine",
+        "dropout_rate": 0.06545063981518018,
+        "weight_decay": 0.00514957017021116,
+        "early_stopping_patience": 32
+      },
+      "score": 0.85,
+      "status": "completed",
+      "start_time": null,
+      "end_time": "2025-06-03T00:16:08.269027",
+      "metrics": {
+        "accuracy": 0.85,
+        "loss": 0.5
+      },
+      "notes": ""
+    },
+    {
+      "trial_id": "cd40f360-18f7-41fe-bfbd-22ff346432db",
+      "parameters": {
+        "learning_rate": 0.09634857491481741,
+        "batch_size": "32",
+        "epochs": 109,
+        "optimizer_type": "sgd",
+        "lr_scheduler_type": "cosine",
+        "dropout_rate": 0.16143402178920746,
+        "weight_decay": 0.00045299446196674596,
+        "early_stopping_patience": 26
+      },
+      "score": null,
+      "status": "pending",
+      "start_time": null,
+      "end_time": null,
+      "metrics": null,
+      "notes": ""
+    },
+    {
+      "trial_id": "f769fa2f-be2e-4ab6-bb0f-2d6c9cc7ea98",
+      "parameters": {
+        "learning_rate": 1.2571370899128935e-05,
+        "batch_size": "32",
+        "epochs": 155,
+        "optimizer_type": "sgd",
+        "lr_scheduler_type": "cosine",
+        "dropout_rate": 0.6247697075514353,
+        "weight_decay": 1.2205841402606887e-06,
+        "early_stopping_patience": 9
+      },
+      "score": null,
+      "status": "pending",
+      "start_time": null,
+      "end_time": null,
+      "metrics": null,
+      "notes": ""
+    }
+  ],
+  "last_updated": "2025-06-03T00:16:08.269522"
+}

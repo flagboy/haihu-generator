@@ -105,8 +105,8 @@ dataset_manager.save_annotation_data(annotation_data)
 
 # データセットバージョンを作成
 version_id = dataset_manager.create_dataset_version(
-    annotation_data, 
-    "v1.0.0", 
+    annotation_data,
+    "v1.0.0",
     "初回バージョン"
 )
 
@@ -142,7 +142,7 @@ training:
   # データベース設定
   database_path: "data/training/dataset.db"
   dataset_root: "data/training"
-  
+
   # フレーム抽出設定
   frame_extraction:
     min_quality_score: 0.6
@@ -150,7 +150,7 @@ training:
     frame_interval_seconds: 2.0
     diversity_threshold: 0.3
     output_dir: "data/training/extracted_frames"
-  
+
   # 半自動ラベリング設定
   semi_auto_labeling:
     confidence_threshold: 0.5

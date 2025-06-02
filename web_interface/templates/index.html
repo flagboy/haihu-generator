@@ -188,7 +188,7 @@ let tileDistributionChart = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadDashboardData();
     initializeCharts();
-    
+
     // 定期的にデータを更新
     setInterval(loadDashboardData, 30000); // 30秒間隔
 });
@@ -199,29 +199,29 @@ async function loadDashboardData() {
         // データセット統計を取得
         const statsResponse = await fetch('/api/dataset/statistics');
         const stats = await statsResponse.json();
-        
+
         // 統計情報を更新
         document.getElementById('video-count').textContent = stats.video_count || 0;
         document.getElementById('frame-count').textContent = stats.frame_count || 0;
         document.getElementById('tile-count').textContent = stats.tile_count || 0;
-        
+
         // 学習セッション数を取得
         const sessionsResponse = await fetch('/api/training/sessions');
         const sessions = await sessionsResponse.json();
         document.getElementById('session-count').textContent = sessions.length || 0;
-        
+
         // 最近のアクティビティを更新
         updateRecentActivities(sessions);
-        
+
         // アクティブな学習セッションを更新
         updateActiveTrainingSessions(sessions);
-        
+
         // 牌種類別統計を更新
         updateTileDistributionChart(stats.tile_distribution || {});
-        
+
         // 最終更新時刻を更新
         document.getElementById('last-update').textContent = new Date().toLocaleString('ja-JP');
-        
+
     } catch (error) {
         console.error('ダッシュボードデータの読み込みエラー:', error);
         showNotification('データの読み込みに失敗しました', 'error');
@@ -260,7 +260,7 @@ function initializeCharts() {
             }
         }
     });
-    
+
     // 牌種類別分布チャート
     const tileCtx = document.getElementById('tile-distribution-chart').getContext('2d');
     tileDistributionChart = new Chart(tileCtx, {
@@ -291,22 +291,22 @@ function initializeCharts() {
 function updateRecentActivities(sessions) {
     const container = document.getElementById('recent-activities');
     container.innerHTML = '';
-    
+
     if (sessions.length === 0) {
         container.innerHTML = '<div class="text-muted text-center py-3">アクティビティはありません</div>';
         return;
     }
-    
+
     // 最新の5件を表示
     const recentSessions = sessions.slice(0, 5);
-    
+
     recentSessions.forEach(session => {
         const item = document.createElement('div');
         item.className = 'list-group-item';
-        
+
         const statusIcon = getStatusIcon(session.status);
         const timeAgo = getTimeAgo(session.start_time);
-        
+
         item.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -317,7 +317,7 @@ function updateRecentActivities(sessions) {
             </div>
             <small class="text-muted">状態: ${session.status}</small>
         `;
-        
+
         container.appendChild(item);
     });
 }
@@ -326,12 +326,12 @@ function updateRecentActivities(sessions) {
 function updateActiveTrainingSessions(sessions) {
     const container = document.getElementById('active-sessions-list');
     const activeSessions = sessions.filter(s => s.status === 'running');
-    
+
     if (activeSessions.length === 0) {
         container.innerHTML = '<div class="text-muted">実行中のセッションはありません</div>';
         return;
     }
-    
+
     container.innerHTML = '';
     activeSessions.forEach(session => {
         const item = document.createElement('div');
@@ -340,7 +340,7 @@ function updateActiveTrainingSessions(sessions) {
             <div class="card-body p-2">
                 <small class="fw-bold">${session.config.model_name}</small>
                 <div class="progress mt-1" style="height: 5px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                    <div class="progress-bar progress-bar-striped progress-bar-animated"
                          style="width: ${session.current_progress?.progress || 0}%"></div>
                 </div>
                 <small class="text-muted">エポック: ${session.current_progress?.epoch || 0}/${session.config.epochs}</small>
@@ -353,10 +353,10 @@ function updateActiveTrainingSessions(sessions) {
 // 牌種類別分布チャートを更新
 function updateTileDistributionChart(distribution) {
     if (!tileDistributionChart) return;
-    
+
     const labels = Object.keys(distribution);
     const data = Object.values(distribution);
-    
+
     tileDistributionChart.data.labels = labels;
     tileDistributionChart.data.datasets[0].data = data;
     tileDistributionChart.update();
@@ -386,7 +386,7 @@ function getTimeAgo(timestamp) {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
-    
+
     if (diffDays > 0) return `${diffDays}日前`;
     if (diffHours > 0) return `${diffHours}時間前`;
     if (diffMins > 0) return `${diffMins}分前`;
@@ -407,8 +407,8 @@ socket.on('training_progress', function(data) {
 
 socket.on('frame_extraction_progress', function(data) {
     console.log('フレーム抽出進捗:', data);
-    showNotification(`フレーム抽出: ${data.message}`, 
-                    data.status === 'completed' ? 'success' : 
+    showNotification(`フレーム抽出: ${data.message}`,
+                    data.status === 'completed' ? 'success' :
                     data.status === 'failed' ? 'error' : 'info');
 });
 </script>

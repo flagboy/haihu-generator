@@ -91,7 +91,7 @@ training:
   evaluation_root: "data/training/evaluation"
   scheduler_root: "data/training/scheduler"
   num_tile_classes: 34
-  
+
   # デフォルト学習設定
   default_epochs: 100
   default_batch_size: 32

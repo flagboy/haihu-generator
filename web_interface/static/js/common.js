@@ -17,10 +17,10 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeCommon() {
     // ローディングオーバーレイを作成
     createLoadingOverlay();
-    
+
     // ツールチップを初期化
     initializeTooltips();
-    
+
     // 共通イベントリスナーを設定
     setupCommonEventListeners();
 }
@@ -66,11 +66,11 @@ function hideLoading() {
 function showNotification(message, type = 'info', duration = 5000) {
     const notificationArea = document.getElementById('notification-area');
     if (!notificationArea) return;
-    
+
     const notification = document.createElement('div');
     notification.className = `alert alert-${type} notification fade-in`;
     notification.setAttribute('role', 'alert');
-    
+
     // アイコンを設定
     let icon = 'fas fa-info-circle';
     switch (type) {
@@ -85,7 +85,7 @@ function showNotification(message, type = 'info', duration = 5000) {
             icon = 'fas fa-times-circle';
             break;
     }
-    
+
     notification.innerHTML = `
         <div class="d-flex align-items-center">
             <i class="${icon} me-2"></i>
@@ -93,9 +93,9 @@ function showNotification(message, type = 'info', duration = 5000) {
             <button type="button" class="btn-close btn-close-white ms-2" onclick="closeNotification(this)"></button>
         </div>
     `;
-    
+
     notificationArea.appendChild(notification);
-    
+
     // 自動で削除
     if (duration > 0) {
         setTimeout(() => {
@@ -143,7 +143,7 @@ function setupCommonEventListeners() {
             });
         }
     });
-    
+
     // フォームの送信時にローディングを表示
     document.addEventListener('submit', function(e) {
         const form = e.target;
@@ -162,17 +162,17 @@ async function apiRequest(url, options = {}) {
             'Content-Type': 'application/json',
         },
     };
-    
+
     const mergedOptions = { ...defaultOptions, ...options };
-    
+
     try {
         const response = await fetch(url, mergedOptions);
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || `HTTP error! status: ${response.status}`);
         }
-        
+
         return data;
     } catch (error) {
         console.error('API request error:', error);
@@ -185,11 +185,11 @@ async function apiRequest(url, options = {}) {
  */
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
-    
+
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -200,7 +200,7 @@ function formatDuration(seconds) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
+
     if (hours > 0) {
         return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     } else {
@@ -234,7 +234,7 @@ function getRelativeTime(dateString) {
     const diffMins = Math.floor(diffSecs / 60);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
-    
+
     if (diffDays > 0) {
         return `${diffDays}日前`;
     } else if (diffHours > 0) {
@@ -304,13 +304,13 @@ function toggleElement(element, show = null) {
     if (typeof element === 'string') {
         element = document.getElementById(element);
     }
-    
+
     if (!element) return;
-    
+
     if (show === null) {
         show = element.style.display === 'none';
     }
-    
+
     element.style.display = show ? 'block' : 'none';
 }
 
@@ -321,15 +321,15 @@ function toggleElementDisabled(element, disabled = null) {
     if (typeof element === 'string') {
         element = document.getElementById(element);
     }
-    
+
     if (!element) return;
-    
+
     if (disabled === null) {
         disabled = !element.disabled;
     }
-    
+
     element.disabled = disabled;
-    
+
     if (disabled) {
         element.classList.add('disabled');
     } else {
@@ -343,7 +343,7 @@ function toggleElementDisabled(element, disabled = null) {
 function getFormData(formElement) {
     const formData = new FormData(formElement);
     const data = {};
-    
+
     for (let [key, value] of formData.entries()) {
         // チェックボックスの処理
         if (formElement.querySelector(`[name="${key}"][type="checkbox"]`)) {
@@ -358,7 +358,7 @@ function getFormData(formElement) {
             data[key] = value;
         }
     }
-    
+
     return data;
 }
 
@@ -369,7 +369,7 @@ function setFormData(formElement, data) {
     for (let [key, value] of Object.entries(data)) {
         const element = formElement.querySelector(`[name="${key}"]`);
         if (!element) continue;
-        
+
         if (element.type === 'checkbox') {
             element.checked = Boolean(value);
         } else if (element.type === 'radio') {
@@ -389,22 +389,22 @@ function setFormData(formElement, data) {
 function sortTable(table, columnIndex, ascending = true) {
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
-    
+
     rows.sort((a, b) => {
         const aText = a.cells[columnIndex].textContent.trim();
         const bText = b.cells[columnIndex].textContent.trim();
-        
+
         // 数値かどうかチェック
         const aNum = parseFloat(aText);
         const bNum = parseFloat(bText);
-        
+
         if (!isNaN(aNum) && !isNaN(bNum)) {
             return ascending ? aNum - bNum : bNum - aNum;
         } else {
             return ascending ? aText.localeCompare(bText) : bText.localeCompare(aText);
         }
     });
-    
+
     // ソート後の行を再配置
     rows.forEach(row => tbody.appendChild(row));
 }
@@ -415,10 +415,10 @@ function sortTable(table, columnIndex, ascending = true) {
 function filterTable(table, searchText, columnIndexes = null) {
     const tbody = table.querySelector('tbody');
     const rows = tbody.querySelectorAll('tr');
-    
+
     rows.forEach(row => {
         let shouldShow = false;
-        
+
         if (columnIndexes) {
             // 指定された列のみを検索
             columnIndexes.forEach(index => {
@@ -432,7 +432,7 @@ function filterTable(table, searchText, columnIndexes = null) {
             const rowText = row.textContent.toLowerCase();
             shouldShow = rowText.includes(searchText.toLowerCase());
         }
-        
+
         row.style.display = shouldShow ? '' : 'none';
     });
 }
@@ -479,7 +479,7 @@ const storage = {
             console.error('ローカルストレージへの保存に失敗:', e);
         }
     },
-    
+
     get: function(key, defaultValue = null) {
         try {
             const item = localStorage.getItem(key);
@@ -489,7 +489,7 @@ const storage = {
             return defaultValue;
         }
     },
-    
+
     remove: function(key) {
         try {
             localStorage.removeItem(key);
@@ -497,7 +497,7 @@ const storage = {
             console.error('ローカルストレージからの削除に失敗:', e);
         }
     },
-    
+
     clear: function() {
         try {
             localStorage.clear();
