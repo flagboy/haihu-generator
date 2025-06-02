@@ -78,14 +78,17 @@ directories:
         ai_pipeline = Mock()
 
         def mock_ai_processing(frames, batch_start_frame=0):
-            ai_result = Mock()
-            ai_result.frame_results = [
-                {
-                    "frame_id": batch_start_frame + i,
-                    "detections": [
+            # PipelineResultのリストを返す
+            from src.pipeline.ai_pipeline import PipelineResult
+
+            results = []
+            for i in range(len(frames)):
+                result = PipelineResult(
+                    frame_id=batch_start_frame + i,
+                    detections=[
                         Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile")
                     ],
-                    "classifications": [
+                    classifications=[
                         (
                             Mock(
                                 bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
@@ -93,19 +96,18 @@ directories:
                             Mock(label="1m", confidence=0.9, class_id=1),
                         )
                     ],
-                    "processing_time": 0.1,
-                    "tile_areas": {
+                    processing_time=0.1,
+                    tile_areas={
                         "hand_tiles": [
                             Mock(
                                 bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
                             )
                         ]
                     },
-                    "confidence_scores": {"combined_confidence": 0.85},
-                }
-                for i in range(len(frames))
-            ]
-            return ai_result
+                    confidence_scores={"combined_confidence": 0.85},
+                )
+                results.append(result)
+            return results
 
         ai_pipeline.process_frames_batch.side_effect = mock_ai_processing
 
@@ -504,19 +506,21 @@ directories:
             ai_pipeline = Mock()
 
             def mock_process_frames(frames, batch_start_frame=0):
-                ai_result = Mock()
-                ai_result.frame_results = [
-                    {
-                        "frame_id": batch_start_frame + i,
-                        "detections": [],
-                        "classifications": [],
-                        "processing_time": 0.1,
-                        "tile_areas": {},
-                        "confidence_scores": {"combined_confidence": 0.8},
-                    }
-                    for i in range(len(frames))
-                ]
-                return ai_result
+                # PipelineResultのリストを返す
+                from src.pipeline.ai_pipeline import PipelineResult
+
+                results = []
+                for i in range(len(frames)):
+                    result = PipelineResult(
+                        frame_id=batch_start_frame + i,
+                        detections=[],
+                        classifications=[],
+                        processing_time=0.1,
+                        tile_areas={},
+                        confidence_scores={"combined_confidence": 0.8},
+                    )
+                    results.append(result)
+                return results
 
             ai_pipeline.process_frames_batch.side_effect = mock_process_frames
 

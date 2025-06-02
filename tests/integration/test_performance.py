@@ -115,26 +115,40 @@ directories:
                 # AI処理の負荷をシミュレート
                 def simulate_ai_processing(frames, batch_start_frame=0):
                     time.sleep(0.1)  # 処理時間をシミュレート
-                    result = Mock()
-                    frame_results = []
+                    from src.pipeline.ai_pipeline import PipelineResult
+
+                    results = []
                     for i in range(len(frames)):
-                        frame_result = {
-                            "frame_id": batch_start_frame + i,
-                            "detections": [
-                                Mock(bbox=[10, 10, 50, 50], confidence=0.8) for _ in range(5)
-                            ],
-                            "classifications": [
-                                (
-                                    Mock(bbox=[10, 10, 50, 50], confidence=0.8, label="1m"),
-                                    Mock(label="1m", confidence=0.9),
+                        result = PipelineResult(
+                            frame_id=batch_start_frame + i,
+                            detections=[
+                                Mock(
+                                    bbox=[10, 10, 50, 50],
+                                    confidence=0.8,
+                                    class_id=0,
+                                    class_name="tile",
                                 )
                                 for _ in range(5)
                             ],
-                            "processing_time": 0.1,
-                        }
-                        frame_results.append(frame_result)
-                    result.frame_results = frame_results
-                    return result
+                            classifications=[
+                                (
+                                    Mock(
+                                        bbox=[10, 10, 50, 50],
+                                        confidence=0.8,
+                                        label="1m",
+                                        class_id=0,
+                                        class_name="tile",
+                                    ),
+                                    Mock(label="1m", confidence=0.9, tile_name="1m", class_id=1),
+                                )
+                                for _ in range(5)
+                            ],
+                            processing_time=0.1,
+                            tile_areas={},
+                            confidence_scores={},
+                        )
+                        results.append(result)
+                    return results
 
                 mock_ai_pipeline = Mock()
                 mock_ai_pipeline.process_frames_batch.side_effect = simulate_ai_processing
@@ -206,8 +220,18 @@ directories:
                 mock_video_processor_class.return_value = mock_video_processor
 
                 mock_ai_pipeline = Mock()
+                # PipelineResultのリストを返す
+                from src.pipeline.ai_pipeline import PipelineResult
+
                 mock_ai_pipeline.process_frames_batch.return_value = [
-                    Mock(frame_id=i, detections=[], classifications=[], processing_time=0.05)
+                    PipelineResult(
+                        frame_id=i,
+                        detections=[],
+                        classifications=[],
+                        processing_time=0.05,
+                        tile_areas={},
+                        confidence_scores={},
+                    )
                     for i in range(20)
                 ]
                 mock_ai_pipeline_class.return_value = mock_ai_pipeline
@@ -355,8 +379,18 @@ directories:
                 mock_video_processor_class.return_value = mock_video_processor
 
                 mock_ai_pipeline = Mock()
+                # PipelineResultのリストを返す
+                from src.pipeline.ai_pipeline import PipelineResult
+
                 mock_ai_pipeline.process_frames_batch.return_value = [
-                    Mock(frame_id=i, detections=[], classifications=[], processing_time=0.1)
+                    PipelineResult(
+                        frame_id=i,
+                        detections=[],
+                        classifications=[],
+                        processing_time=0.1,
+                        tile_areas={},
+                        confidence_scores={},
+                    )
                     for i in range(10)
                 ]
                 mock_ai_pipeline_class.return_value = mock_ai_pipeline

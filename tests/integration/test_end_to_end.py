@@ -145,30 +145,33 @@ tiles:
 
             # AIPipeline のモック
             mock_ai_pipeline = Mock()
-            # process_frames_batchはframe_results属性を持つオブジェクトを返す必要がある
-            batch_result = Mock()
-            # AI結果をdictとして作成
-            frame_results = []
-            for i in range(5):
-                # detectionsとclassificationsのMockオブジェクトを作成
-                detection_mock = Mock(
-                    bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
-                )
-                classification_mock = Mock(tile_name="1m", confidence=0.9, class_id=1, label="1m")
 
-                # AIフレーム結果をdictとして作成
-                frame_result = {
-                    "frame_id": i,
-                    "detections": [detection_mock],
-                    "classifications": [(detection_mock, classification_mock)],
-                    "processing_time": 0.1,
-                    "tile_areas": {"hand_tiles": [detection_mock]},
-                    "confidence_scores": {"combined_confidence": 0.85},
-                }
-                frame_results.append(frame_result)
+            # process_frames_batchはPipelineResultのリストを返す
+            def mock_process_frames_batch(frames, batch_start_frame=0):
+                from src.pipeline.ai_pipeline import PipelineResult
 
-            batch_result.frame_results = frame_results
-            mock_ai_pipeline.process_frames_batch.return_value = batch_result
+                results = []
+                for i in range(len(frames)):
+                    # detectionsとclassificationsのMockオブジェクトを作成
+                    detection_mock = Mock(
+                        bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
+                    )
+                    classification_mock = Mock(
+                        tile_name="1m", confidence=0.9, class_id=1, label="1m"
+                    )
+
+                    result = PipelineResult(
+                        frame_id=batch_start_frame + i,
+                        detections=[detection_mock],
+                        classifications=[(detection_mock, classification_mock)],
+                        processing_time=0.1,
+                        tile_areas={"hand_tiles": [detection_mock]},
+                        confidence_scores={"combined_confidence": 0.85},
+                    )
+                    results.append(result)
+                return results
+
+            mock_ai_pipeline.process_frames_batch.side_effect = mock_process_frames_batch
             mock_ai_pipeline_class.return_value = mock_ai_pipeline
 
             # GamePipeline のモック
@@ -274,13 +277,25 @@ tiles:
             mock_video_processor_class.return_value = mock_video_processor
 
             mock_ai_pipeline = Mock()
-            # process_frames_batchはframe_results属性を持つオブジェクトを返す必要がある
-            batch_result = Mock()
-            batch_result.frame_results = [
-                Mock(frame_id=i, detections=[], classifications=[], processing_time=0.1)
-                for i in range(3)
-            ]
-            mock_ai_pipeline.process_frames_batch.return_value = batch_result
+
+            # process_frames_batchはPipelineResultのリストを返す
+            def mock_process_frames_batch(frames, batch_start_frame=0):
+                from src.pipeline.ai_pipeline import PipelineResult
+
+                results = []
+                for i in range(len(frames)):
+                    result = PipelineResult(
+                        frame_id=batch_start_frame + i,
+                        detections=[],
+                        classifications=[],
+                        processing_time=0.1,
+                        tile_areas={},
+                        confidence_scores={},
+                    )
+                    results.append(result)
+                return results
+
+            mock_ai_pipeline.process_frames_batch.side_effect = mock_process_frames_batch
             mock_ai_pipeline_class.return_value = mock_ai_pipeline
 
             mock_game_pipeline = Mock()
