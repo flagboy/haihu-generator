@@ -237,6 +237,12 @@ directories:
 
     def test_error_handling(self, system_integrator):
         """エラーハンドリングテスト"""
+        # ビデオプロセッサーをエラーを返すように設定
+        original_extract_frames = system_integrator.video_processor.extract_frames
+        system_integrator.video_processor.extract_frames = Mock(
+            return_value={"success": False, "error": "Cannot open video file"}
+        )
+
         # 存在しない動画ファイル
         result = system_integrator.process_video_complete(
             video_path="nonexistent_video.mp4", output_path="output.json"
@@ -245,6 +251,10 @@ directories:
         # エラー結果の確認
         assert result.success is False
         assert len(result.error_messages) > 0
+        assert "Cannot open video file" in result.error_messages[0]
+
+        # 元に戻す
+        system_integrator.video_processor.extract_frames = original_extract_frames
 
     def test_system_info(self, system_integrator):
         """システム情報取得テスト"""
@@ -527,6 +537,13 @@ directories:
             game_pipeline = Mock()
             game_pipeline.initialize_game.return_value = True
             game_pipeline.process_frame.return_value = Mock(success=True)
+            game_pipeline.process_game_data.return_value = {
+                "game_info": {
+                    "rule": "東南戦",
+                    "players": ["Player1", "Player2", "Player3", "Player4"],
+                },
+                "rounds": [{"round_number": 1, "actions": []}],
+            }
             game_pipeline.export_tenhou_json_record.return_value = {"test": "record"}
             game_pipeline.export_game_record.return_value = '{"test": "record"}'
 

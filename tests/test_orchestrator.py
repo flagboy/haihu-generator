@@ -43,18 +43,30 @@ class TestVideoProcessingOrchestrator:
 
         # バッチごとに異なる結果を返すようにside_effectを使用
         def create_batch_result(frames, batch_start_frame=0):
-            ai_result = Mock()
-            ai_result.frame_results = [
-                {
-                    "frame_id": batch_start_frame + i,
-                    "classifications": [
-                        (Mock(bbox=[10, 10, 50, 50]), Mock(label="1m", confidence=0.9))
+            from src.pipeline.ai_pipeline import PipelineResult
+
+            results = []
+            for i in range(len(frames)):
+                result = PipelineResult(
+                    frame_id=batch_start_frame + i,
+                    detections=[
+                        Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile")
+                    ],
+                    classifications=[
+                        (
+                            Mock(
+                                bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
+                            ),
+                            Mock(label="1m", confidence=0.9, class_id=1),
+                        )
                         for _ in range(3)
                     ],
-                }
-                for i in range(len(frames))
-            ]
-            return ai_result
+                    processing_time=0.1,
+                    tile_areas={},
+                    confidence_scores={"combined_confidence": 0.85},
+                )
+                results.append(result)
+            return results
 
         ai_pipeline.process_frames_batch.side_effect = create_batch_result
 

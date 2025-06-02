@@ -506,29 +506,33 @@ directories:
 
                 # バッチごとに異なる結果を返すようにside_effectを使用
                 def create_batch_result(frames, batch_start_frame=0):
-                    batch_result = Mock()
-                    frame_results = []
+                    from src.pipeline.ai_pipeline import PipelineResult
+
+                    results = []
                     for i in range(len(frames)):
                         # 正しいMockオブジェクトを作成
                         detections = []
                         classifications = []
                         for _j in range(10):
-                            detection_mock = Mock(bbox=[10, 10, 50, 50], confidence=0.8)
-                            classification_mock = Mock(label="1m", confidence=0.9)
+                            detection_mock = Mock(
+                                bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
+                            )
+                            classification_mock = Mock(
+                                label="1m", confidence=0.9, class_id=1, tile_name="1m"
+                            )
                             detections.append(detection_mock)
                             classifications.append((detection_mock, classification_mock))
 
-                        frame_result = {
-                            "frame_id": batch_start_frame + i,
-                            "detections": detections,
-                            "classifications": classifications,
-                            "processing_time": 0.1,
-                            "tile_areas": {},
-                            "confidence_scores": {"combined_confidence": 0.85},
-                        }
-                        frame_results.append(frame_result)
-                    batch_result.frame_results = frame_results
-                    return batch_result
+                        result = PipelineResult(
+                            frame_id=batch_start_frame + i,
+                            detections=detections,
+                            classifications=classifications,
+                            processing_time=0.1,
+                            tile_areas={},
+                            confidence_scores={"combined_confidence": 0.85},
+                        )
+                        results.append(result)
+                    return results
 
                 mock_ai_pipeline.process_frames_batch.side_effect = create_batch_result
                 mock_ai_pipeline_class.return_value = mock_ai_pipeline
