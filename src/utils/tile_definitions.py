@@ -79,11 +79,8 @@ class TileDefinitions:
     def _create_tile_id_mapping(self) -> dict[str, int]:
         """牌からIDへのマッピングを作成"""
         mapping = {}
-        tile_id = 0
-
-        for tile in self._all_tiles:
+        for tile_id, tile in enumerate(self._all_tiles):
             mapping[tile] = tile_id
-            tile_id += 1
 
         return mapping
 

@@ -202,14 +202,9 @@ class TenhouJsonFormatter:
 
         tenhou_tiles = [self._get_tenhou_tile(tile) for tile in tiles]
 
-        if call_type == "chi":
-            return [f"N{player}", "chi", tenhou_tiles]
-        elif call_type == "pon":
-            return [f"N{player}", "pon", tenhou_tiles]
-        elif call_type == "kan":
-            return [f"N{player}", "kan", tenhou_tiles]
-        else:
-            return [f"N{player}", call_type, tenhou_tiles]
+        call_mapping = {"chi": "chi", "pon": "pon", "kan": "kan"}
+        call_name = call_mapping.get(call_type, call_type)
+        return [f"N{player}", call_name, tenhou_tiles]
 
     def _convert_riichi_action(self, action: dict[str, Any]) -> list[Any]:
         """リーチアクションを変換"""

@@ -139,17 +139,19 @@ class TestAdvancedMemoryOptimizer:
             assert len(torch_results) == 0
 
         # PyTorchがインストールされている場合のモック
-        with patch("src.optimization.advanced_memory_optimizer.TORCH_AVAILABLE", True):
-            with patch("src.optimization.advanced_memory_optimizer.torch") as mock_torch:
-                mock_torch.cuda.is_available.return_value = True
-                mock_torch.cuda.memory_allocated.side_effect = [1000000, 500000]
-                mock_torch.is_tensor.return_value = False
+        with (
+            patch("src.optimization.advanced_memory_optimizer.TORCH_AVAILABLE", True),
+            patch("src.optimization.advanced_memory_optimizer.torch") as mock_torch,
+        ):
+            mock_torch.cuda.is_available.return_value = True
+            mock_torch.cuda.memory_allocated.side_effect = [1000000, 500000]
+            mock_torch.is_tensor.return_value = False
 
-                result = memory_optimizer._optimize_torch_memory()
+            result = memory_optimizer._optimize_torch_memory()
 
-                assert result["operation"] == "torch_optimization"
-                assert result["success"] is True
-                assert result["gpu_memory_freed"] == 500000
+            assert result["operation"] == "torch_optimization"
+            assert result["success"] is True
+            assert result["gpu_memory_freed"] == 500000
 
     def test_optimize_system_memory(self, memory_optimizer):
         """システムメモリ最適化のテスト"""
@@ -320,10 +322,10 @@ class TestAdvancedMemoryOptimizer:
         """最適化処理のエラーハンドリングテスト"""
         # メモリ使用量取得でエラーを発生させる
         with patch.object(memory_optimizer, "_get_memory_usage") as mock_memory:
-            mock_memory.side_effect = Exception("Memory error")
+            mock_memory.side_effect = RuntimeError("Memory error")
 
             # エラーが発生してもクラッシュしないことを確認
-            with pytest.raises(Exception):
+            with pytest.raises(RuntimeError):
                 memory_optimizer.optimize_memory()
 
     def test_concurrent_memory_pool_access(self, memory_optimizer):

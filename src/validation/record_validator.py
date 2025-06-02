@@ -72,10 +72,11 @@ class RecordValidator:
                 elif any(key in record_data for key in ["title", "name", "rule", "log"]):
                     return RecordFormat.TENHOU
 
-            elif isinstance(record_data, str):
+            elif (
+                isinstance(record_data, str) and "<mjloggm" in record_data and "INIT" in record_data
+            ):
                 # XML文字列の場合
-                if "<mjloggm" in record_data and "INIT" in record_data:
-                    return RecordFormat.TENHOU
+                return RecordFormat.TENHOU
 
             return RecordFormat.UNKNOWN
 

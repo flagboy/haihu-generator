@@ -33,10 +33,10 @@ class ConfigManager:
             with open(self.config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             return config
-        except FileNotFoundError:
-            raise FileNotFoundError(f"設定ファイルが見つかりません: {self.config_path}")
+        except FileNotFoundError as err:
+            raise FileNotFoundError(f"設定ファイルが見つかりません: {self.config_path}") from err
         except yaml.YAMLError as e:
-            raise ValueError(f"設定ファイルの形式が正しくありません: {e}")
+            raise ValueError(f"設定ファイルの形式が正しくありません: {e}") from e
 
     def _ensure_directories(self):
         """必要なディレクトリを作成"""

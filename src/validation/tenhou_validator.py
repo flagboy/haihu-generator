@@ -351,13 +351,12 @@ class TenhouValidator:
         # 和了アクションの得点とスコアの関係をチェック
         total_score_changes = 0
         for action in log:
-            if len(action) > 0 and str(action[0]).startswith("AGARI"):
-                if len(action) >= 5:
-                    try:
-                        score_change = int(action[4])
-                        total_score_changes += score_change
-                    except (ValueError, IndexError):
-                        pass
+            if len(action) > 0 and str(action[0]).startswith("AGARI") and len(action) >= 5:
+                try:
+                    score_change = int(action[4])
+                    total_score_changes += score_change
+                except (ValueError, IndexError):
+                    pass
 
         # 基本的な得点範囲チェック
         total_score = sum(scores)
@@ -384,9 +383,12 @@ class TenhouValidator:
                 result.add_error(f"アクション{i}: 不正なプレイヤーID {action.player}")
 
             # 基本的な順序チェック（簡易版）
-            if action.action_type == TenhouActionType.DRAW:
-                if last_player != -1 and action.player != (last_player + 1) % 4:
-                    result.add_warning(f"アクション{i}: ツモ順序が不自然です")
+            if (
+                action.action_type == TenhouActionType.DRAW
+                and last_player != -1
+                and action.player != (last_player + 1) % 4
+            ):
+                result.add_warning(f"アクション{i}: ツモ順序が不自然です")
 
             last_player = action.player
 
@@ -409,10 +411,13 @@ class TenhouValidator:
         # 赤ドラ設定と実際の牌使用の整合性
         if not game_data.rule.red_dora:
             for action in game_data.actions:
-                if hasattr(action, "tile") and hasattr(action.tile, "is_red_dora"):
-                    if action.tile.is_red_dora:
-                        result.add_warning("赤ドラ無しルールなのに赤ドラが使用されています")
-                        break
+                if (
+                    hasattr(action, "tile")
+                    and hasattr(action.tile, "is_red_dora")
+                    and action.tile.is_red_dora
+                ):
+                    result.add_warning("赤ドラ無しルールなのに赤ドラが使用されています")
+                    break
 
     def _is_valid_tenhou_tile(self, tile: str) -> bool:
         """天鳳記法の牌が有効かどうか判定"""

@@ -352,6 +352,16 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
 
             time.sleep(interval)
 
+    def _get_memory_usage(self) -> float:
+        """
+        現在のプロセスのメモリ使用量を取得（バイト）
+
+        Returns:
+            メモリ使用量（バイト）
+        """
+        process = psutil.Process()
+        return process.memory_info().rss
+
     def _get_detailed_memory_info(self) -> dict[str, float]:
         """
         詳細なメモリ情報を取得

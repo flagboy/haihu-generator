@@ -297,7 +297,7 @@ class TestTenhouJsonFormatter:
         # 不正なデータでのフォーマット
         invalid_data = None
 
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             self.formatter.format_game_data(invalid_data)
 
     def test_json_output_format(self):

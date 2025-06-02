@@ -42,14 +42,15 @@ class TestParallelAIPipeline:
     @pytest.fixture
     def parallel_pipeline(self, config_manager):
         """ParallelAIPipelineのフィクスチャ"""
-        with patch("src.pipeline.parallel_ai_pipeline.get_logger"):
-            # 親クラスの初期化をモック
-            with patch.object(ParallelAIPipeline, "_initialize_models"):
-                pipeline = ParallelAIPipeline(config_manager)
-                # 検出器と分類器のモック
-                pipeline.detector = Mock()
-                pipeline.classifier = Mock()
-                return pipeline
+        with (
+            patch("src.pipeline.parallel_ai_pipeline.get_logger"),
+            patch.object(ParallelAIPipeline, "_initialize_models"),
+        ):
+            pipeline = ParallelAIPipeline(config_manager)
+            # 検出器と分類器のモック
+            pipeline.detector = Mock()
+            pipeline.classifier = Mock()
+            return pipeline
 
     @pytest.fixture
     def sample_frames(self):
@@ -248,10 +249,12 @@ class TestParallelAIPipeline:
         for workers in worker_counts:
             config_manager.config["system"]["max_workers"] = workers
 
-            with patch("src.pipeline.parallel_ai_pipeline.get_logger"):
-                with patch.object(ParallelAIPipeline, "_initialize_models"):
-                    pipeline = ParallelAIPipeline(config_manager)
-                    assert pipeline.max_workers == workers
+            with (
+                patch("src.pipeline.parallel_ai_pipeline.get_logger"),
+                patch.object(ParallelAIPipeline, "_initialize_models"),
+            ):
+                pipeline = ParallelAIPipeline(config_manager)
+                assert pipeline.max_workers == workers
 
     def test_gpu_parallel_vs_cpu_parallel(self, config_manager):
         """GPU並列とCPU並列の切り替えテスト"""

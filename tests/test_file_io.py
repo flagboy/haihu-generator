@@ -183,15 +183,15 @@ class TestFileIOHelper:
     def test_load_nonexistent_file(self):
         """存在しないファイルの読み込みテスト"""
         # JSON
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             FileIOHelper.load_json("/nonexistent/file.json")
 
         # YAML
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             FileIOHelper.load_yaml("/nonexistent/file.yaml")
 
         # Pickle
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             FileIOHelper.load_pickle("/nonexistent/file.pkl")
 
     def test_pathlib_compatibility(self, temp_dir, sample_data):

@@ -262,9 +262,9 @@ class TestMemoryPerformance:
         memory_increase = final_memory - initial_memory
         memory_increase_ratio = memory_increase / initial_memory
 
-        assert memory_increase_ratio < 0.5, (
-            f"Potential memory leak detected: {memory_increase_ratio:.2%} increase"
-        )
+        assert (
+            memory_increase_ratio < 0.5
+        ), f"Potential memory leak detected: {memory_increase_ratio:.2%} increase"
 
     def test_large_data_processing(self):
         """大容量データ処理テスト"""
@@ -369,9 +369,9 @@ system:
             assert all(isinstance(r, int | float) for r in results)
 
             # 処理時間が合理的な範囲内であることを確認
-            assert processing_time < 2.0, (
-                f"Processing took too long with {worker_count} workers: {processing_time:.2f}s"
-            )
+            assert (
+                processing_time < 2.0
+            ), f"Processing took too long with {worker_count} workers: {processing_time:.2f}s"
 
 
 class TestRealTimePerformance:
@@ -458,13 +458,13 @@ system:
             std_response_time = np.std(response_times)
 
             # 応答時間の一貫性を確認
-            assert avg_response_time < 0.1, (
-                f"Average response time too slow: {avg_response_time:.3f}s"
-            )
+            assert (
+                avg_response_time < 0.1
+            ), f"Average response time too slow: {avg_response_time:.3f}s"
             assert max_response_time < 0.5, f"Max response time too slow: {max_response_time:.3f}s"
-            assert std_response_time < 0.05, (
-                f"Response time too inconsistent: {std_response_time:.3f}s std"
-            )
+            assert (
+                std_response_time < 0.05
+            ), f"Response time too inconsistent: {std_response_time:.3f}s std"
 
         finally:
             os.unlink(config_path)

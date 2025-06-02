@@ -406,16 +406,18 @@ class ConfidenceCalculator:
                 detection_conf = np.mean(detection_confidences) if detection_confidences else 0.0
 
             # 分類信頼度
-            if hasattr(classification_result, "classifications"):
-                if classification_result.classifications:
-                    classification_confidences = [
-                        c[1].confidence
-                        for c in classification_result.classifications
-                        if hasattr(c[1], "confidence")
-                    ]
-                    classification_conf = (
-                        np.mean(classification_confidences) if classification_confidences else 0.0
-                    )
+            if (
+                hasattr(classification_result, "classifications")
+                and classification_result.classifications
+            ):
+                classification_confidences = [
+                    c[1].confidence
+                    for c in classification_result.classifications
+                    if hasattr(c[1], "confidence")
+                ]
+                classification_conf = (
+                    np.mean(classification_confidences) if classification_confidences else 0.0
+                )
 
             # フレーム信頼度（検出と分類の調和平均）
             if detection_conf + classification_conf > 0:

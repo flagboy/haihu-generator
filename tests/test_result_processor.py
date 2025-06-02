@@ -264,7 +264,7 @@ class TestResultProcessor:
         game_data.to_tenhou_format.return_value = {"test": "data"}
 
         # エラーが発生することを確認
-        with pytest.raises(Exception):
+        with pytest.raises(OSError):
             result_processor.save_results(game_data, invalid_path)
 
     def test_handle_game_data_without_to_tenhou_format(self, result_processor, temp_dir):

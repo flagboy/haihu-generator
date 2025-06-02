@@ -737,8 +737,8 @@ class ModelEvaluator(LoggerMixin):
                 .header {{ background-color: #f0f0f0; padding: 20px; border-radius: 5px; }}
                 .section {{ margin: 20px 0; }}
                 .metrics-table {{ border-collapse: collapse; width: 100%; }}
-                .metrics-table th, .metrics-table td {{ 
-                    border: 1px solid #ddd; padding: 8px; text-align: left; 
+                .metrics-table th, .metrics-table td {{
+                    border: 1px solid #ddd; padding: 8px; text-align: left;
                 }}
                 .metrics-table th {{ background-color: #f2f2f2; }}
                 .image-container {{ text-align: center; margin: 20px 0; }}

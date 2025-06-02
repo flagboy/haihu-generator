@@ -405,7 +405,7 @@ class AnnotationData(LoggerMixin):
 
             # クラスマッピングを保存
             with open(output_dir / "classes.txt", "w", encoding="utf-8") as f:
-                for tile_name, class_id in sorted(class_mapping.items(), key=lambda x: x[1]):
+                for tile_name, _class_id in sorted(class_mapping.items(), key=lambda x: x[1]):
                     f.write(f"{tile_name}\n")
 
             self.logger.info(f"YOLO形式でエクスポート完了: {output_dir}")
