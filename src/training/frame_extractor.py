@@ -297,17 +297,29 @@ class FrameExtractor(LoggerMixin):
         if frame1 is None or frame2 is None:
             return 0.0
 
-        # ヒストグラム比較
-        hist1 = cv2.calcHist([frame1], [0, 1, 2], None, [50, 50, 50], [0, 256, 0, 256, 0, 256])
-        hist2 = cv2.calcHist([frame2], [0, 1, 2], None, [50, 50, 50], [0, 256, 0, 256, 0, 256])
+        # フレームのサイズと型を確認
+        if frame1.shape != frame2.shape:
+            return 0.0
 
-        # 正規化
-        cv2.normalize(hist1, hist1)
-        cv2.normalize(hist2, hist2)
+        # uint8型に変換（必要な場合）
+        if frame1.dtype != np.uint8:
+            frame1 = frame1.astype(np.uint8)
+        if frame2.dtype != np.uint8:
+            frame2 = frame2.astype(np.uint8)
 
-        # 相関係数で類似度を計算
-        correlation = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-        return max(correlation, 0.0)
+        try:
+            # 同じ画像の場合は1.0を返す
+            if np.array_equal(frame1, frame2):
+                return 1.0
+
+            # 簡単な方法：正規化した画素値の差の平均を計算
+            diff = np.abs(frame1.astype(float) - frame2.astype(float))
+            similarity = 1.0 - (np.mean(diff) / 255.0)
+            return max(0.0, min(1.0, similarity))
+
+        except Exception as e:
+            self.logger.error(f"フレーム類似度計算でエラー: {e}")
+            return 0.0
 
     def _select_best_frames(
         self, frames: list[dict[str, Any]], max_count: int

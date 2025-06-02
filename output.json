@@ -1,1 +1,38 @@
-"Mock(None)"
+{
+  "title": "天鳳サンプル牌譜",
+  "players": [
+    {
+      "name": "プレイヤー1",
+      "score": 25000
+    },
+    {
+      "name": "プレイヤー2",
+      "score": 25000
+    },
+    {
+      "name": "プレイヤー3",
+      "score": 25000
+    },
+    {
+      "name": "プレイヤー4",
+      "score": 25000
+    }
+  ],
+  "rounds": [
+    {
+      "round_number": 0,
+      "actions": [
+        [
+          "T0",
+          "1m"
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "video_path": "nonexistent_video.mp4",
+    "processing_time": 0.0011179447174072266,
+    "frame_count": 5,
+    "detected_tiles": 5
+  }
+}

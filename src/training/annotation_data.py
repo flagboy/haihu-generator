@@ -338,10 +338,9 @@ class AnnotationData(LoggerMixin):
             result["updated_at"] = annotation.updated_at.isoformat()
 
         # フレームのdatetimeも変換
-        for frame_dict in result.get("frames", []):
-            if frame_dict.get("annotated_at"):
-                # フレームのannotated_atがdatetimeオブジェクトの場合
-                frame_dict["annotated_at"] = frame_dict["annotated_at"]
+        for i, frame in enumerate(annotation.frames):
+            if frame.annotated_at and result["frames"][i].get("annotated_at"):
+                result["frames"][i]["annotated_at"] = frame.annotated_at.isoformat()
 
         return result
 

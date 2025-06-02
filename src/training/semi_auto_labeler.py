@@ -550,7 +550,7 @@ class SemiAutoLabeler(LoggerMixin):
         is_occluded = edge_ratio < occlusion_threshold
         occlusion_ratio = max(0.0, 1.0 - (edge_ratio / occlusion_threshold))
 
-        return is_occluded, occlusion_ratio
+        return bool(is_occluded), occlusion_ratio
 
     def _calculate_prediction_statistics(
         self, prediction_results: list[PredictionResult]

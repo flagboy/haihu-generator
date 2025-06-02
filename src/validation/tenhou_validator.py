@@ -46,7 +46,7 @@ class TenhouValidator:
 
     # 天鳳記法の正規表現パターン
     TENHOU_TILE_PATTERN = re.compile(r"^[0-9][mps]|[1-7]z$")
-    TENHOU_ACTION_PATTERN = re.compile(r"^[TD][0-3]|N[0-3]|REACH[0-3]|AGARI[0-3]|RYUU$")
+    TENHOU_ACTION_PATTERN = re.compile(r"^([TD][0-3]|N[0-3]|REACH[0-3]|AGARI[0-3]|RYUU)$")
 
     def __init__(self):
         """バリデーターの初期化"""
