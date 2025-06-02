@@ -9,13 +9,19 @@ SystemIntegrator = None
 
 def _lazy_import():
     """重い依存関係の遅延読み込み"""
+    import contextlib
+
     global SystemIntegrator
 
-    try:
+    with contextlib.suppress(ImportError):
         from .system_integrator import SystemIntegrator
-    except ImportError:
-        # 依存関係が不足している場合はスキップ
-        pass
+
+
+def __getattr__(name):
+    if name == "SystemIntegrator":
+        _lazy_import()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = ["SystemIntegrator"]

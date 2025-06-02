@@ -185,7 +185,8 @@ class MahjongSystemApp:
 
             self.logger.info(f"Batch processing completed in {processing_time:.2f}s")
             self.logger.info(
-                f"Processed {len(video_files)} videos, Success rate: {batch_result.get('success_rate', 0):.2f}"
+                f"Processed {len(video_files)} videos, "
+                f"Success rate: {batch_result.get('success_rate', 0):.2f}"
             )
 
             return batch_result

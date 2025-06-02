@@ -77,7 +77,8 @@ class VideoProcessor(LoggerMixin):
             duration = total_frames / video_fps if video_fps > 0 else 0
 
             self.logger.info(
-                f"動画情報 - FPS: {video_fps:.2f}, 総フレーム数: {total_frames}, 長さ: {duration:.2f}秒"
+                f"動画情報 - FPS: {video_fps:.2f}, 総フレーム数: {total_frames}, "
+                f"長さ: {duration:.2f}秒"
             )
 
             # フレーム間隔を計算
@@ -326,10 +327,7 @@ class VideoProcessor(LoggerMixin):
         # ブラー検出（簡易版）
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        if laplacian_var < 100:  # 閾値は調整が必要
-            return False
-
-        return True
+        return laplacian_var >= 100  # 閾値は調整が必要
 
     def get_video_info(self, video_path: str) -> dict:
         """

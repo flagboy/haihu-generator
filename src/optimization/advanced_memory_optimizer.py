@@ -149,11 +149,14 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
             if hasattr(np, "ndarray"):
                 # 大きな配列のガベージコレクション
                 for obj in gc.get_objects():
-                    if isinstance(obj, np.ndarray) and obj.nbytes > 1024 * 1024:  # 1MB以上
+                    if (
+                        isinstance(obj, np.ndarray)
+                        and obj.nbytes > 1024 * 1024
+                        and obj.flags.writeable
+                    ):  # 1MB以上
                         # 読み取り専用フラグを設定してメモリマップ化を促進
-                        if obj.flags.writeable:
-                            with contextlib.suppress(Exception):
-                                obj.flags.writeable = False
+                        with contextlib.suppress(Exception):
+                            obj.flags.writeable = False
 
                 # NumPyの内部キャッシュをクリア
                 if hasattr(np, "get_default_memory_pool"):
@@ -163,7 +166,7 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
                         pool.free_all_blocks()
                         after = pool.used_bytes()
                         result["memory_freed"] = before - after
-                    except:
+                    except Exception:
                         pass
 
             result["success"] = True
@@ -199,9 +202,8 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
 
                 # 未使用のテンソルを削除
                 for obj in gc.get_objects():
-                    if torch.is_tensor(obj):
-                        if obj.is_cuda and not obj.requires_grad:
-                            del obj
+                    if torch.is_tensor(obj) and obj.is_cuda and not obj.requires_grad:
+                        del obj
 
                 # 再度キャッシュをクリア
                 torch.cuda.empty_cache()
@@ -211,11 +213,14 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
 
             # CPU テンソルの最適化
             for obj in gc.get_objects():
-                if torch.is_tensor(obj) and not obj.is_cuda:
+                if (
+                    torch.is_tensor(obj)
+                    and not obj.is_cuda
+                    and obj.element_size() * obj.nelement() > 1024 * 1024
+                    and obj.is_contiguous()
+                ):  # 1MB以上
                     # 大きなテンソルのメモリを圧縮
-                    if obj.element_size() * obj.nelement() > 1024 * 1024:  # 1MB以上
-                        if obj.is_contiguous():
-                            obj = obj.clone()
+                    obj = obj.clone()
 
             result["success"] = True
 
@@ -255,7 +260,7 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
                     libc = ctypes.CDLL("libc.so.6")
                     libc.malloc_trim(0)
                     result["actions"].append("malloc_trim")
-                except:
+                except Exception:
                     pass
 
             # メモリ使用量を再取得
@@ -286,7 +291,7 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
                 if hasattr(pool, "clear"):
                     pool.clear()
                     result["pools_cleaned"] += 1
-            except:
+            except Exception:
                 pass
 
         # オブジェクトキャッシュの統計をリセット

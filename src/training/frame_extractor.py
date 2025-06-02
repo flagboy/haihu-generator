@@ -256,7 +256,8 @@ class FrameExtractor(LoggerMixin):
                 # 進捗表示
                 if frame_count % 1000 == 0:
                     self.logger.info(
-                        f"フレーム処理進捗: {frame_count}フレーム処理, {extracted_count}フレーム抽出"
+                        f"フレーム処理進捗: {frame_count}フレーム処理, "
+                        f"{extracted_count}フレーム抽出"
                     )
 
             return extracted_frames

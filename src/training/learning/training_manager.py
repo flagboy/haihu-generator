@@ -287,7 +287,8 @@ class TrainingManager(LoggerMixin):
         test_data = self._create_annotation_data_from_frames(annotation_data, test_frames)
 
         self.logger.info(
-            f"データ分割完了: 訓練={len(train_frames)}, 検証={len(val_frames)}, テスト={len(test_frames)}"
+            f"データ分割完了: 訓練={len(train_frames)}, "
+            f"検証={len(val_frames)}, テスト={len(test_frames)}"
         )
 
         return train_data, val_data, test_data

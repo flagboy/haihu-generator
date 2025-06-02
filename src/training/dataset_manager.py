@@ -169,7 +169,8 @@ class DatasetManager(LoggerMixin):
                     cursor.execute(
                         """
                         INSERT OR REPLACE INTO videos
-                        (id, name, path, duration, fps, width, height, created_at, updated_at, metadata)
+                        (id, name, path, duration, fps, width, height, 
+                         created_at, updated_at, metadata)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                         (
@@ -403,7 +404,8 @@ class DatasetManager(LoggerMixin):
                 cursor.execute(
                     """
                     INSERT INTO dataset_versions
-                    (id, version, description, created_at, frame_count, tile_count, export_path, checksum)
+                    (id, version, description, created_at, frame_count, 
+                     tile_count, export_path, checksum)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (

@@ -480,7 +480,10 @@ class HistoryManager:
 
     def __str__(self) -> str:
         """文字列表現"""
-        return f"HistoryManager(Games: {self.total_games}, Rounds: {self.total_rounds}, Actions: {self.total_actions})"
+        return (
+            f"HistoryManager(Games: {self.total_games}, "
+            f"Rounds: {self.total_rounds}, Actions: {self.total_actions})"
+        )
 
     def __repr__(self) -> str:
         """詳細な文字列表現"""

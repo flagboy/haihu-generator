@@ -59,7 +59,8 @@ def demo_ai_features(config_manager):
         test_tile = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
         classification = classifier.classify_tile(test_tile)
         print(
-            f"✓ 分類テスト完了 - 予測牌: {classification.tile_name}, 信頼度: {classification.confidence:.3f}"
+            f"✓ 分類テスト完了 - 予測牌: {classification.tile_name}, "
+            f"信頼度: {classification.confidence:.3f}"
         )
 
         # バッチ分類テスト

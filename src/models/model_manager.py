@@ -180,9 +180,10 @@ class ModelManager:
         matching_models = []
 
         for _model_id, model_info in self.metadata["models"].items():
-            if model_info["type"] == model_type:
-                if model_name is None or model_info["name"] == model_name:
-                    matching_models.append(model_info)
+            if model_info["type"] == model_type and (
+                model_name is None or model_info["name"] == model_name
+            ):
+                matching_models.append(model_info)
 
         if not matching_models:
             return None

@@ -282,7 +282,10 @@ class Table:
 
     def __str__(self) -> str:
         """文字列表現"""
-        return f"Table({self.get_current_round_name()}, {self.state.honba}本場, 残り{self.state.remaining_tiles}枚)"
+        return (
+            f"Table({self.get_current_round_name()}, {self.state.honba}本場, "
+            f"残り{self.state.remaining_tiles}枚)"
+        )
 
     def __repr__(self) -> str:
         """詳細な文字列表現"""

@@ -285,7 +285,8 @@ class CompleteWorkflowDemo:
             self.logger.info("Complete Workflow Demonstration Finished")
             self.logger.info(f"Total time: {self.demo_stats['total_processing_time']:.2f}s")
             self.logger.info(
-                f"Phases completed: {self.demo_stats['phases_completed']}/{self.demo_stats['total_phases']}"
+                f"Phases completed: {self.demo_stats['phases_completed']}/"
+                f"{self.demo_stats['total_phases']}"
             )
             self.logger.info(f"Success rate: {self.demo_stats['success_rate']:.2%}")
 

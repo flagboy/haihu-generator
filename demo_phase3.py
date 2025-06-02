@@ -409,7 +409,8 @@ def run_tracking_demo():
 
     for action in result2.actions:
         logger.info(
-            f"  行動: {action.action_type.value}, プレイヤー: {action.player.name}, 牌: {action.tile}"
+            f"  行動: {action.action_type.value}, "
+            f"プレイヤー: {action.player.name}, 牌: {action.tile}"
         )
 
     # 変化分析器のテスト

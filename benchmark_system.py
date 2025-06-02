@@ -456,7 +456,8 @@ class SystemBenchmark:
             )
 
             self.logger.info(
-                f"{test_name} completed: Write {write_throughput:.1f}MB/s, Read {read_throughput:.1f}MB/s"
+                f"{test_name} completed: Write {write_throughput:.1f}MB/s, "
+                f"Read {read_throughput:.1f}MB/s"
             )
             return result
 
@@ -532,7 +533,8 @@ class SystemBenchmark:
             )
 
             self.logger.info(
-                f"{test_name} completed: CPU {cpu_improvement:+.1f}%, Memory {memory_improvement:+.1f}%"
+                f"{test_name} completed: CPU {cpu_improvement:+.1f}%, "
+                f"Memory {memory_improvement:+.1f}%"
             )
             return result
 

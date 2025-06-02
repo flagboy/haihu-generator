@@ -7,12 +7,11 @@ import multiprocessing as mp
 import os
 import sys
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-import numpy as np
 
 from ..pipeline.ai_pipeline import AIPipeline
 from ..pipeline.game_pipeline import GamePipeline
@@ -91,7 +90,7 @@ class SystemIntegrator:
 
         # 進捗追跡
         self.current_progress: ProcessingProgress | None = None
-        self.progress_callbacks: list[callable] = []
+        self.progress_callbacks: list[Callable] = []
 
         self.logger.info("SystemIntegrator initialized with refactored components")
 
@@ -124,7 +123,7 @@ class SystemIntegrator:
             ),
         }
 
-    def add_progress_callback(self, callback: callable):
+    def add_progress_callback(self, callback: Callable):
         """進捗コールバックを追加"""
         self.progress_callbacks.append(callback)
 
@@ -500,52 +499,6 @@ class SystemIntegrator:
         merged_actions.append(current_action)
         return merged_actions
 
-    def _collect_statistics(self, ai_results: list, game_results: list) -> dict[str, Any]:
-        """統計情報を収集"""
-        try:
-            # AI統計
-            total_detections = sum(len(r.detections) for r in ai_results)
-            total_classifications = sum(len(r.classifications) for r in ai_results)
-            avg_confidence = (
-                np.mean([r.confidence_scores.get("combined_confidence", 0.0) for r in ai_results])
-                if ai_results
-                else 0.0
-            )
-
-            # ゲーム統計
-            successful_frames = sum(1 for r in game_results if r.success)
-            avg_processing_time = (
-                np.mean([r.processing_time for r in ai_results]) if ai_results else 0.0
-            )
-
-            return {
-                "ai_statistics": {
-                    "total_frames": len(ai_results),
-                    "total_detections": total_detections,
-                    "total_classifications": total_classifications,
-                    "average_detections_per_frame": total_detections / len(ai_results)
-                    if ai_results
-                    else 0,
-                    "average_confidence": avg_confidence,
-                },
-                "game_statistics": {
-                    "total_frames": len(game_results),
-                    "successful_frames": successful_frames,
-                    "success_rate": successful_frames / len(game_results) if game_results else 0,
-                    "average_processing_time": avg_processing_time,
-                },
-                "performance_statistics": {
-                    "frames_per_second": len(ai_results)
-                    / sum(r.processing_time for r in ai_results)
-                    if ai_results
-                    else 0
-                },
-            }
-
-        except Exception as e:
-            self.logger.error(f"Failed to collect statistics: {e}")
-            return {}
-
     def get_system_info(self) -> dict[str, Any]:
         """システム情報を取得"""
         try:
@@ -556,7 +509,9 @@ class SystemIntegrator:
                 "memory_total_gb": psutil.virtual_memory().total / (1024**3),
                 "memory_available_gb": psutil.virtual_memory().available / (1024**3),
                 "disk_free_gb": psutil.disk_usage(".").free / (1024**3),
-                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                "python_version": (
+                    f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+                ),
                 "integration_config": self.integration_config,
                 "component_status": {
                     "video_processor": self.video_processor is not None,

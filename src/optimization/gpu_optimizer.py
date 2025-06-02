@@ -181,13 +181,13 @@ class GPUOptimizer:
                         temperature = pynvml.nvmlDeviceGetTemperature(
                             handle, pynvml.NVML_TEMPERATURE_GPU
                         )
-                    except:
+                    except Exception:
                         temperature = None
 
                     # 電力使用量
                     try:
                         power_usage = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0  # W
-                    except:
+                    except Exception:
                         power_usage = None
 
                     gpu_info = GPUInfo(

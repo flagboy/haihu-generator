@@ -399,7 +399,8 @@ class AnnotationData(LoggerMixin):
                                     frame.image_width, frame.image_height
                                 )
                                 f.write(
-                                    f"{class_id} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f}\n"
+                                    f"{class_id} {center_x:.6f} {center_y:.6f} "
+                                    f"{width:.6f} {height:.6f}\n"
                                 )
 
             # クラスマッピングを保存

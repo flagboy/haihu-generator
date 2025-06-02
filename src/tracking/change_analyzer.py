@@ -419,7 +419,10 @@ class ChangeAnalyzer:
 
     def __str__(self) -> str:
         """文字列表現"""
-        return f"ChangeAnalyzer(Changes: {self.total_changes_analyzed}, Movements: {self.movements_detected})"
+        return (
+            f"ChangeAnalyzer(Changes: {self.total_changes_analyzed}, "
+            f"Movements: {self.movements_detected})"
+        )
 
     def __repr__(self) -> str:
         """詳細な文字列表現"""

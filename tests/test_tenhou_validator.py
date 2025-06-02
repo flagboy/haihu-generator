@@ -397,9 +397,9 @@ class TestTenhouValidator:
         # 無効な牌
         invalid_tiles = ["0z", "10m", "abc", "", "1x", "m1", "z8"]
         for tile in invalid_tiles:
-            assert not self.validator._is_valid_tenhou_tile(
-                tile
-            ), f"牌 '{tile}' が有効と判定されました"
+            assert not self.validator._is_valid_tenhou_tile(tile), (
+                f"牌 '{tile}' が有効と判定されました"
+            )
 
     def test_validate_tile_notation(self):
         """牌記法検証のテスト"""
@@ -520,6 +520,6 @@ class TestTenhouValidator:
         # 無効なアクション
         invalid_actions = ["X0", "T", "D10", "INVALID"]
         for action in invalid_actions:
-            assert not action_pattern.match(
-                action
-            ), f"アクションパターンが '{action}' に誤ってマッチしました"
+            assert not action_pattern.match(action), (
+                f"アクションパターンが '{action}' に誤ってマッチしました"
+            )

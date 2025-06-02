@@ -354,7 +354,10 @@ class SemiAutoLabeler(LoggerMixin):
                             is_occluded=is_occluded,
                             occlusion_ratio=occlusion_ratio,
                             annotator="semi_auto_labeler",
-                            notes=f"Detection: {detection.confidence:.3f}, Classification: {classification_result.confidence:.3f}",
+                            notes=(
+                                f"Detection: {detection.confidence:.3f}, "
+                                f"Classification: {classification_result.confidence:.3f}"
+                            ),
                         )
                         predicted_tiles.append(tile_annotation)
 

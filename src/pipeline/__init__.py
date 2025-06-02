@@ -19,4 +19,11 @@ def _lazy_import():
         pass
 
 
+def __getattr__(name):
+    if name in __all__:
+        _lazy_import()
+        return globals().get(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = ["AIPipeline", "GamePipeline"]

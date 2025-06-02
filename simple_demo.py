@@ -150,7 +150,8 @@ def test_action_detector():
 
     for action in result2.actions:
         print(
-            f"  行動: {action.action_type.value}, プレイヤー: {action.player.name}, 牌: {action.tile}"
+            f"  行動: {action.action_type.value}, "
+            f"プレイヤー: {action.player.name}, 牌: {action.tile}"
         )
 
     print("行動検出テスト完了\n")
