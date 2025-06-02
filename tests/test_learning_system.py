@@ -252,6 +252,9 @@ class TestLearningScheduler(TestLearningSystem):
         """最適化試行管理テスト"""
         scheduler = LearningScheduler(self.config_manager)
 
+        # 既存の試行をクリア
+        scheduler.optimization_trials.clear()
+
         # 試行を作成
         trial_ids = scheduler._random_search({}, 3, "accuracy")
 
@@ -270,6 +273,9 @@ class TestLearningScheduler(TestLearningSystem):
     def test_best_parameters_retrieval(self):
         """最良パラメータ取得テスト"""
         scheduler = LearningScheduler(self.config_manager)
+
+        # 既存の試行をクリア
+        scheduler.optimization_trials.clear()
 
         # 複数の試行を作成して結果を設定
         trial_ids = scheduler._random_search({}, 3, "accuracy")

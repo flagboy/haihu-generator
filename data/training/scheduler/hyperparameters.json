@@ -1,0 +1,92 @@
+{
+  "parameters": [
+    {
+      "name": "learning_rate",
+      "param_type": "float",
+      "min_value": 1e-05,
+      "max_value": 0.1,
+      "choices": null,
+      "log_scale": true,
+      "current_value": null
+    },
+    {
+      "name": "batch_size",
+      "param_type": "choice",
+      "min_value": null,
+      "max_value": null,
+      "choices": [
+        8,
+        16,
+        32,
+        64,
+        128
+      ],
+      "log_scale": false,
+      "current_value": null
+    },
+    {
+      "name": "epochs",
+      "param_type": "int",
+      "min_value": 10,
+      "max_value": 200,
+      "choices": null,
+      "log_scale": false,
+      "current_value": null
+    },
+    {
+      "name": "optimizer_type",
+      "param_type": "choice",
+      "min_value": null,
+      "max_value": null,
+      "choices": [
+        "adam",
+        "sgd",
+        "adamw"
+      ],
+      "log_scale": false,
+      "current_value": null
+    },
+    {
+      "name": "lr_scheduler_type",
+      "param_type": "choice",
+      "min_value": null,
+      "max_value": null,
+      "choices": [
+        "plateau",
+        "step",
+        "cosine",
+        "none"
+      ],
+      "log_scale": false,
+      "current_value": null
+    },
+    {
+      "name": "dropout_rate",
+      "param_type": "float",
+      "min_value": 0.0,
+      "max_value": 0.8,
+      "choices": null,
+      "log_scale": false,
+      "current_value": null
+    },
+    {
+      "name": "weight_decay",
+      "param_type": "float",
+      "min_value": 1e-06,
+      "max_value": 0.01,
+      "choices": null,
+      "log_scale": true,
+      "current_value": null
+    },
+    {
+      "name": "early_stopping_patience",
+      "param_type": "int",
+      "min_value": 5,
+      "max_value": 50,
+      "choices": null,
+      "log_scale": false,
+      "current_value": null
+    }
+  ],
+  "last_updated": "2025-06-02T23:52:44.467603"
+}

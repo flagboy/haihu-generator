@@ -46,7 +46,8 @@
       "Bash(/Users/flagboy/.nodebrew/node/v19.6.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/x64-darwin/rg -n \"TenhouJsonFormatter\\(.+\\)\" --type py)",
       "Bash(sed:*)",
       "Bash(.venv/bin/python -m pytest:*)",
-      "Bash(.venv/bin/python:*)"
+      "Bash(.venv/bin/python:*)",
+      "Bash(gh pr view:*)"
     ],
     "deny": []
   }

@@ -60,14 +60,23 @@ class ResultProcessor:
                     title="ゲーム", players=default_players, rule=default_rule
                 )
                 self._populate_tenhou_data(tenhou_game, game_data)
-                tenhou_data = self.formatter.format_game_data(tenhou_game)
+                # format_game_dataはJSON文字列を返すので、辞書に変換
+                tenhou_json_str = self.formatter.format_game_data(tenhou_game)
+                import json
 
-            # メタデータを追加
-            if metadata:
+                tenhou_data = json.loads(tenhou_json_str)
+
+            # 既に辞書形式の場合の処理
+            if isinstance(game_data, dict) and not hasattr(game_data, "to_tenhou_format"):
+                tenhou_data = game_data
+
+            # メタデータを追加（辞書形式の場合のみ）
+            if metadata and isinstance(tenhou_data, dict):
                 tenhou_data["metadata"] = metadata
 
-            # 最適化処理
-            tenhou_data = self._optimize_tenhou_data(tenhou_data)
+            # 最適化処理（辞書形式の場合のみ）
+            if isinstance(tenhou_data, dict):
+                tenhou_data = self._optimize_tenhou_data(tenhou_data)
 
             # ファイル保存
             pretty_print = self.tenhou_config.get("pretty_print", True)

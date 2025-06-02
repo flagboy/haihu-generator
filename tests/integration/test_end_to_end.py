@@ -145,32 +145,30 @@ tiles:
 
             # AIPipeline のモック
             mock_ai_pipeline = Mock()
-            mock_ai_pipeline.process_frames_batch.return_value = [
-                Mock(
-                    frame_id=i,
-                    detections=[
-                        Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile")
-                    ],
-                    classifications=[
-                        (
-                            Mock(
-                                bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
-                            ),
-                            Mock(tile_name="1m", confidence=0.9, class_id=1),
-                        )
-                    ],
-                    processing_time=0.1,
-                    tile_areas={
-                        "hand_tiles": [
-                            Mock(
-                                bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
-                            )
-                        ]
-                    },
-                    confidence_scores={"combined_confidence": 0.85},
+            # process_frames_batchはframe_results属性を持つオブジェクトを返す必要がある
+            batch_result = Mock()
+            # AI結果をdictとして作成
+            frame_results = []
+            for i in range(5):
+                # detectionsとclassificationsのMockオブジェクトを作成
+                detection_mock = Mock(
+                    bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
                 )
-                for i in range(5)
-            ]
+                classification_mock = Mock(tile_name="1m", confidence=0.9, class_id=1, label="1m")
+
+                # AIフレーム結果をdictとして作成
+                frame_result = {
+                    "frame_id": i,
+                    "detections": [detection_mock],
+                    "classifications": [(detection_mock, classification_mock)],
+                    "processing_time": 0.1,
+                    "tile_areas": {"hand_tiles": [detection_mock]},
+                    "confidence_scores": {"combined_confidence": 0.85},
+                }
+                frame_results.append(frame_result)
+
+            batch_result.frame_results = frame_results
+            mock_ai_pipeline.process_frames_batch.return_value = batch_result
             mock_ai_pipeline_class.return_value = mock_ai_pipeline
 
             # GamePipeline のモック
@@ -183,6 +181,20 @@ tiles:
                 confidence=0.8,
                 processing_time=0.05,
             )
+            # process_game_dataメソッドを追加
+            mock_game_pipeline.process_game_data.return_value = {
+                "game_info": {
+                    "rule": "東南戦",
+                    "players": ["Player1", "Player2", "Player3", "Player4"],
+                },
+                "rounds": [
+                    {
+                        "round_number": 1,
+                        "round_name": "東1局",
+                        "actions": [{"player": "Player1", "action": "draw", "tiles": ["1m"]}],
+                    }
+                ],
+            }
             mock_game_pipeline.export_tenhou_json_record.return_value = {
                 "game_info": {
                     "rule": "東南戦",
@@ -262,15 +274,19 @@ tiles:
             mock_video_processor_class.return_value = mock_video_processor
 
             mock_ai_pipeline = Mock()
-            mock_ai_pipeline.process_frames_batch.return_value = [
+            # process_frames_batchはframe_results属性を持つオブジェクトを返す必要がある
+            batch_result = Mock()
+            batch_result.frame_results = [
                 Mock(frame_id=i, detections=[], classifications=[], processing_time=0.1)
                 for i in range(3)
             ]
+            mock_ai_pipeline.process_frames_batch.return_value = batch_result
             mock_ai_pipeline_class.return_value = mock_ai_pipeline
 
             mock_game_pipeline = Mock()
             mock_game_pipeline.initialize_game.return_value = True
             mock_game_pipeline.process_frame.return_value = Mock(success=True)
+            mock_game_pipeline.process_game_data.return_value = {"test": "record"}
             mock_game_pipeline.export_tenhou_json_record.return_value = {"test": "record"}
             mock_game_pipeline_class.return_value = mock_game_pipeline
 
@@ -472,7 +488,9 @@ directories:
 
                 # 大量の検出結果を返すモック
                 mock_ai_pipeline = Mock()
-                mock_ai_pipeline.process_frames_batch.return_value = [
+                # process_frames_batchはframe_results属性を持つオブジェクトを返す必要がある
+                batch_result = Mock()
+                batch_result.frame_results = [
                     Mock(
                         frame_id=i,
                         detections=[Mock(bbox=[10, 10, 50, 50], confidence=0.8) for _ in range(10)],
@@ -481,11 +499,13 @@ directories:
                     )
                     for i in range(50)
                 ]
+                mock_ai_pipeline.process_frames_batch.return_value = batch_result
                 mock_ai_pipeline_class.return_value = mock_ai_pipeline
 
                 mock_game_pipeline = Mock()
                 mock_game_pipeline.initialize_game.return_value = True
                 mock_game_pipeline.process_frame.return_value = Mock(success=True)
+                mock_game_pipeline.process_game_data.return_value = {"large": "record"}
                 mock_game_pipeline.export_tenhou_json_record.return_value = {"large": "record"}
                 mock_game_pipeline_class.return_value = mock_game_pipeline
 
