@@ -9,12 +9,25 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torchvision.transforms as transforms
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
+
+# Optional torch imports
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    import torchvision.transforms as transforms
+    from torch.utils.data import DataLoader, Dataset
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
+    optim = None
+    transforms = None
+    DataLoader = None
+    Dataset = object
 
 from ...utils.config import ConfigManager
 from ...utils.logger import LoggerMixin

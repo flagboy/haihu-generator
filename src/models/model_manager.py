@@ -9,8 +9,16 @@ import os
 from datetime import datetime
 from typing import Any
 
-import torch
-import torch.nn as nn
+# Optional torch imports
+try:
+    import torch
+    import torch.nn as nn
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
 
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger

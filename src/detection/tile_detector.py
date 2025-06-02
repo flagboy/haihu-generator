@@ -7,9 +7,19 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
+
+# Optional torch imports
+try:
+    import torch
+    import torch.nn as nn
+    import torchvision.transforms as transforms
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
+    transforms = None
 
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
@@ -25,7 +35,7 @@ class DetectionResult:
     class_name: str
 
 
-class SimpleCNN(nn.Module):
+class SimpleCNN(nn.Module if TORCH_AVAILABLE else object):
     """基本的なCNNモデル（YOLOv8の代替として使用）"""
 
     def __init__(self, num_classes: int = 1):
@@ -114,8 +124,12 @@ class TileDetector:
 
         self.logger.info(f"TileDetector initialized with model_type: {self.model_type}")
 
-    def _setup_device(self) -> torch.device:
+    def _setup_device(self) -> torch.device | None:
         """デバイス設定"""
+        if not TORCH_AVAILABLE:
+            self.logger.warning("PyTorch not available, detection features disabled")
+            return None
+
         gpu_enabled = self.config.get_config().get("system", {}).get("gpu_enabled", False)
 
         if gpu_enabled and torch.cuda.is_available():
@@ -127,8 +141,11 @@ class TileDetector:
 
         return device
 
-    def _setup_transform(self) -> transforms.Compose:
+    def _setup_transform(self) -> transforms.Compose | None:
         """画像変換の設定"""
+        if not TORCH_AVAILABLE:
+            return None
+
         return transforms.Compose(
             [
                 transforms.ToPILImage(),
@@ -140,6 +157,10 @@ class TileDetector:
 
     def load_model(self) -> bool:
         """モデルの読み込み"""
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorch not available, cannot load model")
+            return False
+
         try:
             if self.model_type == "yolo":
                 # YOLOv8モデルの読み込み（ultralytics使用）
@@ -184,6 +205,10 @@ class TileDetector:
         Returns:
             検出結果のリスト
         """
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorch not available, cannot detect")
+            return []
+
         if self.model is None and not self.load_model():
             self.logger.error("Model not loaded")
             return []

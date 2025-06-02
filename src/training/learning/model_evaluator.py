@@ -13,12 +13,21 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import torch
-import torch.nn as nn
 from PIL import Image
 from sklearn.metrics import (
     confusion_matrix,
 )
+
+# Optional torch imports
+try:
+    import torch
+    import torch.nn as nn
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
 
 from ...utils.config import ConfigManager
 from ...utils.logger import LoggerMixin

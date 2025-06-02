@@ -7,10 +7,21 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision.transforms as transforms
+
+# Optional torch imports
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    import torchvision.transforms as transforms
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
+    F = None
+    transforms = None
 
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
@@ -27,7 +38,7 @@ class ClassificationResult:
     probabilities: dict[str, float]
 
 
-class TileClassificationCNN(nn.Module):
+class TileClassificationCNN(nn.Module if TORCH_AVAILABLE else object):
     """麻雀牌分類用CNNモデル"""
 
     def __init__(self, num_classes: int = 37):
@@ -94,7 +105,7 @@ class TileClassificationCNN(nn.Module):
         return output
 
 
-class ResNetBlock(nn.Module):
+class ResNetBlock(nn.Module if TORCH_AVAILABLE else object):
     """ResNetブロック"""
 
     def __init__(self, in_channels, out_channels, stride=1):
@@ -124,7 +135,7 @@ class ResNetBlock(nn.Module):
         return out
 
 
-class TileResNet(nn.Module):
+class TileResNet(nn.Module if TORCH_AVAILABLE else object):
     """麻雀牌分類用ResNetモデル"""
 
     def __init__(self, num_classes: int = 37):
@@ -205,8 +216,12 @@ class TileClassifier:
 
         self.logger.info(f"TileClassifier initialized with model_type: {self.model_type}")
 
-    def _setup_device(self) -> torch.device:
+    def _setup_device(self) -> torch.device | None:
         """デバイス設定"""
+        if not TORCH_AVAILABLE:
+            self.logger.warning("PyTorch not available, classification features disabled")
+            return None
+
         gpu_enabled = self.config.get_config().get("system", {}).get("gpu_enabled", False)
 
         if gpu_enabled and torch.cuda.is_available():
@@ -218,8 +233,11 @@ class TileClassifier:
 
         return device
 
-    def _setup_transform(self) -> transforms.Compose:
+    def _setup_transform(self) -> transforms.Compose | None:
         """画像変換の設定"""
+        if not TORCH_AVAILABLE:
+            return None
+
         return transforms.Compose(
             [
                 transforms.ToPILImage(),
@@ -235,6 +253,10 @@ class TileClassifier:
 
     def load_model(self) -> bool:
         """モデルの読み込み"""
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorch not available, cannot load model")
+            return False
+
         try:
             if self.model_type == "resnet":
                 self.model = TileResNet(num_classes=self.num_classes)
@@ -272,6 +294,10 @@ class TileClassifier:
         Returns:
             分類結果
         """
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorch not available, cannot classify")
+            return ClassificationResult("unknown", 0.0, -1, {})
+
         if self.model is None and not self.load_model():
             self.logger.error("Model not loaded")
             return ClassificationResult("unknown", 0.0, -1, {})
@@ -325,6 +351,10 @@ class TileClassifier:
         """
         if not images:
             return []
+
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorch not available, cannot classify")
+            return [ClassificationResult("unknown", 0.0, -1, {}) for _ in images]
 
         if self.model is None and not self.load_model():
             self.logger.error("Model not loaded")
@@ -489,6 +519,10 @@ class TileClassifier:
         Returns:
             特徴量ベクトル
         """
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorch not available, cannot extract features")
+            return np.array([])
+
         if self.model is None and not self.load_model():
             return np.array([])
 

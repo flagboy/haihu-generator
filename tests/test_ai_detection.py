@@ -6,12 +6,24 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
-import torch
 
-from src.detection.tile_detector import DetectionResult, SimpleCNN, TileDetector
+# Optional torch import
+try:
+    import torch
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+
+from src.detection.tile_detector import DetectionResult, TileDetector
 from src.utils.config import ConfigManager
 
+if TORCH_AVAILABLE:
+    from src.detection.tile_detector import SimpleCNN
 
+
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="PyTorch not available")
 class TestTileDetector:
     """TileDetectorクラスのテスト"""
 

@@ -13,8 +13,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import torch
-import torch.nn as nn
+# Optional torch imports
+try:
+    import torch
+    import torch.nn as nn
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
 
 from ...models.model_manager import ModelManager
 from ...utils.config import ConfigManager

@@ -6,17 +6,30 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
-import torch
+
+# Optional torch import
+try:
+    import torch
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
 
 from src.classification.tile_classifier import (
     ClassificationResult,
-    TileClassificationCNN,
     TileClassifier,
-    TileResNet,
 )
 from src.utils.config import ConfigManager
 
+if TORCH_AVAILABLE:
+    from src.classification.tile_classifier import (
+        TileClassificationCNN,
+        TileResNet,
+    )
 
+
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="PyTorch not available")
 class TestTileClassifier:
     """TileClassifierクラスのテスト"""
 
@@ -91,9 +104,12 @@ class TestTileClassifier:
     def test_load_model_cnn(self, classifier):
         """CNNモデル読み込みテスト"""
         result = classifier.load_model()
-        assert result is True
-        assert classifier.model is not None
-        assert isinstance(classifier.model, TileClassificationCNN)
+        if not TORCH_AVAILABLE:
+            assert result is False
+        else:
+            assert result is True
+            assert classifier.model is not None
+            assert isinstance(classifier.model, TileClassificationCNN)
 
     def test_load_model_resnet(self, config_manager):
         """ResNetモデル読み込みテスト"""
@@ -101,9 +117,12 @@ class TestTileClassifier:
         classifier = TileClassifier(config_manager)
 
         result = classifier.load_model()
-        assert result is True
-        assert classifier.model is not None
-        assert isinstance(classifier.model, TileResNet)
+        if not TORCH_AVAILABLE:
+            assert result is False
+        else:
+            assert result is True
+            assert classifier.model is not None
+            assert isinstance(classifier.model, TileResNet)
 
     def test_classify_tile(self, classifier, sample_tile_image):
         """牌分類テスト"""
