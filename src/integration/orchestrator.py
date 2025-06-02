@@ -162,7 +162,18 @@ class VideoProcessingOrchestrator:
         for i in range(0, len(frames), batch_size):
             batch_frames = frames[i : i + batch_size]
             batch_results = self.ai_pipeline.process_frames_batch(batch_frames, batch_start_frame=i)
-            results.extend(batch_results.frame_results)
+
+            # batch_resultsはPipelineResultのリストなので、各結果を辞書形式に変換
+            for pipeline_result in batch_results:
+                frame_result = {
+                    "frame_id": pipeline_result.frame_id,
+                    "detections": pipeline_result.detections,
+                    "classifications": pipeline_result.classifications,
+                    "processing_time": pipeline_result.processing_time,
+                    "tile_areas": pipeline_result.tile_areas,
+                    "confidence_scores": pipeline_result.confidence_scores,
+                }
+                results.append(frame_result)
 
         return results
 
