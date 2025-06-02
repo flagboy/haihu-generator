@@ -28,7 +28,10 @@
       "Bash(git fetch:*)",
       "Bash(uv add:*)",
       "Bash(rm:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(pre-commit:*)"
     ],
     "deny": []
   }
