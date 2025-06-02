@@ -6,6 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a mahjong game record creation system that processes mahjong game videos (MP4, etc.) to automatically generate game records in Tenhou JSON format. It uses AI to detect and classify mahjong tiles from video frames, tracks game states, and outputs standardized game records.
 
+## Environment
+
+This project uses **uv** as the package manager for Python dependency management. The `pyproject.toml` and `uv.lock` files define the project dependencies.
+
+## Development Guidelines
+
+### 重要: 実行前の深い思考 (Deep Thinking Before Execution)
+
+**毎回必ず実行前に深い思考（ultrathink）を行うこと:**
+- コードの変更前に、その影響範囲を十分に検討する
+- テストの実行前に、期待される結果を明確にする
+- エラーの修正前に、根本原因を特定する
+- 新機能の実装前に、既存システムとの整合性を確認する
+- パフォーマンスの最適化前に、ボトルネックを正確に把握する
+
+この深い思考プロセスにより、より正確で効率的な開発が可能になります。
+
 ## Common Development Commands
 
 ### Environment Setup

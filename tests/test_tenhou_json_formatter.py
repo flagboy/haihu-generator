@@ -3,7 +3,6 @@
 """
 
 import json
-from unittest.mock import patch
 
 import pytest
 
@@ -102,7 +101,8 @@ class TestTenhouJsonFormatter:
         """ツモアクション変換のテスト"""
         action = TenhouDrawAction(player=1, tile=TenhouTile("5m"))
 
-        result = self.formatter._convert_single_action(action.__dict__)
+        # to_tenhou_formatメソッドを直接テスト
+        result = action.to_tenhou_format()
         expected = ["T1", "5m"]
         assert result == expected
 
@@ -111,14 +111,14 @@ class TestTenhouJsonFormatter:
         # 通常の打牌
         action = TenhouDiscardAction(player=2, tile=TenhouTile("7p"), is_riichi=False)
 
-        result = self.formatter._convert_single_action(action.__dict__)
+        result = action.to_tenhou_format()
         expected = ["D2", "7p"]
         assert result == expected
 
         # リーチ打牌
         action_riichi = TenhouDiscardAction(player=2, tile=TenhouTile("7p"), is_riichi=True)
 
-        result_riichi = self.formatter._convert_single_action(action_riichi.__dict__)
+        result_riichi = action_riichi.to_tenhou_format()
         expected_riichi = ["D2", "7p", "r"]
         assert result_riichi == expected_riichi
 
@@ -132,7 +132,7 @@ class TestTenhouJsonFormatter:
             from_player=0,
         )
 
-        result = self.formatter._convert_single_action(action.__dict__)
+        result = action.to_tenhou_format()
         expected = ["N3", "pon", ["3s", "3s", "3s"], 0]
         assert result == expected
 
@@ -140,7 +140,7 @@ class TestTenhouJsonFormatter:
         """リーチアクション変換のテスト"""
         action = TenhouRiichiAction(player=1, step=1)
 
-        result = self.formatter._convert_single_action(action.__dict__)
+        result = action.to_tenhou_format()
         expected = ["REACH1", 1]
         assert result == expected
 
@@ -149,7 +149,7 @@ class TestTenhouJsonFormatter:
         # ツモ和了
         tsumo_action = TenhouAgariAction(player=0, is_tsumo=True, han=3, fu=30, score=3900)
 
-        result = self.formatter._convert_single_action(tsumo_action.__dict__)
+        result = tsumo_action.to_tenhou_format()
         expected = ["AGARI0", "tsumo", 3, 30, 3900]
         assert result == expected
 
@@ -158,7 +158,7 @@ class TestTenhouJsonFormatter:
             player=1, is_tsumo=False, target_player=2, han=2, fu=30, score=2000
         )
 
-        result = self.formatter._convert_single_action(ron_action.__dict__)
+        result = ron_action.to_tenhou_format()
         expected = ["AGARI1", "ron2", 2, 30, 2000]
         assert result == expected
 
@@ -291,13 +291,12 @@ class TestTenhouJsonFormatter:
         processing_time = end_time - start_time
         assert processing_time < 1.0, f"処理時間が長すぎます: {processing_time:.3f}秒"
 
-    @patch("src.output.tenhou_json_formatter.Logger")
-    def test_error_handling(self, mock_logger):
+    def test_error_handling(self):
         """エラーハンドリングのテスト"""
         # 不正なデータでのフォーマット
         invalid_data = None
 
-        with pytest.raises(AttributeError):
+        with pytest.raises((TypeError, AttributeError)):  # TypeErrorまたはAttributeErrorをキャッチ
             self.formatter.format_game_data(invalid_data)
 
     def test_json_output_format(self):

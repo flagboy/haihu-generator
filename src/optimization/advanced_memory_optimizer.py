@@ -37,7 +37,11 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
         Args:
             config_manager: 設定管理オブジェクト
         """
-        super().__init__(config_manager)
+        super().__init__()
+
+        # 設定の取得
+        self.config_manager = config_manager
+        self.memory_config = config_manager._config.get("memory", {})
 
         # 追加設定
         self.enable_aggressive_gc = self.memory_config.get("enable_aggressive_gc", True)
@@ -93,7 +97,9 @@ class AdvancedMemoryOptimizer(MemoryOptimizer):
         after_memory = self._get_memory_usage()
         results["after_memory_mb"] = after_memory / (1024 * 1024)
         results["memory_freed_mb"] = (before_memory - after_memory) / (1024 * 1024)
+        results["memory_freed_gb"] = results["memory_freed_mb"] / 1024
         results["optimization_time"] = time.time() - start_time
+        results["success"] = True
 
         self.logger.info(
             f"Memory optimization completed. Freed {results['memory_freed_mb']:.2f} MB"

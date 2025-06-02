@@ -28,7 +28,7 @@ class ResultProcessor:
 
         # 天鳳JSON設定
         self.tenhou_config = self.config.get("tenhou_json", {})
-        self.formatter = TenhouJsonFormatter(config_manager)
+        self.formatter = TenhouJsonFormatter()
 
     def save_results(
         self, game_data: Any, output_path: str, metadata: dict[str, Any] | None = None
@@ -47,7 +47,18 @@ class ResultProcessor:
                 tenhou_data = game_data.to_tenhou_format()
             else:
                 # TenhouGameDataオブジェクトに変換
-                tenhou_game = TenhouGameData()
+                # デフォルト値で初期化
+                from ..models.tenhou_game_data import (
+                    TenhouGameRule,
+                    TenhouGameType,
+                    TenhouPlayerState,
+                )
+
+                default_players = [TenhouPlayerState(i, f"プレイヤー{i + 1}") for i in range(4)]
+                default_rule = TenhouGameRule(game_type=TenhouGameType.TONPUU)
+                tenhou_game = TenhouGameData(
+                    title="ゲーム", players=default_players, rule=default_rule
+                )
                 self._populate_tenhou_data(tenhou_game, game_data)
                 tenhou_data = self.formatter.format_game_data(tenhou_game)
 
@@ -79,21 +90,28 @@ class ResultProcessor:
         # ゲーム情報の設定
         if hasattr(game_data, "game_info"):
             info = game_data.game_info
-            tenhou_game.set_game_info(
-                room_name=info.get("room_name", "Unknown"),
-                game_type=info.get("game_type", "四人打ち"),
-                rules=info.get("rules", {}),
-            )
+            # titleを更新
+            if "room_name" in info:
+                tenhou_game.title = (
+                    f"{info['room_name']} {tenhou_game.timestamp.strftime('%Y%m%d-%H%M%S')}"
+                )
 
         # プレイヤー情報の設定
-        if hasattr(game_data, "players"):
+        if hasattr(game_data, "players") and game_data.players:
+            from ..models.tenhou_game_data import TenhouPlayerState
+
+            new_players = []
             for i, player in enumerate(game_data.players):
-                tenhou_game.set_player_info(
-                    seat=i,
-                    name=player.get("name", f"Player{i + 1}"),
-                    initial_score=player.get("initial_score", 25000),
-                    rank=player.get("rank", "初段"),
-                )
+                if isinstance(player, dict):
+                    new_players.append(
+                        TenhouPlayerState(
+                            player_id=i,
+                            name=player.get("name", f"Player{i + 1}"),
+                            score=player.get("initial_score", 25000),
+                        )
+                    )
+            if new_players:
+                tenhou_game.players = new_players
 
         # ラウンド情報の追加
         if hasattr(game_data, "rounds"):
@@ -108,16 +126,6 @@ class ResultProcessor:
             tenhou_game: 天鳳ゲームデータオブジェクト
             round_data: ラウンドデータ
         """
-        round_num = round_data.get("round_number", 0)
-        honba = round_data.get("honba", 0)
-
-        tenhou_game.start_new_round(
-            round_number=round_num,
-            honba=honba,
-            riichi_sticks=round_data.get("riichi_sticks", 0),
-            dora_indicators=round_data.get("dora_indicators", []),
-        )
-
         # アクションの追加
         for action in round_data.get("actions", []):
             self._add_action(tenhou_game, action)
@@ -130,26 +138,45 @@ class ResultProcessor:
             tenhou_game: 天鳳ゲームデータオブジェクト
             action: アクションデータ
         """
+        from ..models.tenhou_game_data import (
+            TenhouCallAction,
+            TenhouCallType,
+            TenhouDiscardAction,
+            TenhouDrawAction,
+            TenhouTile,
+        )
+
         action_type = action.get("type")
         player = action.get("player", 0)
 
         if action_type == "draw":
-            tenhou_game.add_draw_action(player=player, tile=action.get("tile"))
+            tile_str = action.get("tile", "1m")
+            draw_action = TenhouDrawAction(player=player, tile=TenhouTile(tile_str))
+            tenhou_game.add_action(draw_action)
         elif action_type == "discard":
-            tenhou_game.add_discard_action(
+            tile_str = action.get("tile", "1m")
+            discard_action = TenhouDiscardAction(
                 player=player,
-                tile=action.get("tile"),
+                tile=TenhouTile(tile_str),
                 is_riichi=action.get("is_riichi", False),
                 is_tsumogiri=action.get("is_tsumogiri", False),
             )
+            tenhou_game.add_action(discard_action)
         elif action_type in ["chi", "pon", "kan"]:
-            tenhou_game.add_call_action(
+            tiles_str = action.get("tiles", [])
+            tiles = [TenhouTile(t) for t in tiles_str]
+            call_type_map = {
+                "chi": TenhouCallType.CHI,
+                "pon": TenhouCallType.PON,
+                "kan": TenhouCallType.KAN,
+            }
+            call_action = TenhouCallAction(
                 player=player,
-                action_type=action_type,
-                tiles=action.get("tiles", []),
+                call_type=call_type_map.get(action_type, TenhouCallType.PON),
+                tiles=tiles,
                 from_player=action.get("from_player", (player + 3) % 4),
-                called_tile=action.get("called_tile"),
             )
+            tenhou_game.add_action(call_action)
 
     def _optimize_tenhou_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """

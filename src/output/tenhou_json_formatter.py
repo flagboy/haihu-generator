@@ -73,6 +73,11 @@ class TenhouJsonFormatter:
 
     def _get_game_title(self, data: dict[str, Any]) -> str:
         """ゲームタイトルを取得"""
+        # 既存のtitleがあればそれを使用
+        if "title" in data:
+            return data["title"]
+
+        # titleがない場合は生成
         timestamp = data.get("timestamp", datetime.now().strftime("%Y%m%d-%H%M%S"))
         game_type = data.get("game_type", "四麻東風戦")
         return f"{game_type} {timestamp}"
@@ -107,39 +112,45 @@ class TenhouJsonFormatter:
         converted_log = []
 
         for action in actions:
-            # アクションオブジェクトから辞書に変換
-            if hasattr(action, "__dict__"):
-                action_dict = action.__dict__.copy()
-                # action_typeが存在しない場合、クラス名から推定
-                if "action_type" not in action_dict:
-                    class_name = action.__class__.__name__
-                    if "Draw" in class_name:
-                        action_dict["action_type"] = "draw"
-                    elif "Discard" in class_name:
-                        action_dict["action_type"] = "discard"
-                    elif "Call" in class_name:
-                        action_dict["action_type"] = "call"
-                    elif "Riichi" in class_name:
-                        action_dict["action_type"] = "riichi"
-                    elif "Agari" in class_name:
-                        action_dict["action_type"] = "agari"
-
-                # TenhouTileオブジェクトを文字列に変換
-                if "tile" in action_dict and hasattr(action_dict["tile"], "notation"):
-                    action_dict["tile"] = action_dict["tile"].notation
-                if "tiles" in action_dict:
-                    tiles = action_dict["tiles"]
-                    if isinstance(tiles, list):
-                        action_dict["tiles"] = [
-                            tile.notation if hasattr(tile, "notation") else str(tile)
-                            for tile in tiles
-                        ]
+            # アクションオブジェクトがto_tenhou_formatメソッドを持つ場合は直接使用
+            if hasattr(action, "to_tenhou_format"):
+                converted_action = action.to_tenhou_format()
+                if converted_action:
+                    converted_log.append(converted_action)
             else:
-                action_dict = action
+                # アクションオブジェクトから辞書に変換
+                if hasattr(action, "__dict__"):
+                    action_dict = action.__dict__.copy()
+                    # action_typeが存在しない場合、クラス名から推定
+                    if "action_type" not in action_dict:
+                        class_name = action.__class__.__name__
+                        if "Draw" in class_name:
+                            action_dict["action_type"] = "draw"
+                        elif "Discard" in class_name:
+                            action_dict["action_type"] = "discard"
+                        elif "Call" in class_name:
+                            action_dict["action_type"] = "call"
+                        elif "Riichi" in class_name:
+                            action_dict["action_type"] = "riichi"
+                        elif "Agari" in class_name:
+                            action_dict["action_type"] = "agari"
 
-            converted_action = self._convert_single_action(action_dict)
-            if converted_action:
-                converted_log.append(converted_action)
+                    # TenhouTileオブジェクトを文字列に変換
+                    if "tile" in action_dict and hasattr(action_dict["tile"], "notation"):
+                        action_dict["tile"] = action_dict["tile"].notation
+                    if "tiles" in action_dict:
+                        tiles = action_dict["tiles"]
+                        if isinstance(tiles, list):
+                            action_dict["tiles"] = [
+                                tile.notation if hasattr(tile, "notation") else str(tile)
+                                for tile in tiles
+                            ]
+                else:
+                    action_dict = action
+
+                converted_action = self._convert_single_action(action_dict)
+                if converted_action:
+                    converted_log.append(converted_action)
 
         return converted_log
 
