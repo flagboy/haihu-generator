@@ -76,30 +76,38 @@ directories:
 
         # AIPipeline のモック
         ai_pipeline = Mock()
-        ai_result = Mock()
-        ai_result.frame_results = [
-            Mock(
-                frame_id=i,
-                detections=[
-                    Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile")
-                ],
-                classifications=[
-                    (
-                        Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"),
-                        Mock(label="1m", confidence=0.9, class_id=1),
-                    )
-                ],
-                processing_time=0.1,
-                tile_areas={
-                    "hand_tiles": [
+
+        def mock_ai_processing(frames, batch_start_frame=0):
+            ai_result = Mock()
+            ai_result.frame_results = [
+                {
+                    "frame_id": batch_start_frame + i,
+                    "detections": [
                         Mock(bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile")
-                    ]
-                },
-                confidence_scores={"combined_confidence": 0.85},
-            )
-            for i in range(5)
-        ]
-        ai_pipeline.process_frames_batch.return_value = ai_result
+                    ],
+                    "classifications": [
+                        (
+                            Mock(
+                                bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
+                            ),
+                            Mock(label="1m", confidence=0.9, class_id=1),
+                        )
+                    ],
+                    "processing_time": 0.1,
+                    "tile_areas": {
+                        "hand_tiles": [
+                            Mock(
+                                bbox=[10, 10, 50, 50], confidence=0.8, class_id=0, class_name="tile"
+                            )
+                        ]
+                    },
+                    "confidence_scores": {"combined_confidence": 0.85},
+                }
+                for i in range(len(frames))
+            ]
+            return ai_result
+
+        ai_pipeline.process_frames_batch.side_effect = mock_ai_processing
 
         # GamePipeline のモック
         game_pipeline = Mock()
@@ -494,16 +502,23 @@ directories:
             }
 
             ai_pipeline = Mock()
-            ai_pipeline.process_frames_batch.return_value = [
-                Mock(
-                    frame_id=0,
-                    detections=[],
-                    classifications=[],
-                    processing_time=0.1,
-                    tile_areas={},
-                    confidence_scores={"combined_confidence": 0.8},
-                )
-            ]
+
+            def mock_process_frames(frames, batch_start_frame=0):
+                ai_result = Mock()
+                ai_result.frame_results = [
+                    {
+                        "frame_id": batch_start_frame + i,
+                        "detections": [],
+                        "classifications": [],
+                        "processing_time": 0.1,
+                        "tile_areas": {},
+                        "confidence_scores": {"combined_confidence": 0.8},
+                    }
+                    for i in range(len(frames))
+                ]
+                return ai_result
+
+            ai_pipeline.process_frames_batch.side_effect = mock_process_frames
 
             game_pipeline = Mock()
             game_pipeline.initialize_game.return_value = True

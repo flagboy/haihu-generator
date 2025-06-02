@@ -310,7 +310,7 @@ class QualityValidator:
 
         try:
             # 必須フィールドチェック
-            required_fields = ["game_info", "rounds"] if "game_info" in record_data else []
+            required_fields = ["game_info", "rounds"]
 
             for field in required_fields:
                 if field not in record_data:
@@ -322,8 +322,20 @@ class QualityValidator:
                             suggestion=f"Add {field} field to record data",
                         )
                     )
-                    penalty = self.validation_config.get("penalties", {}).get("missing_field", 20)
+                    penalty = self.validation_config.get("penalties", {}).get("missing_field", 30)
                     score -= penalty
+
+            # 完全に無効な構造（必須フィールドが全くない）の場合、大幅減点
+            if not any(field in record_data for field in required_fields):
+                issues.append(
+                    ValidationIssue(
+                        ValidationCategory.STRUCTURE,
+                        "critical",
+                        "Invalid record structure: no required fields found",
+                        suggestion="Ensure the record contains at least 'game_info' or 'rounds' fields",
+                    )
+                )
+                score -= 70  # 大幅減点（必須フィールドがない場合）
 
             # データ型チェック
             if "rounds" in record_data:
@@ -366,6 +378,19 @@ class QualityValidator:
         score = 100.0
 
         try:
+            # 基本構造チェック - 必須フィールドがない場合は大幅減点
+            required_fields = ["game_info", "rounds"]
+            if not any(field in record_data for field in required_fields):
+                issues.append(
+                    ValidationIssue(
+                        ValidationCategory.CONTENT,
+                        "error",
+                        "No valid game content found due to missing structure",
+                        suggestion="Add proper game structure with game_info and rounds",
+                    )
+                )
+                score -= 80  # 構造がないとコンテンツも無効
+
             # 牌名の妥当性チェック
             tile_issues, tile_stats = self._validate_tiles(record_data)
             issues.extend(tile_issues)
@@ -432,6 +457,19 @@ class QualityValidator:
         score = 100.0
 
         try:
+            # 基本構造チェック - 必須フィールドがない場合は論理検証不可
+            required_fields = ["game_info", "rounds"]
+            if not any(field in record_data for field in required_fields):
+                issues.append(
+                    ValidationIssue(
+                        ValidationCategory.LOGIC,
+                        "error",
+                        "Cannot validate game logic without proper structure",
+                        suggestion="Add game_info and rounds fields for logic validation",
+                    )
+                )
+                score -= 60  # 構造がないと論理検証不可
+
             # 手牌構成の妥当性
             if "rounds" in record_data:
                 for i, round_data in enumerate(record_data["rounds"]):

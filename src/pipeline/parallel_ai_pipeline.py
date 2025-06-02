@@ -5,13 +5,28 @@
 import multiprocessing as mp
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
-from .ai_pipeline import AIPipeline, PipelineResult
+from .ai_pipeline import AIPipeline
+
+
+@dataclass
+class BatchPipelineResult:
+    """バッチパイプライン処理結果を格納するデータクラス"""
+
+    success: bool
+    frame_results: list[dict[str, Any]]
+    total_frames: int
+    total_detections: int
+    total_classifications: int
+    processing_time: float
+    average_confidence: float
+    confidence_distribution: dict[str, Any]
 
 
 class ParallelAIPipeline(AIPipeline):
@@ -26,6 +41,12 @@ class ParallelAIPipeline(AIPipeline):
         """
         super().__init__(config_manager)
 
+        # 設定を取得
+        config = self.config.get_config()
+        self.system_config = config.get("system", {})
+        self.ai_config = config.get("ai", {})
+        self.performance_config = config.get("performance", {}).get("processing", {})
+
         # 並列処理設定
         self.max_workers = self.system_config.get("max_workers", mp.cpu_count())
         self.use_gpu_parallel = self.ai_config.get("enable_gpu_parallel", False)
@@ -36,7 +57,7 @@ class ParallelAIPipeline(AIPipeline):
 
     def process_frames_parallel_batches(
         self, frames: list[np.ndarray], batch_start_frame: int = 0
-    ) -> PipelineResult:
+    ) -> BatchPipelineResult:
         """
         フレームを並列バッチ処理
 
@@ -94,7 +115,7 @@ class ParallelAIPipeline(AIPipeline):
 
             processing_time = time.time() - start_time
 
-            return PipelineResult(
+            return BatchPipelineResult(
                 success=True,
                 frame_results=all_results,
                 total_frames=len(frames),
@@ -107,7 +128,7 @@ class ParallelAIPipeline(AIPipeline):
 
         except Exception as e:
             self.logger.error(f"Parallel batch processing failed: {e}")
-            return PipelineResult(
+            return BatchPipelineResult(
                 success=False,
                 frame_results=[],
                 total_frames=len(frames),
@@ -137,7 +158,7 @@ class ParallelAIPipeline(AIPipeline):
 
     def _process_batch_wrapper(
         self, batch: list[np.ndarray], batch_start_frame: int
-    ) -> PipelineResult:
+    ) -> BatchPipelineResult:
         """
         バッチ処理のラッパー（プロセス間での実行用）
 
@@ -151,7 +172,55 @@ class ParallelAIPipeline(AIPipeline):
         # 各プロセスで独自のロガーを設定
         self.logger = get_logger(f"{self.__class__.__name__}_worker")
 
-        return self.process_frames_batch(batch, batch_start_frame)
+        try:
+            # 親クラスのバッチ処理を呼び出し
+            results = self.process_frames_batch(batch, batch_start_frame)
+
+            # PipelineResult のリストを BatchPipelineResult に変換
+            frame_results = []
+            total_detections = 0
+            total_classifications = 0
+
+            for result in results:
+                frame_data = {
+                    "frame_id": result.frame_id,
+                    "detections": result.detections,
+                    "classifications": result.classifications,
+                    "processing_time": result.processing_time,
+                    "tile_areas": result.tile_areas,
+                    "confidence_scores": result.confidence_scores,
+                }
+                frame_results.append(frame_data)
+                total_detections += len(result.detections)
+                total_classifications += len(result.classifications)
+
+            return BatchPipelineResult(
+                success=True,
+                frame_results=frame_results,
+                total_frames=len(batch),
+                total_detections=total_detections,
+                total_classifications=total_classifications,
+                processing_time=sum(r.processing_time for r in results),
+                average_confidence=self._calculate_average_confidence(frame_results),
+                confidence_distribution=self._calculate_confidence_distribution(frame_results),
+            )
+
+        except Exception as e:
+            self.logger.error(f"Batch wrapper processing failed: {e}")
+            # 失敗時は空の結果を返す
+            empty_results = [
+                self._create_empty_frame_result(batch_start_frame + i) for i in range(len(batch))
+            ]
+            return BatchPipelineResult(
+                success=False,
+                frame_results=empty_results,
+                total_frames=len(batch),
+                total_detections=0,
+                total_classifications=0,
+                processing_time=0.0,
+                average_confidence=0.0,
+                confidence_distribution={},
+            )
 
     def _create_empty_frame_result(self, frame_id: int) -> dict[str, Any]:
         """
@@ -175,7 +244,7 @@ class ParallelAIPipeline(AIPipeline):
 
     def process_frames_with_prefetch(
         self, frames: list[np.ndarray], prefetch_size: int = 2
-    ) -> PipelineResult:
+    ) -> BatchPipelineResult:
         """
         プリフェッチを使用した非同期処理
 
@@ -223,7 +292,7 @@ class ParallelAIPipeline(AIPipeline):
             # 結果をソート
             all_results.sort(key=lambda r: r.get("frame_id", 0))
 
-            return PipelineResult(
+            return BatchPipelineResult(
                 success=True,
                 frame_results=all_results,
                 total_frames=len(frames),
@@ -236,7 +305,7 @@ class ParallelAIPipeline(AIPipeline):
 
         except Exception as e:
             self.logger.error(f"Prefetch processing failed: {e}")
-            return PipelineResult(
+            return BatchPipelineResult(
                 success=False,
                 frame_results=[],
                 total_frames=len(frames),
@@ -249,7 +318,7 @@ class ParallelAIPipeline(AIPipeline):
 
     def _prefetch_and_process_batch(
         self, batch: list[np.ndarray], batch_start_frame: int
-    ) -> PipelineResult:
+    ) -> BatchPipelineResult:
         """
         バッチのプリフェッチと処理
 
@@ -266,8 +335,37 @@ class ParallelAIPipeline(AIPipeline):
             preprocessed = self._preprocess_frame_optimized(frame)
             preprocessed_batch.append(preprocessed)
 
-        # 処理を実行
-        return self.process_frames_batch(preprocessed_batch, batch_start_frame)
+        # 処理を実行して結果を変換
+        results = self.process_frames_batch(preprocessed_batch, batch_start_frame)
+
+        # PipelineResult のリストを BatchPipelineResult に変換
+        frame_results = []
+        total_detections = 0
+        total_classifications = 0
+
+        for result in results:
+            frame_data = {
+                "frame_id": result.frame_id,
+                "detections": result.detections,
+                "classifications": result.classifications,
+                "processing_time": result.processing_time,
+                "tile_areas": result.tile_areas,
+                "confidence_scores": result.confidence_scores,
+            }
+            frame_results.append(frame_data)
+            total_detections += len(result.detections)
+            total_classifications += len(result.classifications)
+
+        return BatchPipelineResult(
+            success=True,
+            frame_results=frame_results,
+            total_frames=len(batch),
+            total_detections=total_detections,
+            total_classifications=total_classifications,
+            processing_time=sum(r.processing_time for r in results),
+            average_confidence=self._calculate_average_confidence(frame_results),
+            confidence_distribution=self._calculate_confidence_distribution(frame_results),
+        )
 
     def _preprocess_frame_optimized(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -290,3 +388,57 @@ class ParallelAIPipeline(AIPipeline):
             frame = cv2.resize(frame, self.target_size, interpolation=cv2.INTER_LINEAR)
 
         return frame
+
+    def _calculate_average_confidence(self, frame_results: list[dict[str, Any]]) -> float:
+        """
+        平均信頼度を計算
+
+        Args:
+            frame_results: フレーム処理結果のリスト
+
+        Returns:
+            平均信頼度
+        """
+        all_confidences = []
+
+        for result in frame_results:
+            classifications = result.get("classifications", [])
+            for classification_pair in classifications:
+                if hasattr(classification_pair, "__iter__") and len(classification_pair) >= 2:
+                    # (detection, classification) のタプル形式
+                    _, classification = classification_pair
+                    if hasattr(classification, "confidence"):
+                        all_confidences.append(classification.confidence)
+
+        return sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+
+    def _calculate_confidence_distribution(
+        self, frame_results: list[dict[str, Any]]
+    ) -> dict[str, int]:
+        """
+        信頼度分布を計算
+
+        Args:
+            frame_results: フレーム処理結果のリスト
+
+        Returns:
+            信頼度分布
+        """
+        distribution = {"high": 0, "medium": 0, "low": 0}
+
+        for result in frame_results:
+            classifications = result.get("classifications", [])
+            for classification_pair in classifications:
+                if hasattr(classification_pair, "__iter__") and len(classification_pair) >= 2:
+                    # (detection, classification) のタプル形式
+                    _, classification = classification_pair
+                    if hasattr(classification, "confidence"):
+                        confidence = classification.confidence
+                        if confidence >= 0.8:
+                            distribution["high"] += 1
+                        elif confidence >= 0.5:
+                            distribution["medium"] += 1
+                        else:
+                            distribution["low"] += 1
+
+        return distribution

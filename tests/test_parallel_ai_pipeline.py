@@ -21,7 +21,7 @@ class TestParallelAIPipeline:
     def config_manager(self):
         """設定管理オブジェクトのモック"""
         config_manager = Mock(spec=ConfigManager)
-        config_manager._config = {
+        config_data = {
             "system": {
                 "max_workers": 4,
                 "constants": {"default_batch_size": 32, "min_tile_size": 10},
@@ -34,9 +34,11 @@ class TestParallelAIPipeline:
                     "model_path": "models/classifier.pt",
                 },
                 "batch_processing": {"max_batch_size": 32, "dynamic_batching": True},
-                "enable_gpu_parallel": False,
+                "enable_gpu_parallel": True,  # Use ThreadPoolExecutor for mocking
             },
         }
+        config_manager._config = config_data
+        config_manager.get_config.return_value = config_data
         return config_manager
 
     @pytest.fixture
@@ -44,12 +46,14 @@ class TestParallelAIPipeline:
         """ParallelAIPipelineのフィクスチャ"""
         with (
             patch("src.pipeline.parallel_ai_pipeline.get_logger"),
-            patch.object(ParallelAIPipeline, "_initialize_models"),
+            patch("src.pipeline.ai_pipeline.TileDetector") as mock_detector,
+            patch("src.pipeline.ai_pipeline.TileClassifier") as mock_classifier,
         ):
+            # モックインスタンスを設定
+            mock_detector.return_value = Mock()
+            mock_classifier.return_value = Mock()
+
             pipeline = ParallelAIPipeline(config_manager)
-            # 検出器と分類器のモック
-            pipeline.detector = Mock()
-            pipeline.classifier = Mock()
             return pipeline
 
     @pytest.fixture
@@ -62,7 +66,7 @@ class TestParallelAIPipeline:
         """初期化テスト"""
         assert parallel_pipeline is not None
         assert parallel_pipeline.max_workers == 4
-        assert parallel_pipeline.use_gpu_parallel is False
+        assert parallel_pipeline.use_gpu_parallel is True  # Updated to match config
         assert parallel_pipeline.parallel_batch_size == 16
 
     def test_create_parallel_batches(self, parallel_pipeline, sample_frames):
@@ -84,24 +88,19 @@ class TestParallelAIPipeline:
 
         # process_frames_batchのモック
         def mock_process_batch(frames, start_frame):
-            return PipelineResult(
-                success=True,
-                frame_results=[
-                    {
-                        "frame_id": start_frame + i,
-                        "detections": [Mock() for _ in range(2)],
-                        "classifications": [(Mock(), Mock(confidence=0.9)) for _ in range(2)],
-                        "processing_time": 0.1,
-                    }
-                    for i in range(len(frames))
-                ],
-                total_frames=len(frames),
-                total_detections=len(frames) * 2,
-                total_classifications=len(frames) * 2,
-                processing_time=0.1 * len(frames),
-                average_confidence=0.9,
-                confidence_distribution={"high": len(frames) * 2},
-            )
+            # 正しいPipelineResultのリストを返す
+            results = []
+            for i in range(len(frames)):
+                result = PipelineResult(
+                    frame_id=start_frame + i,
+                    detections=[Mock() for _ in range(2)],
+                    classifications=[(Mock(), Mock(confidence=0.9)) for _ in range(2)],
+                    processing_time=0.1,
+                    tile_areas={},
+                    confidence_scores={"combined_confidence": 0.9},
+                )
+                results.append(result)
+            return results
 
         parallel_pipeline.process_frames_batch = mock_process_batch
 
@@ -166,26 +165,30 @@ class TestParallelAIPipeline:
         frames = [np.zeros((100, 100, 3), dtype=np.uint8) for _ in range(5)]
 
         # process_frames_batchのモック
-        parallel_pipeline.process_frames_batch = Mock(
-            return_value=PipelineResult(
-                success=True,
-                frame_results=[],
-                total_frames=5,
-                total_detections=10,
-                total_classifications=10,
-                processing_time=0.5,
-                average_confidence=0.85,
-                confidence_distribution={},
-            )
-        )
+        def mock_process_batch(frames, start_frame):
+            results = []
+            for i in range(len(frames)):
+                result = PipelineResult(
+                    frame_id=start_frame + i,
+                    detections=[Mock() for _ in range(2)],
+                    classifications=[(Mock(), Mock(confidence=0.85)) for _ in range(2)],
+                    processing_time=0.1,
+                    tile_areas={},
+                    confidence_scores={"combined_confidence": 0.85},
+                )
+                results.append(result)
+            return results
+
+        parallel_pipeline.process_frames_batch = mock_process_batch
 
         # ラッパー実行
         result = parallel_pipeline._process_batch_wrapper(frames, 10)
 
-        # 呼び出しの確認
-        parallel_pipeline.process_frames_batch.assert_called_once_with(frames, 10)
+        # 結果の確認
         assert result.success is True
         assert result.total_frames == 5
+        assert result.total_detections == 10  # 5フレーム × 2検出
+        assert result.total_classifications == 10  # 5フレーム × 2分類
 
     def test_create_empty_frame_result(self, parallel_pipeline):
         """空のフレーム結果作成テスト"""
@@ -204,7 +207,9 @@ class TestParallelAIPipeline:
 
         # モック設定
         def mock_prefetch_and_process(batch, start_frame):
-            return PipelineResult(
+            from src.pipeline.parallel_ai_pipeline import BatchPipelineResult
+
+            return BatchPipelineResult(
                 success=True,
                 frame_results=[
                     {"frame_id": start_frame + i, "detections": []} for i in range(len(batch))
@@ -251,22 +256,33 @@ class TestParallelAIPipeline:
 
             with (
                 patch("src.pipeline.parallel_ai_pipeline.get_logger"),
-                patch.object(ParallelAIPipeline, "_initialize_models"),
+                patch("src.pipeline.ai_pipeline.TileDetector") as mock_detector,
+                patch("src.pipeline.ai_pipeline.TileClassifier") as mock_classifier,
             ):
+                mock_detector.return_value = Mock()
+                mock_classifier.return_value = Mock()
                 pipeline = ParallelAIPipeline(config_manager)
                 assert pipeline.max_workers == workers
 
     def test_gpu_parallel_vs_cpu_parallel(self, config_manager):
         """GPU並列とCPU並列の切り替えテスト"""
-        # CPU並列（ProcessPoolExecutor）
-        config_manager._config["ai"]["enable_gpu_parallel"] = False
-        pipeline_cpu = ParallelAIPipeline(config_manager)
-        assert pipeline_cpu.use_gpu_parallel is False
+        with (
+            patch("src.pipeline.parallel_ai_pipeline.get_logger"),
+            patch("src.pipeline.ai_pipeline.TileDetector") as mock_detector,
+            patch("src.pipeline.ai_pipeline.TileClassifier") as mock_classifier,
+        ):
+            mock_detector.return_value = Mock()
+            mock_classifier.return_value = Mock()
 
-        # GPU並列（ThreadPoolExecutor）
-        config_manager._config["ai"]["enable_gpu_parallel"] = True
-        pipeline_gpu = ParallelAIPipeline(config_manager)
-        assert pipeline_gpu.use_gpu_parallel is True
+            # CPU並列（ProcessPoolExecutor）
+            config_manager._config["ai"]["enable_gpu_parallel"] = False
+            pipeline_cpu = ParallelAIPipeline(config_manager)
+            assert pipeline_cpu.use_gpu_parallel is False
+
+            # GPU並列（ThreadPoolExecutor）
+            config_manager._config["ai"]["enable_gpu_parallel"] = True
+            pipeline_gpu = ParallelAIPipeline(config_manager)
+            assert pipeline_gpu.use_gpu_parallel is True
 
     def test_timeout_handling(self, parallel_pipeline, sample_frames):
         """タイムアウト処理のテスト"""

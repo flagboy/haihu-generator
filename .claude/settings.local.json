@@ -51,7 +51,9 @@
       "Bash(/Users/flagboy/.nodebrew/node/v19.6.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/x64-darwin/rg -n \"def export_validation_report\" /Users/flagboy/Works/haihu-generator/src/validation/quality_validator.py -A 30)",
       "Bash(/Users/flagboy/.nodebrew/node/v19.6.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/x64-darwin/rg \"unique_tiles\" /Users/flagboy/Works/haihu-generator/src/validation/quality_validator.py -B 2 -A 2)",
       "Bash(/Users/flagboy/.nodebrew/node/v19.6.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/x64-darwin/rg \"def.*frame\" /Users/flagboy/Works/haihu-generator/src/tracking/state_tracker.py -n)",
-      "Bash(timeout 30s uv run pytest:*)"
+      "Bash(timeout 30s uv run pytest:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)"
     ],
     "deny": []
   }
