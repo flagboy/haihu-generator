@@ -278,7 +278,7 @@ class TestResultProcessor:
 
         # FormatterのformatメソッドをモックSS
         with patch.object(result_processor.formatter, "format_game_data") as mock_format:
-            mock_format.return_value = {"formatted": "data"}
+            mock_format.return_value = '{"formatted": "data"}'
 
             # 保存実行
             result_processor.save_results(game_data, output_path)

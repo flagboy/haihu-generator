@@ -214,13 +214,14 @@ class StatisticsCollector:
         Returns:
             パフォーマンス統計
         """
+        processing_time = processing_result.processing_time or 0
         stats = {
-            "total_processing_time": processing_result.processing_time,
-            "frames_per_second": processing_result.frame_count / processing_result.processing_time
-            if processing_result.processing_time > 0
+            "total_processing_time": processing_time,
+            "frames_per_second": processing_result.frame_count / processing_time
+            if processing_time > 0
             else 0,
-            "tiles_per_second": processing_result.detected_tiles / processing_result.processing_time
-            if processing_result.processing_time > 0
+            "tiles_per_second": processing_result.detected_tiles / processing_time
+            if processing_time > 0
             else 0,
         }
 
