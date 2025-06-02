@@ -66,9 +66,9 @@ class TestPerformanceOptimization:
 
         # 性能向上確認（30%向上 = 70%の時間で完了）
         target_time = baseline_time * 0.7
-        assert (
-            actual_time < target_time
-        ), f"変換時間が目標を超過: {actual_time:.3f}s > {target_time:.3f}s"
+        assert actual_time < target_time, (
+            f"変換時間が目標を超過: {actual_time:.3f}s > {target_time:.3f}s"
+        )
 
         print(f"JSON変換時間: {actual_time:.3f}s (目標: {target_time:.3f}s)")
 
@@ -95,9 +95,9 @@ class TestPerformanceOptimization:
 
         # メモリ増加量が制限内であることを確認
         max_memory_increase = 50  # 50MB以下
-        assert (
-            memory_increase < max_memory_increase
-        ), f"メモリ使用量増加が過大: {memory_increase:.1f}MB"
+        assert memory_increase < max_memory_increase, (
+            f"メモリ使用量増加が過大: {memory_increase:.1f}MB"
+        )
 
         print(f"メモリ使用量増加: {memory_increase:.1f}MB")
 
@@ -228,9 +228,9 @@ class TestPerformanceOptimization:
                 self.formatter._get_tenhou_tile(tile)
 
             # キャッシュサイズが制限内であることを確認
-            assert (
-                len(self.formatter._tile_cache) <= 10
-            ), f"キャッシュサイズが制限を超過: {len(self.formatter._tile_cache)}"
+            assert len(self.formatter._tile_cache) <= 10, (
+                f"キャッシュサイズが制限を超過: {len(self.formatter._tile_cache)}"
+            )
 
             print(f"キャッシュサイズ: {len(self.formatter._tile_cache)}/10")
 
