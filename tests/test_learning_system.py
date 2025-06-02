@@ -54,7 +54,7 @@ class TestLearningSystem(unittest.TestCase):
                 "num_tile_classes": 16,
             }
         }
-        self.config_manager.config.update(test_config)
+        self.config_manager._config.update(test_config)
 
         # サンプルデータを作成
         self.sample_data = self._create_sample_annotation_data()

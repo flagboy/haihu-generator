@@ -23,7 +23,7 @@ class ResultProcessor:
             config_manager: 設定管理オブジェクト
         """
         self.config_manager = config_manager
-        self.config = config_manager.config
+        self.config = config_manager._config
         self.logger = get_logger(self.__class__.__name__)
 
         # 天鳳JSON設定

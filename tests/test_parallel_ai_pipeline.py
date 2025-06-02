@@ -21,7 +21,7 @@ class TestParallelAIPipeline:
     def config_manager(self):
         """設定管理オブジェクトのモック"""
         config_manager = Mock(spec=ConfigManager)
-        config_manager.config = {
+        config_manager._config = {
             "system": {
                 "max_workers": 4,
                 "constants": {"default_batch_size": 32, "min_tile_size": 10},
@@ -247,7 +247,7 @@ class TestParallelAIPipeline:
         worker_counts = [1, 2, 4, 8]
 
         for workers in worker_counts:
-            config_manager.config["system"]["max_workers"] = workers
+            config_manager._config["system"]["max_workers"] = workers
 
             with (
                 patch("src.pipeline.parallel_ai_pipeline.get_logger"),
@@ -259,12 +259,12 @@ class TestParallelAIPipeline:
     def test_gpu_parallel_vs_cpu_parallel(self, config_manager):
         """GPU並列とCPU並列の切り替えテスト"""
         # CPU並列（ProcessPoolExecutor）
-        config_manager.config["ai"]["enable_gpu_parallel"] = False
+        config_manager._config["ai"]["enable_gpu_parallel"] = False
         pipeline_cpu = ParallelAIPipeline(config_manager)
         assert pipeline_cpu.use_gpu_parallel is False
 
         # GPU並列（ThreadPoolExecutor）
-        config_manager.config["ai"]["enable_gpu_parallel"] = True
+        config_manager._config["ai"]["enable_gpu_parallel"] = True
         pipeline_gpu = ParallelAIPipeline(config_manager)
         assert pipeline_gpu.use_gpu_parallel is True
 

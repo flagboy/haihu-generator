@@ -17,7 +17,7 @@ class TestStatisticsCollector:
     def config_manager(self):
         """設定管理オブジェクトのモック"""
         config_manager = Mock(spec=ConfigManager)
-        config_manager.config = {"system": {}, "performance": {}}
+        config_manager._config = {"system": {}, "performance": {}}
         return config_manager
 
     @pytest.fixture

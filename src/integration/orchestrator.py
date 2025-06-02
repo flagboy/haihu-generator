@@ -74,7 +74,7 @@ class VideoProcessingOrchestrator:
         self.logger = get_logger(self.__class__.__name__)
 
         # 設定の読み込み
-        self.config = config_manager.config
+        self.config = config_manager._config
         self.system_config = self.config.get("system", {})
         self.performance_config = self.config.get("performance", {})
 

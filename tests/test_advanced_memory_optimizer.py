@@ -22,7 +22,7 @@ class TestAdvancedMemoryOptimizer:
     def config_manager(self):
         """設定管理オブジェクトのモック"""
         config_manager = Mock(spec=ConfigManager)
-        config_manager.config = {
+        config_manager._config = {
             "performance": {
                 "memory": {
                     "max_cache_size": "2GB",

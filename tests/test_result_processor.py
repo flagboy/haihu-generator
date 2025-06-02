@@ -20,7 +20,7 @@ class TestResultProcessor:
     def config_manager(self):
         """設定管理オブジェクトのモック"""
         config_manager = Mock(spec=ConfigManager)
-        config_manager.config = {
+        config_manager._config = {
             "tenhou_json": {
                 "pretty_print": True,
                 "optimization": {"remove_empty_fields": True, "compress_redundant_data": True},

@@ -22,7 +22,7 @@ class TestVideoProcessingOrchestrator:
     def config_manager(self):
         """設定管理オブジェクトのモック"""
         config_manager = Mock(spec=ConfigManager)
-        config_manager.config = {
+        config_manager._config = {
             "system": {"max_workers": 4, "constants": {"default_batch_size": 32}},
             "performance": {"processing": {"chunk_size": 8}},
         }
