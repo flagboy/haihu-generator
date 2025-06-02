@@ -3,10 +3,19 @@
 CNNベースの牌分類を行い、37種類の牌を識別する
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
+
+# Type checking imports
+if TYPE_CHECKING:
+    import torch
+    import torch.nn as nn
+    import torchvision.transforms as transforms
 
 # Optional torch imports
 try:
@@ -216,7 +225,7 @@ class TileClassifier:
 
         self.logger.info(f"TileClassifier initialized with model_type: {self.model_type}")
 
-    def _setup_device(self) -> torch.device | None:
+    def _setup_device(self) -> Any:
         """デバイス設定"""
         if not TORCH_AVAILABLE:
             self.logger.warning("PyTorch not available, classification features disabled")
@@ -233,7 +242,7 @@ class TileClassifier:
 
         return device
 
-    def _setup_transform(self) -> transforms.Compose | None:
+    def _setup_transform(self) -> Any:
         """画像変換の設定"""
         if not TORCH_AVAILABLE:
             return None

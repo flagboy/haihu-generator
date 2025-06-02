@@ -3,11 +3,19 @@
 学習済みモデルの保存・読み込み・管理を行う
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import os
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+# Type checking imports
+if TYPE_CHECKING:
+    import torch
+    import torch.nn as nn
+    import torch.optim
 
 # Optional torch imports
 try:
@@ -77,7 +85,7 @@ class ModelManager:
 
     def save_model(
         self,
-        model: nn.Module,
+        model: Any,  # nn.Module at runtime
         model_name: str,
         model_type: str,
         metadata: dict[str, Any] | None = None,
@@ -136,7 +144,10 @@ class ModelManager:
             raise
 
     def load_model(
-        self, model: nn.Module, model_path: str, device: torch.device | None = None
+        self,
+        model: Any,
+        model_path: str,
+        device: Any = None,  # nn.Module and torch.device at runtime
     ) -> bool:
         """
         モデルを読み込み
@@ -255,8 +266,8 @@ class ModelManager:
 
     def create_checkpoint(
         self,
-        model: nn.Module,
-        optimizer: torch.optim.Optimizer,
+        model: Any,  # nn.Module at runtime
+        optimizer: Any,  # torch.optim.Optimizer at runtime
         epoch: int,
         loss: float,
         model_name: str,
@@ -298,7 +309,10 @@ class ModelManager:
             raise
 
     def load_checkpoint(
-        self, model: nn.Module, optimizer: torch.optim.Optimizer, checkpoint_path: str
+        self,
+        model: Any,
+        optimizer: Any,
+        checkpoint_path: str,  # nn.Module and Optimizer at runtime
     ) -> dict[str, Any]:
         """
         チェックポイントを読み込み
@@ -330,7 +344,9 @@ class ModelManager:
             self.logger.error(f"Failed to load checkpoint: {e}")
             raise
 
-    def export_model(self, model: nn.Module, model_name: str, export_format: str = "onnx") -> str:
+    def export_model(
+        self, model: Any, model_name: str, export_format: str = "onnx"
+    ) -> str:  # nn.Module at runtime
         """
         モデルを他の形式でエクスポート
 
@@ -381,8 +397,10 @@ class ModelManager:
             raise
 
     def optimize_model(
-        self, model: nn.Module, optimization_type: str = "quantization"
-    ) -> nn.Module:
+        self,
+        model: Any,
+        optimization_type: str = "quantization",  # nn.Module at runtime
+    ) -> Any:  # nn.Module at runtime
         """
         モデルを最適化
 
