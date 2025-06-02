@@ -60,15 +60,19 @@ class TestGamePipeline:
             "confidence_scores": {"detection": 0.9, "classification": 0.85},
         }
 
-        # state_trackerのprocess_frameをモック
-        with patch.object(self.pipeline.state_tracker, "process_frame") as mock_process:
+        # state_trackerのupdate_from_frameをモック
+        with (
+            patch.object(self.pipeline.state_tracker, "update_from_frame") as mock_update,
+            patch.object(self.pipeline.state_tracker, "get_current_confidence") as mock_confidence,
+        ):
             # 成功を返すように設定
             mock_tracking_result = Mock()
             mock_tracking_result.success = True
             mock_tracking_result.state_changes = []
             mock_tracking_result.confidence = 0.9
             mock_tracking_result.detections = []
-            mock_process.return_value = mock_tracking_result
+            mock_update.return_value = True  # 成功を返す
+            mock_confidence.return_value = 0.9  # 信頼度を返す
 
             # フレームを処理
             result = self.pipeline.process_frame(frame_data)
@@ -86,14 +90,18 @@ class TestGamePipeline:
         # 新局を開始
         self.pipeline.start_new_round(1, "東1局", PlayerPosition.EAST)
 
-        with patch.object(self.pipeline.state_tracker, "process_frame") as mock_process:
+        with (
+            patch.object(self.pipeline.state_tracker, "update_from_frame") as mock_update,
+            patch.object(self.pipeline.state_tracker, "get_current_confidence") as mock_confidence,
+        ):
             # 成功を返すように設定
             mock_tracking_result = Mock()
             mock_tracking_result.success = True
             mock_tracking_result.state_changes = []
             mock_tracking_result.confidence = 0.9
             mock_tracking_result.detections = []
-            mock_process.return_value = mock_tracking_result
+            mock_update.return_value = True  # 成功を返す
+            mock_confidence.return_value = 0.9  # 信頼度を返す
 
             # 最初のフレーム（初期状態）
             frame1_data = {
@@ -179,14 +187,18 @@ class TestGamePipeline:
         # 新局を開始
         self.pipeline.start_new_round(1, "東1局", PlayerPosition.EAST)
 
-        with patch.object(self.pipeline.state_tracker, "process_frame") as mock_process:
+        with (
+            patch.object(self.pipeline.state_tracker, "update_from_frame") as mock_update,
+            patch.object(self.pipeline.state_tracker, "get_current_confidence") as mock_confidence,
+        ):
             # 成功を返すように設定
             mock_tracking_result = Mock()
             mock_tracking_result.success = True
             mock_tracking_result.state_changes = []
             mock_tracking_result.confidence = 0.9
             mock_tracking_result.detections = []
-            mock_process.return_value = mock_tracking_result
+            mock_update.return_value = True  # 成功を返す
+            mock_confidence.return_value = 0.9  # 信頼度を返す
 
             # いくつかのフレームを処理
             for i in range(5):

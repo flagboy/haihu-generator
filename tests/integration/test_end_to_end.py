@@ -488,18 +488,34 @@ directories:
 
                 # 大量の検出結果を返すモック
                 mock_ai_pipeline = Mock()
-                # process_frames_batchはframe_results属性を持つオブジェクトを返す必要がある
-                batch_result = Mock()
-                batch_result.frame_results = [
-                    Mock(
-                        frame_id=i,
-                        detections=[Mock(bbox=[10, 10, 50, 50], confidence=0.8) for _ in range(10)],
-                        classifications=[(Mock(), Mock()) for _ in range(10)],
-                        processing_time=0.1,
-                    )
-                    for i in range(50)
-                ]
-                mock_ai_pipeline.process_frames_batch.return_value = batch_result
+
+                # バッチごとに異なる結果を返すようにside_effectを使用
+                def create_batch_result(frames, batch_start_frame=0):
+                    batch_result = Mock()
+                    frame_results = []
+                    for i in range(len(frames)):
+                        # 正しいMockオブジェクトを作成
+                        detections = []
+                        classifications = []
+                        for _j in range(10):
+                            detection_mock = Mock(bbox=[10, 10, 50, 50], confidence=0.8)
+                            classification_mock = Mock(label="1m", confidence=0.9)
+                            detections.append(detection_mock)
+                            classifications.append((detection_mock, classification_mock))
+
+                        frame_result = {
+                            "frame_id": batch_start_frame + i,
+                            "detections": detections,
+                            "classifications": classifications,
+                            "processing_time": 0.1,
+                            "tile_areas": {},
+                            "confidence_scores": {"combined_confidence": 0.85},
+                        }
+                        frame_results.append(frame_result)
+                    batch_result.frame_results = frame_results
+                    return batch_result
+
+                mock_ai_pipeline.process_frames_batch.side_effect = create_batch_result
                 mock_ai_pipeline_class.return_value = mock_ai_pipeline
 
                 mock_game_pipeline = Mock()
@@ -531,26 +547,26 @@ directories:
         # メモリ最適化オブジェクト
         from src.optimization.memory_optimizer import MemoryOptimizer
 
-        optimizer = MemoryOptimizer(config_manager_large)
+        optimizer = MemoryOptimizer()
 
         # メモリ使用量監視
-        initial_memory = optimizer.get_memory_usage()
+        initial_memory = optimizer.get_memory_info()
 
         # 大量のデータを作成（メモリ使用量をシミュレート）
         large_data = [np.zeros((1000, 1000), dtype=np.float32) for _ in range(10)]
 
         # メモリ使用量確認
-        current_memory = optimizer.get_memory_usage()
+        current_memory = optimizer.get_memory_info()
 
         # メモリクリーンアップ
-        optimizer.cleanup_memory()
+        optimizer.optimize_memory()
         del large_data
 
         # メモリ使用量が適切に管理されていることを確認
-        assert current_memory >= initial_memory
+        assert current_memory.memory_percent >= initial_memory.memory_percent
 
         # 最適化推奨事項取得
-        recommendations = optimizer.get_memory_optimization_recommendations()
+        recommendations = optimizer.get_memory_recommendations()
         assert isinstance(recommendations, list)
 
 
@@ -582,12 +598,14 @@ system:
             # 実際のVideoProcessorでテスト
             video_processor = VideoProcessor(config_manager)
 
-            # 破損ファイルの処理
-            result = video_processor.extract_frames(corrupted_video)
-
-            # エラーハンドリングの確認
-            assert result["success"] is False
-            assert "error" in result
+            # 破損ファイルの処理で例外が発生することを確認
+            try:
+                video_processor.extract_frames(corrupted_video)
+                # 例外が投げられない場合はテスト失敗
+                raise AssertionError("Expected ValueError for corrupted video file")
+            except ValueError as e:
+                # 期待される例外を確認
+                assert "動画ファイルを開けません" in str(e)
 
     def test_insufficient_disk_space_simulation(self):
         """ディスク容量不足シミュレーションテスト"""

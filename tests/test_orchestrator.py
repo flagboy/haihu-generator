@@ -40,18 +40,23 @@ class TestVideoProcessingOrchestrator:
 
         # AIPipeline
         ai_pipeline = Mock()
-        ai_result = Mock()
-        ai_result.frame_results = [
-            {
-                "frame_id": i,
-                "classifications": [
-                    (Mock(bbox=[10, 10, 50, 50]), Mock(label="1m", confidence=0.9))
-                    for _ in range(3)
-                ],
-            }
-            for i in range(10)
-        ]
-        ai_pipeline.process_frames_batch.return_value = ai_result
+
+        # バッチごとに異なる結果を返すようにside_effectを使用
+        def create_batch_result(frames, batch_start_frame=0):
+            ai_result = Mock()
+            ai_result.frame_results = [
+                {
+                    "frame_id": batch_start_frame + i,
+                    "classifications": [
+                        (Mock(bbox=[10, 10, 50, 50]), Mock(label="1m", confidence=0.9))
+                        for _ in range(3)
+                    ],
+                }
+                for i in range(len(frames))
+            ]
+            return ai_result
+
+        ai_pipeline.process_frames_batch.side_effect = create_batch_result
 
         # GamePipeline
         game_pipeline = Mock()

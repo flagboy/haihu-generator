@@ -681,6 +681,22 @@ class QualityValidator:
 
         return recommendations
 
+    def _serialize_statistics(self, statistics: dict[str, Any]) -> dict[str, Any]:
+        """統計情報をJSONシリアライズ可能な形式に変換"""
+        from enum import Enum
+
+        serialized = {}
+        for key, value in statistics.items():
+            if isinstance(value, set):
+                serialized[key] = list(value)
+            elif isinstance(value, dict):
+                serialized[key] = self._serialize_statistics(value)
+            elif isinstance(value, Enum):
+                serialized[key] = value.value
+            else:
+                serialized[key] = value
+        return serialized
+
     def export_validation_report(self, result: ValidationResult, output_path: str):
         """検証レポートをエクスポート"""
         try:
@@ -703,9 +719,9 @@ class QualityValidator:
                     }
                     for issue in result.issues
                 ],
-                "statistics": result.statistics,
+                "statistics": self._serialize_statistics(result.statistics),
                 "recommendations": result.recommendations,
-                "validation_config": self.validation_config,
+                "validation_config": self._serialize_statistics(self.validation_config),
                 "timestamp": time.time(),
             }
 

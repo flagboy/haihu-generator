@@ -14,6 +14,35 @@ This is a mahjong game record creation system that processes mahjong game videos
 
 This project uses **uv** as the package manager for Python dependency management. The `pyproject.toml` and `uv.lock` files define the project dependencies.
 
+### Installing Dependencies
+When installing packages, always use `uv` instead of `pip`:
+```bash
+# Install new dependency
+uv add package_name
+
+# Install development dependency
+uv add --dev package_name
+
+# Install all dependencies
+uv sync
+
+# Install optional dependencies
+uv add package_name[extra]
+```
+
+### Running Python Commands
+Use `uv run` for executing Python commands:
+```bash
+# Run pytest
+uv run pytest
+
+# Run python script
+uv run python script.py
+
+# Run with specific Python version
+uv run --python 3.11 python script.py
+```
+
 ## Development Guidelines
 
 ### 重要: 実行前の深い思考 (Deep Thinking Before Execution)
@@ -26,6 +55,14 @@ This project uses **uv** as the package manager for Python dependency management
 - パフォーマンスの最適化前に、ボトルネックを正確に把握する
 
 この深い思考プロセスにより、より正確で効率的な開発が可能になります。
+
+### 重要: コミット前のテスト確認 (Test Verification Before Commit)
+
+**コード変更をコミットする前に、必ず全てのテストが成功することを確認すること:**
+- `pytest` コマンドですべてのテストを実行
+- 失敗したテストがある場合は、修正してから再度テストを実行
+- 全てのテストが成功（PASSED）することを確認してからコミット
+- 特に、変更に関連するテストは必ず実行して確認する
 
 ## Common Development Commands
 
@@ -63,19 +100,19 @@ python main.py optimize
 ### Testing
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run specific test
-pytest tests/test_integration.py -v
+uv run pytest tests/test_integration.py -v
 
 # Run with coverage
-pytest --cov=src --cov-report=html
+uv run pytest --cov=src --cov-report=html
 
 # Run performance tests
-pytest tests/test_performance.py -v
+uv run pytest tests/test_performance.py -v
 
 # Run integration tests
-python run_integration_tests.py
+uv run python run_integration_tests.py
 ```
 
 ### Code Quality
