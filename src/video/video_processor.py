@@ -327,7 +327,7 @@ class VideoProcessor(LoggerMixin):
         # ブラー検出（簡易版）
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        return laplacian_var >= 100  # 閾値は調整が必要
+        return bool(laplacian_var >= 100)  # 閾値は調整が必要
 
     def get_video_info(self, video_path: str) -> dict:
         """
