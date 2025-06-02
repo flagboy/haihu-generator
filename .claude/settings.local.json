@@ -27,7 +27,8 @@
       "Bash(uv python pin:*)",
       "Bash(git fetch:*)",
       "Bash(uv add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   }
