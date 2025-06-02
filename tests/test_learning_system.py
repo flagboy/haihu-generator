@@ -9,7 +9,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import torch
+# Try importing torch, set flag for availability
+try:
+    import torch
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
 
 from src.training.annotation_data import (
     AnnotationData,
@@ -32,6 +39,8 @@ class TestLearningSystem(unittest.TestCase):
     """学習システムテストクラス"""
 
     def setUp(self):
+        if not TORCH_AVAILABLE:
+            self.skipTest("PyTorch not installed")
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
         self.config_manager = ConfigManager()
@@ -154,7 +163,11 @@ class TestModelTrainer(TestLearningSystem):
         trainer = ModelTrainer(self.config_manager)
 
         self.assertIsNotNone(trainer.scheduler)
-        self.assertEqual(str(trainer.device), "cuda" if torch.cuda.is_available() else "cpu")
+        if TORCH_AVAILABLE:
+            self.assertEqual(str(trainer.device), "cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            # Skip device check when torch is not available
+            pass
 
     def test_tile_dataset_creation(self):
         """TileDatasetの作成テスト"""
@@ -165,10 +178,15 @@ class TestModelTrainer(TestLearningSystem):
         self.assertGreater(dataset.num_classes, 0)
 
         # データセットからサンプルを取得
-        if len(dataset) > 0:
+        if len(dataset) > 0 and TORCH_AVAILABLE:
             image, label = dataset[0]
-            self.assertIsInstance(image, torch.Tensor)
-            self.assertIsInstance(label, torch.Tensor)
+            if TORCH_AVAILABLE:
+                self.assertIsInstance(image, torch.Tensor)
+                self.assertIsInstance(label, torch.Tensor)
+            else:
+                # Without torch, just check we got something
+                self.assertIsNotNone(image)
+                self.assertIsNotNone(label)
 
     def test_detection_dataset_creation(self):
         """検出用データセットの作成テスト"""
@@ -176,10 +194,15 @@ class TestModelTrainer(TestLearningSystem):
 
         self.assertGreater(len(dataset), 0)
 
-        if len(dataset) > 0:
+        if len(dataset) > 0 and TORCH_AVAILABLE:
             image, target = dataset[0]
-            self.assertIsInstance(image, torch.Tensor)
-            self.assertIsInstance(target, torch.Tensor)
+            if TORCH_AVAILABLE:
+                self.assertIsInstance(image, torch.Tensor)
+                self.assertIsInstance(target, torch.Tensor)
+            else:
+                # Without torch, just check we got something
+                self.assertIsNotNone(image)
+                self.assertIsNotNone(target)
             self.assertEqual(target.shape[0], 5)  # bbox(4) + class(1)
 
 
