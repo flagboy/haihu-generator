@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 重要: 言語設定 (Language Setting)
+
+**すべての出力は日本語で行うこと。** コメント、ドキュメント、エラーメッセージ、ユーザーへの応答はすべて日本語を使用してください。
+
 ## Project Overview
 
 This is a mahjong game record creation system that processes mahjong game videos (MP4, etc.) to automatically generate game records in Tenhou JSON format. It uses AI to detect and classify mahjong tiles from video frames, tracks game states, and outputs standardized game records.
