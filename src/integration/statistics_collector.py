@@ -261,7 +261,9 @@ class StatisticsCollector:
                     elif isinstance(value, list) and isinstance(merged[key], list):
                         # リストの場合は結合
                         merged[key].extend(value)
-                    # それ以外は後の値で上書き
+                    else:
+                        # それ以外は後の値で上書き
+                        merged[key] = value
 
         return merged
 

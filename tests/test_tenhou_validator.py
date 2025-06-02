@@ -82,7 +82,7 @@ class TestTenhouValidator:
             "title": "テストゲーム 20240601-120000",
             "name": ["プレイヤー1", "プレイヤー2", "プレイヤー3", "プレイヤー4"],
             "rule": {"disp": "四麻東風戦", "aka": 1, "kuitan": 1, "tonnan": 0},
-            "log": [["T0", "1m"], ["D0", "9z"], ["T1", "2p"], ["D1", "8z"]],
+            "log": [["T0", "1m"], ["D0", "9p"], ["T1", "2p"], ["D1", "1z"]],
             "sc": [25000, 25000, 25000, 25000],
             "owari": {
                 "順位": [1, 2, 3, 4],
@@ -108,7 +108,7 @@ class TestTenhouValidator:
 
         # サンプルアクションを追加
         game_data.add_action(TenhouDrawAction(player=0, tile=TenhouTile("1m")))
-        game_data.add_action(TenhouDiscardAction(player=0, tile=TenhouTile("9z")))
+        game_data.add_action(TenhouDiscardAction(player=0, tile=TenhouTile("9p")))
 
         return game_data
 
