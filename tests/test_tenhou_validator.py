@@ -482,8 +482,8 @@ class TestTenhouValidator:
         # 警告が出ることを確認（実装によっては検出されない場合もある）
         # assert len(result.warnings) > 0
 
-    @patch("src.validation.tenhou_validator.Logger")
-    def test_error_handling_in_validation(self, mock_logger):
+    @patch("src.validation.tenhou_validator.get_logger")
+    def test_error_handling_in_validation(self, mock_get_logger):
         """バリデーション中のエラーハンドリングテスト"""
         # 予期しない例外が発生する状況をシミュレート
         with patch.object(
