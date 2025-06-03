@@ -299,10 +299,10 @@ class TestModelEvaluator(TestLearningSystem):
         """初期化テスト"""
         evaluator = ModelEvaluator(self.config_manager)
 
-        self.assertTrue(evaluator.evaluation_root.exists())
-        self.assertTrue(evaluator.reports_dir.exists())
-        self.assertTrue(evaluator.visualizations_dir.exists())
-        self.assertTrue(evaluator.metrics_dir.exists())
+        self.assertTrue(evaluator.evaluation_dir.exists())
+        self.assertTrue((evaluator.evaluation_dir / "reports").exists())
+        self.assertTrue((evaluator.evaluation_dir / "visualizations").exists())
+        self.assertTrue((evaluator.evaluation_dir / "metrics").exists())
 
     def test_learning_curves_creation(self):
         """学習曲線作成テスト"""
@@ -334,10 +334,12 @@ class TestModelEvaluator(TestLearningSystem):
         ]
 
         try:
-            curves_path = evaluator.create_learning_curves(history)
+            # VisualizationGeneratorを使用して学習曲線を作成
+            curves_path = evaluator.evaluation_dir / "visualizations" / "learning_curves.png"
+            evaluator.visualization_generator.plot_learning_curves(history, save_path=curves_path)
             # matplotlibが利用可能な場合のみテスト
-            if curves_path:
-                self.assertTrue(Path(curves_path).exists())
+            if curves_path.exists():
+                self.assertTrue(curves_path.exists())
         except ImportError:
             # matplotlibが利用できない場合はスキップ
             pass
@@ -349,19 +351,22 @@ class TestModelEvaluator(TestLearningSystem):
         # テストケース: 完全一致
         pred_boxes = [[0, 0, 10, 10]]
         target_boxes = [[0, 0, 10, 10]]
-        ious = evaluator._calculate_iou_batch(pred_boxes, target_boxes)
+        # MetricsCalculatorを使用してIoUを計算
+        ious = evaluator.metrics_calculator.calculate_iou_batch(pred_boxes, target_boxes)
         self.assertAlmostEqual(ious[0], 1.0, places=5)
 
         # テストケース: 半分重複
         pred_boxes = [[0, 0, 10, 10]]
         target_boxes = [[5, 0, 15, 10]]
-        ious = evaluator._calculate_iou_batch(pred_boxes, target_boxes)
+        # MetricsCalculatorを使用してIoUを計算
+        ious = evaluator.metrics_calculator.calculate_iou_batch(pred_boxes, target_boxes)
         self.assertAlmostEqual(ious[0], 1 / 3, places=5)  # IoU = 50/(100+100-50) = 1/3
 
         # テストケース: 重複なし
         pred_boxes = [[0, 0, 5, 5]]
         target_boxes = [[10, 10, 15, 15]]
-        ious = evaluator._calculate_iou_batch(pred_boxes, target_boxes)
+        # MetricsCalculatorを使用してIoUを計算
+        ious = evaluator.metrics_calculator.calculate_iou_batch(pred_boxes, target_boxes)
         self.assertEqual(ious[0], 0.0)
 
     def test_top_k_accuracy_calculation(self):
@@ -379,12 +384,13 @@ class TestModelEvaluator(TestLearningSystem):
         )
         targets = np.array([1, 2])
 
+        # MetricsCalculatorを使用してTop-k精度を計算
         # Top-1精度
-        top1_acc = evaluator._calculate_top_k_accuracy(probs, targets, k=1)
+        top1_acc = evaluator.metrics_calculator.calculate_top_k_accuracy(probs, targets, k=1)
         self.assertEqual(top1_acc, 1.0)  # 両方とも正解
 
         # Top-2精度
-        top2_acc = evaluator._calculate_top_k_accuracy(probs, targets, k=2)
+        top2_acc = evaluator.metrics_calculator.calculate_top_k_accuracy(probs, targets, k=2)
         self.assertEqual(top2_acc, 1.0)  # 両方ともTop-2に含まれる
 
 

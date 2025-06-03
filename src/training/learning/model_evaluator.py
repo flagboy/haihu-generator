@@ -1,42 +1,47 @@
 """
-モデル評価システム
-
-モデル性能評価、可視化、メトリクス計算を行う
+リファクタリングされたモデル評価システム
+分割されたクラスを統合して使用
 """
 
-import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-from PIL import Image
-from sklearn.metrics import (
-    confusion_matrix,
-)
 
 # Optional torch imports
 try:
     import torch
     import torch.nn as nn
+    from torch.utils.data import DataLoader
 
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
     torch = None
     nn = None
+    DataLoader = None
 
 from ...utils.config import ConfigManager
-from ...utils.logger import LoggerMixin
 from ..annotation_data import AnnotationData
+
+# 分割されたクラスをインポート
+from .evaluation import (
+    BaseEvaluator,
+    ConfusionAnalyzer,
+    EvaluationResult,
+    MetricsCalculator,
+    ModelComparator,
+    ReportGenerator,
+    VisualizationGenerator,
+)
 from .model_trainer import TileDataset
 
 
-class ModelEvaluator(LoggerMixin):
-    """モデル評価クラス"""
+class ModelEvaluator(BaseEvaluator):
+    """リファクタリングされたモデル評価クラス"""
 
     def __init__(self, config_manager: ConfigManager | None = None):
         """
@@ -45,44 +50,47 @@ class ModelEvaluator(LoggerMixin):
         Args:
             config_manager: 設定管理インスタンス
         """
-        self.config_manager = config_manager or ConfigManager()
-        self.config = self.config_manager.get_config()
+        super().__init__(config_manager or ConfigManager())
 
-        # 評価結果保存ディレクトリ
-        self.evaluation_root = Path(
-            self.config.get("training", {}).get("evaluation_root", "data/training/evaluation")
+        # 分割されたコンポーネントを初期化
+        self.metrics_calculator = MetricsCalculator()
+        self.confusion_analyzer = ConfusionAnalyzer()
+        self.visualization_generator = VisualizationGenerator(
+            self.evaluation_dir / "visualizations"
         )
-        self.evaluation_root.mkdir(parents=True, exist_ok=True)
+        self.report_generator = ReportGenerator(self.evaluation_dir / "reports")
+        self.model_comparator = ModelComparator()
 
-        # サブディレクトリ
-        self.reports_dir = self.evaluation_root / "reports"
-        self.visualizations_dir = self.evaluation_root / "visualizations"
-        self.metrics_dir = self.evaluation_root / "metrics"
+        # PyTorch設定
+        if TORCH_AVAILABLE and torch.cuda.is_available():
+            self.device = torch.device("cuda")
+            self.logger.info("CUDA is available. Using GPU.")
+        else:
+            self.device = torch.device("cpu")
+            self.logger.info("Using CPU.")
 
-        for dir_path in [self.reports_dir, self.visualizations_dir, self.metrics_dir]:
-            dir_path.mkdir(parents=True, exist_ok=True)
-
-        # デバイス設定
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        self.logger.info(f"ModelEvaluator初期化完了: {self.evaluation_root}")
+        self.logger.info(f"ModelEvaluator初期化完了: {self.evaluation_dir}")
 
     def evaluate_model(
         self, model_path: str, test_data: AnnotationData, model_type: str, save_results: bool = True
-    ) -> dict[str, float]:
+    ) -> dict[str, Any]:
         """
         モデルを評価
 
         Args:
             model_path: モデルファイルパス
             test_data: テストデータ
-            model_type: モデルタイプ
+            model_type: モデルタイプ ("detection" or "classification")
             save_results: 結果を保存するか
 
         Returns:
-            評価メトリクス
+            評価結果辞書
         """
         self.logger.info(f"モデル評価開始: {model_path}")
+
+        if not TORCH_AVAILABLE:
+            self.logger.error("PyTorchが利用できません")
+            return {}
 
         try:
             # モデルを読み込み
@@ -90,34 +98,131 @@ class ModelEvaluator(LoggerMixin):
             if model is None:
                 return {}
 
-            # データローダーを作成
-            test_dataset = TileDataset(test_data, model_type=model_type, augment=False)
-            test_loader = torch.utils.data.DataLoader(
-                test_dataset, batch_size=32, shuffle=False, num_workers=4
-            )
+            # データセットを作成
+            dataset = TileDataset(test_data, model_type=model_type, augment=False)
 
-            # 評価実行
-            if model_type == "detection":
-                metrics = self._evaluate_detection_model(model, test_loader, test_dataset)
-            elif model_type == "classification":
-                metrics = self._evaluate_classification_model(model, test_loader, test_dataset)
-            else:
-                self.logger.error(f"サポートされていないモデルタイプ: {model_type}")
-                return {}
+            # 評価を実行
+            evaluation_result = self.evaluate(model, dataset)
 
             # 結果を保存
             if save_results:
-                self._save_evaluation_results(model_path, metrics, model_type)
+                self._save_evaluation_results(model_path, evaluation_result, model_type)
 
-            self.logger.info(f"モデル評価完了: {model_path}")
-            return metrics
+            # 辞書形式で返す（後方互換性のため）
+            return {
+                "accuracy": evaluation_result.accuracy,
+                "precision": evaluation_result.precision.get("weighted_avg", 0),
+                "recall": evaluation_result.recall.get("weighted_avg", 0),
+                "f1_score": evaluation_result.f1_score.get("weighted_avg", 0),
+                "evaluation_time": evaluation_result.evaluation_time,
+            }
 
         except Exception as e:
             self.logger.error(f"モデル評価に失敗: {e}")
+            import traceback
+
+            self.logger.error(traceback.format_exc())
             return {}
 
-    def _load_model(self, model_path: str, model_type: str) -> nn.Module | None:
+    def evaluate(self, model: Any, dataset: Any) -> EvaluationResult:
+        """
+        モデルを評価（BaseEvaluatorの抽象メソッドを実装）
+
+        Args:
+            model: 評価対象モデル
+            dataset: 評価用データセット
+
+        Returns:
+            評価結果
+        """
+        if not TORCH_AVAILABLE:
+            raise RuntimeError("PyTorchが利用できません")
+
+        start_time = time.time()
+
+        # データローダーを作成
+        dataloader = DataLoader(
+            dataset,
+            batch_size=self.config.get("training", {}).get("batch_size", 32),
+            shuffle=False,
+            num_workers=4,
+        )
+
+        # 予測を収集
+        all_predictions = []
+        all_labels = []
+        all_confidences = []
+
+        model.eval()
+        with torch.no_grad():
+            for batch in dataloader:
+                images, labels = batch
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+
+                # 予測
+                outputs = model(images)
+
+                # ソフトマックスを適用
+                if outputs.dim() > 1:
+                    probs = torch.softmax(outputs, dim=1)
+                    confidences, predictions = torch.max(probs, dim=1)
+                else:
+                    predictions = outputs
+                    confidences = torch.ones_like(outputs)
+
+                all_predictions.extend(predictions.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+                all_confidences.extend(confidences.cpu().numpy())
+
+        # NumPy配列に変換
+        y_true = np.array(all_labels)
+        y_pred = np.array(all_predictions)
+        confidence_scores = np.array(all_confidences)
+
+        # クラス名を取得
+        class_names = dataset.get_class_names() if hasattr(dataset, "get_class_names") else None
+        if class_names:
+            self.metrics_calculator.class_names = class_names
+            self.confusion_analyzer.class_names = class_names
+
+        # メトリクスを計算
+        accuracy = self.metrics_calculator.calculate_accuracy(y_true, y_pred)
+        precision, recall, f1_score = self.metrics_calculator.calculate_precision_recall_f1(
+            y_true, y_pred
+        )
+        per_class_accuracy = self.metrics_calculator.calculate_per_class_accuracy(y_true, y_pred)
+        class_distribution = self.metrics_calculator.calculate_class_distribution(y_true)
+        confidence_stats = self.metrics_calculator.calculate_confidence_statistics(
+            confidence_scores, y_true, y_pred
+        )
+
+        # 混同行列を計算
+        confusion_matrix = self.confusion_analyzer.calculate_confusion_matrix(y_true, y_pred)
+
+        evaluation_time = time.time() - start_time
+
+        # 評価結果を作成
+        return EvaluationResult(
+            accuracy=accuracy,
+            precision=precision,
+            recall=recall,
+            f1_score=f1_score,
+            confusion_matrix=confusion_matrix,
+            per_class_accuracy=per_class_accuracy,
+            total_samples=len(y_true),
+            correct_predictions=int(np.sum(y_true == y_pred)),
+            class_distribution=class_distribution,
+            confidence_scores=confidence_stats,
+            evaluation_time=evaluation_time,
+            additional_metrics={},
+        )
+
+    def _load_model(self, model_path: str, model_type: str) -> Any | None:
         """モデルを読み込み"""
+        if not TORCH_AVAILABLE:
+            return None
+
         try:
             if not os.path.exists(model_path):
                 self.logger.error(f"モデルファイルが見つかりません: {model_path}")
@@ -135,707 +240,96 @@ class ModelEvaluator(LoggerMixin):
             elif model_type == "classification":
                 from ...classification.tile_classifier import TileClassifier
 
-                model = TileClassifier(self.config_manager)
-                model = model.model
+                classifier = TileClassifier(self.config_manager)
+                model = classifier.model
             else:
                 self.logger.error(f"サポートされていないモデルタイプ: {model_type}")
                 return None
 
             # 重みを読み込み
-            model.load_state_dict(checkpoint.get("model_state_dict", checkpoint))
+            if "model_state_dict" in checkpoint:
+                model.load_state_dict(checkpoint["model_state_dict"])
+            else:
+                model.load_state_dict(checkpoint)
+
             model = model.to(self.device)
             model.eval()
 
             return model
 
         except Exception as e:
-            self.logger.error(f"モデル読み込みに失敗: {e}")
+            self.logger.error(f"モデルの読み込みに失敗: {e}")
             return None
 
-    def _evaluate_detection_model(
-        self, model: nn.Module, test_loader, test_dataset: TileDataset
-    ) -> dict[str, float]:
-        """検出モデルを評価"""
-        model.eval()
-
-        all_bbox_preds = []
-        all_bbox_targets = []
-        all_conf_preds = []
-        all_conf_targets = []
-        all_class_preds = []
-        all_class_targets = []
-
-        total_loss = 0.0
-        criterion = nn.MSELoss()
-
-        with torch.no_grad():
-            for data, target in test_loader:
-                data, target = data.to(self.device), target.to(self.device)
-
-                # 予測
-                bbox_pred, conf_pred, class_pred = model(data)
-
-                # 損失計算
-                bbox_loss = criterion(bbox_pred, target[:, :4])
-                conf_loss = nn.BCELoss()(conf_pred.squeeze(), (target[:, 4] > 0).float())
-                class_loss = nn.CrossEntropyLoss()(class_pred, target[:, 4].long())
-
-                total_loss += (bbox_loss + conf_loss + class_loss).item()
-
-                # 予測結果を収集
-                all_bbox_preds.extend(bbox_pred.cpu().numpy())
-                all_bbox_targets.extend(target[:, :4].cpu().numpy())
-                all_conf_preds.extend(conf_pred.cpu().numpy())
-                all_conf_targets.extend((target[:, 4] > 0).float().cpu().numpy())
-                all_class_preds.extend(torch.argmax(class_pred, dim=1).cpu().numpy())
-                all_class_targets.extend(target[:, 4].long().cpu().numpy())
-
-        # メトリクス計算
-        metrics = {}
-
-        # 損失
-        metrics["loss"] = total_loss / len(test_loader)
-
-        # バウンディングボックス精度（IoU）
-        ious = self._calculate_iou_batch(all_bbox_preds, all_bbox_targets)
-        metrics["mean_iou"] = np.mean(ious)
-        metrics["iou_50"] = np.mean(np.array(ious) > 0.5)  # IoU > 0.5の割合
-        metrics["iou_75"] = np.mean(np.array(ious) > 0.75)  # IoU > 0.75の割合
-
-        # 信頼度精度
-        conf_preds = np.array(all_conf_preds).flatten()
-        conf_targets = np.array(all_conf_targets)
-        metrics["conf_accuracy"] = np.mean((conf_preds > 0.5) == conf_targets)
-
-        # 分類精度
-        class_preds = np.array(all_class_preds)
-        class_targets = np.array(all_class_targets)
-        metrics["class_accuracy"] = np.mean(class_preds == class_targets)
-
-        # mAP計算（簡易版）
-        metrics["map_50"] = self._calculate_map(
-            all_bbox_preds,
-            all_bbox_targets,
-            all_conf_preds,
-            all_class_preds,
-            all_class_targets,
-            iou_threshold=0.5,
-        )
-
-        return metrics
-
-    def _evaluate_classification_model(
-        self, model: nn.Module, test_loader, test_dataset: TileDataset
-    ) -> dict[str, float]:
-        """分類モデルを評価"""
-        model.eval()
-
-        all_preds = []
-        all_targets = []
-        all_probs = []
-        total_loss = 0.0
-        correct = 0
-        total = 0
-
-        criterion = nn.CrossEntropyLoss()
-
-        with torch.no_grad():
-            for data, target in test_loader:
-                data, target = data.to(self.device), target.to(self.device)
-
-                # 予測
-                output = model(data)
-                loss = criterion(output, target)
-
-                total_loss += loss.item()
-
-                # 予測結果を収集
-                probs = torch.softmax(output, dim=1)
-                _, predicted = torch.max(output, 1)
-
-                all_preds.extend(predicted.cpu().numpy())
-                all_targets.extend(target.cpu().numpy())
-                all_probs.extend(probs.cpu().numpy())
-
-                total += target.size(0)
-                correct += (predicted == target).sum().item()
-
-        # メトリクス計算
-        metrics = {}
-
-        # 基本メトリクス
-        metrics["loss"] = total_loss / len(test_loader)
-        metrics["accuracy"] = correct / total
-
-        # 詳細メトリクス
-        all_preds = np.array(all_preds)
-        all_targets = np.array(all_targets)
-        all_probs = np.array(all_probs)
-
-        # クラス別精度
-        unique_classes = np.unique(all_targets)
-        class_accuracies = {}
-        for class_id in unique_classes:
-            mask = all_targets == class_id
-            if np.sum(mask) > 0:
-                class_acc = np.mean(all_preds[mask] == all_targets[mask])
-                class_accuracies[f"class_{class_id}_accuracy"] = class_acc
-
-        metrics.update(class_accuracies)
-
-        # Precision, Recall, F1-score
-        from sklearn.metrics import f1_score, precision_score, recall_score
-
-        metrics["precision_macro"] = precision_score(
-            all_targets, all_preds, average="macro", zero_division=0
-        )
-        metrics["recall_macro"] = recall_score(
-            all_targets, all_preds, average="macro", zero_division=0
-        )
-        metrics["f1_macro"] = f1_score(all_targets, all_preds, average="macro", zero_division=0)
-
-        metrics["precision_weighted"] = precision_score(
-            all_targets, all_preds, average="weighted", zero_division=0
-        )
-        metrics["recall_weighted"] = recall_score(
-            all_targets, all_preds, average="weighted", zero_division=0
-        )
-        metrics["f1_weighted"] = f1_score(
-            all_targets, all_preds, average="weighted", zero_division=0
-        )
-
-        # Top-k精度
-        if all_probs.shape[1] > 1:
-            top_k_acc = self._calculate_top_k_accuracy(
-                all_probs, all_targets, k=min(5, all_probs.shape[1])
-            )
-            metrics["top_5_accuracy"] = top_k_acc
-
-        return metrics
-
-    def _calculate_iou_batch(self, pred_boxes: list, target_boxes: list) -> list[float]:
-        """バッチでIoUを計算"""
-        ious = []
-
-        for pred, target in zip(pred_boxes, target_boxes, strict=False):
-            # 座標を正規化解除（必要に応じて）
-            pred = np.array(pred)
-            target = np.array(target)
-
-            # IoU計算
-            x1 = max(pred[0], target[0])
-            y1 = max(pred[1], target[1])
-            x2 = min(pred[2], target[2])
-            y2 = min(pred[3], target[3])
-
-            if x2 <= x1 or y2 <= y1:
-                ious.append(0.0)
-                continue
-
-            intersection = (x2 - x1) * (y2 - y1)
-            pred_area = (pred[2] - pred[0]) * (pred[3] - pred[1])
-            target_area = (target[2] - target[0]) * (target[3] - target[1])
-            union = pred_area + target_area - intersection
-
-            if union > 0:
-                ious.append(intersection / union)
-            else:
-                ious.append(0.0)
-
-        return ious
-
-    def _calculate_map(
-        self,
-        bbox_preds: list,
-        bbox_targets: list,
-        conf_preds: list,
-        class_preds: list,
-        class_targets: list,
-        iou_threshold: float = 0.5,
-    ) -> float:
-        """mAP（mean Average Precision）を計算（簡易版）"""
-        # 実際の実装では、より複雑なmAP計算が必要
-        # ここでは簡易的な実装
-
-        ious = self._calculate_iou_batch(bbox_preds, bbox_targets)
-        conf_preds = np.array(conf_preds).flatten()
-        class_preds = np.array(class_preds)
-        class_targets = np.array(class_targets)
-
-        # IoU閾値を満たし、クラスが正しい予測の割合
-        correct_detections = (np.array(ious) > iou_threshold) & (class_preds == class_targets)
-
-        if len(correct_detections) == 0:
-            return 0.0
-
-        # 信頼度でソートして精度を計算
-        sorted_indices = np.argsort(conf_preds)[::-1]
-        sorted_correct = correct_detections[sorted_indices]
-
-        # 累積精度を計算
-        cumulative_correct = np.cumsum(sorted_correct)
-        precision = cumulative_correct / (np.arange(len(sorted_correct)) + 1)
-
-        # 平均精度
-        ap = np.mean(precision[sorted_correct])
-        return ap if not np.isnan(ap) else 0.0
-
-    def _calculate_top_k_accuracy(self, probs: np.ndarray, targets: np.ndarray, k: int) -> float:
-        """Top-k精度を計算"""
-        top_k_preds = np.argsort(probs, axis=1)[:, -k:]
-        correct = 0
-
-        for i, target in enumerate(targets):
-            if target in top_k_preds[i]:
-                correct += 1
-
-        return correct / len(targets)
-
-    def _save_evaluation_results(self, model_path: str, metrics: dict[str, float], model_type: str):
+    def _save_evaluation_results(
+        self, model_path: str, evaluation_result: EvaluationResult, model_type: str
+    ) -> None:
         """評価結果を保存"""
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = Path(model_path).stem
+        model_name = Path(model_path).stem
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-            # メトリクスをJSON形式で保存
-            metrics_file = self.metrics_dir / f"{model_name}_{timestamp}_metrics.json"
+        # 結果を保存
+        result_path = self.evaluation_dir / f"{model_name}_{timestamp}_result.json"
+        self.save_evaluation_result(evaluation_result, result_path)
 
-            results = {
-                "model_path": model_path,
-                "model_type": model_type,
-                "evaluation_time": datetime.now().isoformat(),
-                "metrics": metrics,
-            }
-
-            with open(metrics_file, "w", encoding="utf-8") as f:
-                json.dump(results, f, ensure_ascii=False, indent=2)
-
-            self.logger.info(f"評価結果保存: {metrics_file}")
-
-        except Exception as e:
-            self.logger.error(f"評価結果の保存に失敗: {e}")
-
-    def create_confusion_matrix(
-        self, model_path: str, test_data: AnnotationData, class_names: list[str] | None = None
-    ) -> str:
-        """
-        混同行列を作成
-
-        Args:
-            model_path: モデルファイルパス
-            test_data: テストデータ
-            class_names: クラス名リスト
-
-        Returns:
-            保存された画像ファイルパス
-        """
-        try:
-            # モデルを読み込み
-            model = self._load_model(model_path, "classification")
-            if model is None:
-                return ""
-
-            # データローダーを作成
-            test_dataset = TileDataset(test_data, model_type="classification", augment=False)
-            test_loader = torch.utils.data.DataLoader(
-                test_dataset, batch_size=32, shuffle=False, num_workers=4
+        # 可視化を生成
+        if self.visualization_enabled:
+            # 混同行列
+            cm_path = (
+                self.evaluation_dir
+                / "visualizations"
+                / f"{model_name}_{timestamp}_confusion_matrix.png"
+            )
+            self.visualization_generator.plot_confusion_matrix(
+                evaluation_result.confusion_matrix,
+                class_names=self.metrics_calculator.class_names,
+                title=f"Confusion Matrix - {model_name}",
+                save_path=cm_path,
+                normalize=True,
             )
 
-            # 予測実行
-            all_preds = []
-            all_targets = []
-
-            model.eval()
-            with torch.no_grad():
-                for data, target in test_loader:
-                    data, target = data.to(self.device), target.to(self.device)
-                    output = model(data)
-                    _, predicted = torch.max(output, 1)
-
-                    all_preds.extend(predicted.cpu().numpy())
-                    all_targets.extend(target.cpu().numpy())
-
-            # 混同行列を計算
-            cm = confusion_matrix(all_targets, all_preds)
-
-            # 可視化
-            plt.figure(figsize=(12, 10))
-
-            if class_names is None:
-                class_names = [f"Class {i}" for i in range(cm.shape[0])]
-
-            sns.heatmap(
-                cm,
-                annot=True,
-                fmt="d",
-                cmap="Blues",
-                xticklabels=class_names,
-                yticklabels=class_names,
+            # クラスごとの精度
+            accuracy_path = (
+                self.evaluation_dir / "visualizations" / f"{model_name}_{timestamp}_accuracy.png"
             )
-            plt.title("Confusion Matrix")
-            plt.xlabel("Predicted")
-            plt.ylabel("Actual")
-            plt.tight_layout()
-
-            # 保存
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = Path(model_path).stem
-            output_path = self.visualizations_dir / f"{model_name}_{timestamp}_confusion_matrix.png"
-
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            self.logger.info(f"混同行列保存: {output_path}")
-            return str(output_path)
-
-        except Exception as e:
-            self.logger.error(f"混同行列作成に失敗: {e}")
-            return ""
-
-    def create_learning_curves(self, training_history: list[dict[str, Any]]) -> str:
-        """
-        学習曲線を作成
-
-        Args:
-            training_history: 学習履歴
-
-        Returns:
-            保存された画像ファイルパス
-        """
-        try:
-            if not training_history:
-                return ""
-
-            # データを抽出
-            epochs = [h["epoch"] for h in training_history]
-            train_losses = [h["train_loss"] for h in training_history]
-            val_losses = [h["val_loss"] for h in training_history]
-            train_accs = [h.get("train_accuracy", 0) for h in training_history]
-            val_accs = [h.get("val_accuracy", 0) for h in training_history]
-
-            # 可視化
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-
-            # 損失曲線
-            ax1.plot(epochs, train_losses, label="Training Loss", color="blue")
-            ax1.plot(epochs, val_losses, label="Validation Loss", color="red")
-            ax1.set_xlabel("Epoch")
-            ax1.set_ylabel("Loss")
-            ax1.set_title("Training and Validation Loss")
-            ax1.legend()
-            ax1.grid(True)
-
-            # 精度曲線
-            ax2.plot(epochs, train_accs, label="Training Accuracy", color="blue")
-            ax2.plot(epochs, val_accs, label="Validation Accuracy", color="red")
-            ax2.set_xlabel("Epoch")
-            ax2.set_ylabel("Accuracy")
-            ax2.set_title("Training and Validation Accuracy")
-            ax2.legend()
-            ax2.grid(True)
-
-            plt.tight_layout()
-
-            # 保存
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = self.visualizations_dir / f"learning_curves_{timestamp}.png"
-
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            self.logger.info(f"学習曲線保存: {output_path}")
-            return str(output_path)
-
-        except Exception as e:
-            self.logger.error(f"学習曲線作成に失敗: {e}")
-            return ""
-
-    def create_detection_visualization(
-        self, model_path: str, test_data: AnnotationData, num_samples: int = 10
-    ) -> str:
-        """
-        検出結果の可視化
-
-        Args:
-            model_path: モデルファイルパス
-            test_data: テストデータ
-            num_samples: 可視化するサンプル数
-
-        Returns:
-            保存された画像ファイルパス
-        """
-        try:
-            # モデルを読み込み
-            model = self._load_model(model_path, "detection")
-            if model is None:
-                return ""
-
-            # テストサンプルを選択
-            samples = []
-            for video_annotation in test_data.video_annotations.values():
-                for frame in video_annotation.frames[:num_samples]:
-                    if frame.is_valid and len(frame.tiles) > 0:
-                        samples.append(frame)
-                        if len(samples) >= num_samples:
-                            break
-                if len(samples) >= num_samples:
-                    break
-
-            if not samples:
-                return ""
-
-            # 可視化
-            fig, axes = plt.subplots(2, min(5, len(samples)), figsize=(20, 8))
-            if len(samples) == 1:
-                axes = axes.reshape(2, 1)
-
-            model.eval()
-            with torch.no_grad():
-                for i, frame in enumerate(samples[: min(5, len(samples))]):
-                    if i >= 5:
-                        break
-
-                    # 画像を読み込み
-                    image = Image.open(frame.image_path).convert("RGB")
-                    image_np = np.array(image)
-
-                    # 予測実行（簡易実装）
-                    # 実際の実装では適切な前処理が必要
-
-                    # Ground Truth表示
-                    ax_gt = axes[0, i] if len(samples) > 1 else axes[0]
-                    ax_gt.imshow(image_np)
-                    ax_gt.set_title(f"Ground Truth {i + 1}")
-                    ax_gt.axis("off")
-
-                    # Ground Truthのバウンディングボックスを描画
-                    for tile in frame.tiles:
-                        bbox = tile.bbox
-                        rect = plt.Rectangle(
-                            (bbox.x1, bbox.y1),
-                            bbox.width,
-                            bbox.height,
-                            linewidth=2,
-                            edgecolor="green",
-                            facecolor="none",
-                        )
-                        ax_gt.add_patch(rect)
-                        ax_gt.text(bbox.x1, bbox.y1 - 5, tile.tile_id, color="green", fontsize=8)
-
-                    # 予測結果表示（簡易実装）
-                    ax_pred = axes[1, i] if len(samples) > 1 else axes[1]
-                    ax_pred.imshow(image_np)
-                    ax_pred.set_title(f"Prediction {i + 1}")
-                    ax_pred.axis("off")
-
-                    # 予測バウンディングボックスを描画（ダミー）
-                    for tile in frame.tiles:  # 実際は予測結果を使用
-                        bbox = tile.bbox
-                        rect = plt.Rectangle(
-                            (bbox.x1, bbox.y1),
-                            bbox.width,
-                            bbox.height,
-                            linewidth=2,
-                            edgecolor="red",
-                            facecolor="none",
-                        )
-                        ax_pred.add_patch(rect)
-                        ax_pred.text(bbox.x1, bbox.y1 - 5, tile.tile_id, color="red", fontsize=8)
-
-            plt.tight_layout()
-
-            # 保存
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = Path(model_path).stem
-            output_path = (
-                self.visualizations_dir / f"{model_name}_{timestamp}_detection_results.png"
+            self.visualization_generator.plot_per_class_metrics(
+                evaluation_result.per_class_accuracy,
+                metric_name="Accuracy",
+                title=f"Per-Class Accuracy - {model_name}",
+                save_path=accuracy_path,
             )
 
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            self.logger.info(f"検出結果可視化保存: {output_path}")
-            return str(output_path)
-
-        except Exception as e:
-            self.logger.error(f"検出結果可視化に失敗: {e}")
-            return ""
-
-    def generate_evaluation_report(
-        self,
-        model_path: str,
-        test_data: AnnotationData,
-        model_type: str,
-        training_history: list[dict[str, Any]] | None = None,
-    ) -> str:
-        """
-        総合評価レポートを生成
-
-        Args:
-            model_path: モデルファイルパス
-            test_data: テストデータ
-            model_type: モデルタイプ
-            training_history: 学習履歴
-
-        Returns:
-            レポートファイルパス
-        """
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = Path(model_path).stem
-            report_path = self.reports_dir / f"{model_name}_{timestamp}_evaluation_report.html"
-
-            # 評価実行
-            metrics = self.evaluate_model(model_path, test_data, model_type, save_results=False)
-
-            # 可視化作成
-            confusion_matrix_path = ""
-            learning_curves_path = ""
-            detection_viz_path = ""
-
-            if model_type == "classification":
-                confusion_matrix_path = self.create_confusion_matrix(model_path, test_data)
-            elif model_type == "detection":
-                detection_viz_path = self.create_detection_visualization(model_path, test_data)
-
-            if training_history:
-                learning_curves_path = self.create_learning_curves(training_history)
-
-            # HTMLレポート生成
-            html_content = self._generate_html_report(
-                model_path,
-                model_type,
-                metrics,
-                confusion_matrix_path,
-                learning_curves_path,
-                detection_viz_path,
-                training_history,
+            # 評価サマリー
+            summary_path = (
+                self.evaluation_dir / "visualizations" / f"{model_name}_{timestamp}_summary.png"
+            )
+            self.visualization_generator.create_evaluation_summary_plot(
+                evaluation_result, save_path=summary_path
             )
 
-            with open(report_path, "w", encoding="utf-8") as f:
-                f.write(html_content)
+        # レポートを生成
+        model_info = {
+            "model_path": model_path,
+            "model_type": model_type,
+            "model_name": model_name,
+        }
 
-            self.logger.info(f"評価レポート生成: {report_path}")
-            return str(report_path)
+        dataset_info = {
+            "total_samples": evaluation_result.total_samples,
+            "num_classes": len(evaluation_result.class_distribution),
+        }
 
-        except Exception as e:
-            self.logger.error(f"評価レポート生成に失敗: {e}")
-            return ""
+        # テキストレポート
+        report_path = self.evaluation_dir / "reports" / f"{model_name}_{timestamp}_report.txt"
+        self.report_generator.generate_evaluation_report(
+            evaluation_result, model_info, dataset_info, save_path=report_path
+        )
 
-    def _generate_html_report(
-        self,
-        model_path: str,
-        model_type: str,
-        metrics: dict[str, float],
-        confusion_matrix_path: str,
-        learning_curves_path: str,
-        detection_viz_path: str,
-        training_history: list[dict[str, Any]] | None,
-    ) -> str:
-        """HTMLレポートを生成"""
-
-        html = f"""
-        <!DOCTYPE html>
-        <html lang="ja">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>モデル評価レポート</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                .header {{ background-color: #f0f0f0; padding: 20px; border-radius: 5px; }}
-                .section {{ margin: 20px 0; }}
-                .metrics-table {{ border-collapse: collapse; width: 100%; }}
-                .metrics-table th, .metrics-table td {{
-                    border: 1px solid #ddd; padding: 8px; text-align: left;
-                }}
-                .metrics-table th {{ background-color: #f2f2f2; }}
-                .image-container {{ text-align: center; margin: 20px 0; }}
-                .image-container img {{ max-width: 100%; height: auto; }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>モデル評価レポート</h1>
-                <p><strong>モデルパス:</strong> {model_path}</p>
-                <p><strong>モデルタイプ:</strong> {model_type}</p>
-                <p><strong>評価日時:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-            </div>
-
-            <div class="section">
-                <h2>評価メトリクス</h2>
-                <table class="metrics-table">
-                    <tr><th>メトリクス</th><th>値</th></tr>
-        """
-
-        for metric, value in metrics.items():
-            html += f"<tr><td>{metric}</td><td>{value:.4f}</td></tr>"
-
-        html += """
-                </table>
-            </div>
-        """
-
-        if learning_curves_path:
-            html += f"""
-            <div class="section">
-                <h2>学習曲線</h2>
-                <div class="image-container">
-                    <img src="{learning_curves_path}" alt="学習曲線">
-                </div>
-            </div>
-            """
-
-        if confusion_matrix_path:
-            html += f"""
-            <div class="section">
-                <h2>混同行列</h2>
-                <div class="image-container">
-                    <img src="{confusion_matrix_path}" alt="混同行列">
-                </div>
-            </div>
-            """
-
-        if detection_viz_path:
-            html += f"""
-            <div class="section">
-                <h2>検出結果</h2>
-                <div class="image-container">
-                    <img src="{detection_viz_path}" alt="検出結果">
-                </div>
-            </div>
-            """
-
-        if training_history:
-            html += """
-            <div class="section">
-                <h2>学習履歴</h2>
-                <table class="metrics-table">
-                    <tr><th>エポック</th><th>訓練損失</th><th>検証損失</th><th>訓練精度</th><th>検証精度</th></tr>
-            """
-
-            for history in training_history[-10:]:  # 最後の10エポックのみ表示
-                html += f"""
-                <tr>
-                    <td>{history["epoch"]}</td>
-                    <td>{history["train_loss"]:.4f}</td>
-                    <td>{history["val_loss"]:.4f}</td>
-                    <td>{history.get("train_accuracy", 0):.4f}</td>
-                    <td>{history.get("val_accuracy", 0):.4f}</td>
-                </tr>
-                """
-
-            html += """
-                </table>
-            </div>
-            """
-
-        html += """
-        </body>
-        </html>
-        """
-
-        return html
+        # JSONレポート
+        json_report_path = self.evaluation_dir / "reports" / f"{model_name}_{timestamp}_report.json"
+        self.report_generator.generate_json_report(
+            evaluation_result, model_info, dataset_info, save_path=json_report_path
+        )
 
     def compare_models(
         self, model_paths: list[str], test_data: AnnotationData, model_type: str
@@ -851,48 +345,51 @@ class ModelEvaluator(LoggerMixin):
         Returns:
             比較結果
         """
-        comparison_results = {"models": [], "best_model": None, "comparison_metrics": {}}
-
-        all_metrics = {}
+        results = {}
 
         for model_path in model_paths:
-            self.logger.info(f"モデル評価中: {model_path}")
-            metrics = self.evaluate_model(model_path, test_data, model_type, save_results=False)
+            self.logger.info(f"評価中: {model_path}")
+
+            # モデルを評価
+            model = self._load_model(model_path, model_type)
+            if model is None:
+                continue
+
+            dataset = TileDataset(test_data, model_type=model_type, augment=False)
+            evaluation_result = self.evaluate(model, dataset)
 
             model_name = Path(model_path).stem
-            all_metrics[model_name] = metrics
+            results[model_name] = evaluation_result
 
-            comparison_results["models"].append(
-                {"name": model_name, "path": model_path, "metrics": metrics}
-            )
+        # 比較結果を生成
+        comparison = self.model_comparator.compare_models(results)
 
-        if all_metrics:
-            # 最良モデルを決定
-            best_metric = "accuracy" if model_type == "classification" else "mean_iou"
+        # 比較レポートを生成
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        comparison_report_path = self.evaluation_dir / "reports" / f"comparison_{timestamp}.txt"
+        self.report_generator.generate_comparison_report(results, save_path=comparison_report_path)
 
-            best_model = max(all_metrics.items(), key=lambda x: x[1].get(best_metric, 0))
-            comparison_results["best_model"] = {
-                "name": best_model[0],
-                "metric": best_metric,
-                "value": best_model[1].get(best_metric, 0),
+        # 比較可視化
+        if self.visualization_enabled:
+            metrics_dict = {
+                "Accuracy": {name: r.accuracy for name, r in results.items()},
+                "Precision": {
+                    name: r.precision.get("weighted_avg", 0) for name, r in results.items()
+                },
+                "Recall": {name: r.recall.get("weighted_avg", 0) for name, r in results.items()},
+                "F1-Score": {
+                    name: r.f1_score.get("weighted_avg", 0) for name, r in results.items()
+                },
             }
 
-            # メトリクス比較
-            all_metric_names = set()
-            for metrics in all_metrics.values():
-                all_metric_names.update(metrics.keys())
+            comparison_plot_path = (
+                self.evaluation_dir / "visualizations" / f"comparison_{timestamp}.png"
+            )
+            self.visualization_generator.plot_metrics_comparison(
+                metrics_dict, title="Model Comparison", save_path=comparison_plot_path
+            )
 
-            for metric_name in all_metric_names:
-                values = []
-                for model_name, metrics in all_metrics.items():
-                    if metric_name in metrics:
-                        values.append({"model": model_name, "value": metrics[metric_name]})
+        return comparison
 
-                if values:
-                    comparison_results["comparison_metrics"][metric_name] = {
-                        "values": values,
-                        "best": max(values, key=lambda x: x["value"]),
-                        "worst": min(values, key=lambda x: x["value"]),
-                    }
 
-        return comparison_results
+# 必要なインポートを追加

@@ -1,0 +1,16 @@
+{
+  "timestamp": "2025-06-03T02:37:11.485811",
+  "processing_time": 0.0011179447174072266,
+  "frame_count": 5,
+  "detected_tiles": 5,
+  "success_rate": 1.0,
+  "game_statistics": {
+    "rounds": 1,
+    "actions": 10
+  },
+  "performance": {
+    "total_processing_time": 0.0011179447174072266,
+    "frames_per_second": 4472.493068884623,
+    "tiles_per_second": 4472.493068884623
+  }
+}

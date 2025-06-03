@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ..utils.cache_manager import CacheManager, MemoryCacheBackend
 from ..utils.logger import get_logger
 from ..utils.tile_definitions import TileDefinitions
 
@@ -19,10 +20,82 @@ class TenhouJsonFormatter:
         """フォーマッターの初期化"""
         self.tile_definitions = TileDefinitions()
         self.logger = get_logger(__name__)
-        # メモリ最適化：キャッシュサイズ制限
-        self._format_cache: dict[str, str] = {}
-        self._tile_cache: dict[str, str] = {}
-        self._max_cache_size = 1000  # キャッシュサイズ制限
+        # キャッシュマネージャーを使用
+        self._cache_manager = CacheManager(
+            backend=MemoryCacheBackend(),
+            default_ttl=3600,  # 1時間のTTL
+        )
+        # 後方互換性のためのエイリアス
+        self._max_cache_size_value = 1000
+        self._cache_manager.backend.max_size = self._max_cache_size_value
+
+    @property
+    def _max_cache_size(self) -> int:
+        """キャッシュサイズ制限"""
+        return self._max_cache_size_value
+
+    @_max_cache_size.setter
+    def _max_cache_size(self, value: int):
+        """キャッシュサイズ制限を設定"""
+        self._max_cache_size_value = value
+        self._cache_manager.backend.max_size = value
+
+    @property
+    def _format_cache(self) -> dict:
+        """後方互換性のためのプロパティ"""
+        if hasattr(self._cache_manager.backend, "_cache"):
+            return {
+                k: v
+                for k, v in self._cache_manager.backend._cache.items()
+                if not k.startswith("tile:")
+            }
+        return {}
+
+    @property
+    def _tile_cache(self):
+        """後方互換性のためのプロパティ"""
+
+        class TileCacheProxy:
+            def __init__(self, cache_manager):
+                self._cache_manager = cache_manager
+
+            def __getitem__(self, key):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    cache_key = f"tile:{key}"
+                    if cache_key in self._cache_manager.backend._cache:
+                        return self._cache_manager.backend._cache[cache_key].value
+                raise KeyError(key)
+
+            def __contains__(self, key):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    return f"tile:{key}" in self._cache_manager.backend._cache
+                return False
+
+            def __len__(self):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    return sum(
+                        1 for k in self._cache_manager.backend._cache if k.startswith("tile:")
+                    )
+                return 0
+
+            def clear(self):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    tile_keys = [
+                        k for k in self._cache_manager.backend._cache if k.startswith("tile:")
+                    ]
+                    for key in tile_keys:
+                        self._cache_manager.backend.delete(key)
+
+            def items(self):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    return [
+                        (k.replace("tile:", ""), v.value)
+                        for k, v in self._cache_manager.backend._cache.items()
+                        if k.startswith("tile:")
+                    ]
+                return []
+
+        return TileCacheProxy(self._cache_manager)
 
     def format_game_data(self, game_data: Any) -> str:
         """ゲームデータを天鳳JSON形式に変換
@@ -241,17 +314,19 @@ class TenhouJsonFormatter:
 
     def _get_tenhou_tile(self, tile: str) -> str:
         """牌を天鳳記法に変換（最適化キャッシュ付き）"""
-        if tile in self._tile_cache:
-            return self._tile_cache[tile]
+        cache_key = f"tile:{tile}"
 
-        # キャッシュサイズ制限
-        if len(self._tile_cache) >= self._max_cache_size:
-            # 古いエントリを削除（FIFO）
-            oldest_key = next(iter(self._tile_cache))
-            del self._tile_cache[oldest_key]
+        # キャッシュから取得
+        cached_value = self._cache_manager.get(cache_key)
+        if cached_value is not None:
+            return cached_value
 
+        # 変換して
         tenhou_tile = self.tile_definitions.convert_to_tenhou_notation(tile)
-        self._tile_cache[tile] = tenhou_tile
+
+        # キャッシュに保存
+        self._cache_manager.set(cache_key, tenhou_tile)
+
         return tenhou_tile
 
     def _get_final_scores(self, data: dict[str, Any]) -> list[int]:
@@ -333,13 +408,21 @@ class TenhouJsonFormatter:
 
     def clear_cache(self) -> None:
         """キャッシュをクリア"""
-        self._format_cache.clear()
-        self._tile_cache.clear()
+        self._cache_manager.clear()
         self.logger.debug("フォーマッターキャッシュをクリアしました")
 
     def get_cache_stats(self) -> dict[str, int]:
         """キャッシュ統計を取得"""
+        stats = self._cache_manager.get_stats()
+        # キャッシュエントリ数をカウント
+        tile_cache_count = 0
+        if hasattr(self._cache_manager.backend, "_cache"):
+            # tile:で始まるキーをカウント
+            tile_cache_count = sum(
+                1 for k in self._cache_manager.backend._cache if k.startswith("tile:")
+            )
+
         return {
-            "format_cache_size": len(self._format_cache),
-            "tile_cache_size": len(self._tile_cache),
+            "format_cache_size": stats.get("total_entries", 0) - tile_cache_count,
+            "tile_cache_size": tile_cache_count,
         }
