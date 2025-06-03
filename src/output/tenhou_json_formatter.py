@@ -337,13 +337,21 @@ class TenhouJsonFormatter:
 
     def clear_cache(self) -> None:
         """キャッシュをクリア"""
-        self._format_cache.clear()
-        self._tile_cache.clear()
+        self._cache_manager.clear()
         self.logger.debug("フォーマッターキャッシュをクリアしました")
 
     def get_cache_stats(self) -> dict[str, int]:
         """キャッシュ統計を取得"""
+        stats = self._cache_manager.get_stats()
+        # キャッシュエントリ数をカウント
+        tile_cache_count = 0
+        if hasattr(self._cache_manager._backend, "_cache"):
+            # tile:で始まるキーをカウント
+            tile_cache_count = sum(
+                1 for k in self._cache_manager._backend._cache if k.startswith("tile:")
+            )
+
         return {
-            "format_cache_size": len(self._format_cache),
-            "tile_cache_size": len(self._tile_cache),
+            "format_cache_size": stats.get("total_entries", 0) - tile_cache_count,
+            "tile_cache_size": tile_cache_count,
         }
