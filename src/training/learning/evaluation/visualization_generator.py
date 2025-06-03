@@ -382,3 +382,53 @@ Std: {evaluation_result.confidence_scores.get("std_confidence", 0):.3f}
             self.logger.info(f"評価サマリーを保存: {save_path}")
 
         plt.close()
+
+    def plot_learning_curves(
+        self, history: list[dict[str, float]], save_path: Path | None = None
+    ) -> None:
+        """
+        学習曲線をプロット
+
+        Args:
+            history: 学習履歴のリスト
+            save_path: 保存パス
+        """
+        if not history:
+            return
+
+        # データを抽出
+        epochs = [h.get("epoch", i) for i, h in enumerate(history)]
+        train_loss = [h.get("train_loss", 0) for h in history]
+        val_loss = [h.get("val_loss", 0) for h in history]
+        train_acc = [h.get("train_accuracy", 0) for h in history]
+        val_acc = [h.get("val_accuracy", 0) for h in history]
+
+        # プロット
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+        # 損失曲線
+        ax1.plot(epochs, train_loss, "b-", label="Train Loss")
+        ax1.plot(epochs, val_loss, "r-", label="Validation Loss")
+        ax1.set_xlabel("Epoch")
+        ax1.set_ylabel("Loss")
+        ax1.set_title("Training and Validation Loss")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # 精度曲線
+        ax2.plot(epochs, train_acc, "b-", label="Train Accuracy")
+        ax2.plot(epochs, val_acc, "r-", label="Validation Accuracy")
+        ax2.set_xlabel("Epoch")
+        ax2.set_ylabel("Accuracy")
+        ax2.set_title("Training and Validation Accuracy")
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        # 保存
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            self.logger.info(f"学習曲線を保存: {save_path}")
+
+        plt.close()

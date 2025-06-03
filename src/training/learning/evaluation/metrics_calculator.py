@@ -187,3 +187,75 @@ class MetricsCalculator(LoggerMixin):
             分類レポート文字列
         """
         return classification_report(y_true, y_pred, target_names=self.class_names, zero_division=0)
+
+    def calculate_iou_batch(
+        self, pred_boxes: list[list[float]], target_boxes: list[list[float]]
+    ) -> list[float]:
+        """
+        バッチ単位でIoUを計算
+
+        Args:
+            pred_boxes: 予測ボックスのリスト [[x1, y1, x2, y2], ...]
+            target_boxes: 正解ボックスのリスト [[x1, y1, x2, y2], ...]
+
+        Returns:
+            各ペアのIoUスコアのリスト
+        """
+        ious = []
+        for pred_box, target_box in zip(pred_boxes, target_boxes, strict=False):
+            iou = self._calculate_iou(pred_box, target_box)
+            ious.append(iou)
+        return ious
+
+    def _calculate_iou(self, box1: list[float], box2: list[float]) -> float:
+        """
+        2つのボックス間のIoUを計算
+
+        Args:
+            box1: [x1, y1, x2, y2]
+            box2: [x1, y1, x2, y2]
+
+        Returns:
+            IoUスコア
+        """
+        # 交差領域の座標
+        x1 = max(box1[0], box2[0])
+        y1 = max(box1[1], box2[1])
+        x2 = min(box1[2], box2[2])
+        y2 = min(box1[3], box2[3])
+
+        # 交差領域の面積
+        intersection = max(0, x2 - x1) * max(0, y2 - y1)
+
+        # 各ボックスの面積
+        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+
+        # 和集合の面積
+        union = area1 + area2 - intersection
+
+        # IoU
+        return intersection / union if union > 0 else 0.0
+
+    def calculate_top_k_accuracy(self, probs: np.ndarray, targets: np.ndarray, k: int = 5) -> float:
+        """
+        Top-k精度を計算
+
+        Args:
+            probs: 予測確率 (n_samples, n_classes)
+            targets: 正解ラベル (n_samples,)
+            k: 上位k個を考慮
+
+        Returns:
+            Top-k精度
+        """
+        # 上位k個のインデックスを取得
+        top_k_preds = np.argsort(probs, axis=1)[:, -k:]
+
+        # 正解がTop-kに含まれるかチェック
+        correct = 0
+        for i, target in enumerate(targets):
+            if target in top_k_preds[i]:
+                correct += 1
+
+        return correct / len(targets)
