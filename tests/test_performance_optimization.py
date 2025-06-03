@@ -220,8 +220,8 @@ class TestPerformanceOptimization:
         self.formatter._cache_manager.clear()
 
         # キャッシュサイズ制限を小さく設定
-        original_limit = self.formatter._cache_manager._backend.max_size
-        self.formatter._cache_manager._backend.max_size = 10
+        original_limit = self.formatter._cache_manager.backend.max_size
+        self.formatter._cache_manager.backend.max_size = 10
 
         try:
             # 制限を超える数の牌を変換
@@ -230,14 +230,14 @@ class TestPerformanceOptimization:
                 self.formatter._get_tenhou_tile(tile)
 
             # キャッシュサイズが制限内であることを確認
-            cache_size = len(self.formatter._cache_manager._backend._cache)
+            cache_size = len(self.formatter._cache_manager.backend._cache)
             assert cache_size <= 10, f"キャッシュサイズが制限を超過: {cache_size}"
 
             print(f"キャッシュサイズ: {cache_size}/10")
 
         finally:
             # 元の制限値に戻す
-            self.formatter._cache_manager._backend.max_size = original_limit
+            self.formatter._cache_manager.backend.max_size = original_limit
 
     def test_performance_regression(self):
         """性能劣化検出テスト"""

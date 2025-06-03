@@ -25,6 +25,30 @@ class TenhouJsonFormatter:
             backend=MemoryCacheBackend(),
             default_ttl=3600,  # 1時間のTTL
         )
+        # 後方互換性のためのエイリアス
+        self._max_cache_size = 1000
+
+    @property
+    def _format_cache(self) -> dict:
+        """後方互換性のためのプロパティ"""
+        if hasattr(self._cache_manager.backend, "_cache"):
+            return {
+                k: v
+                for k, v in self._cache_manager.backend._cache.items()
+                if not k.startswith("tile:")
+            }
+        return {}
+
+    @property
+    def _tile_cache(self) -> dict:
+        """後方互換性のためのプロパティ"""
+        if hasattr(self._cache_manager.backend, "_cache"):
+            return {
+                k.replace("tile:", ""): v
+                for k, v in self._cache_manager.backend._cache.items()
+                if k.startswith("tile:")
+            }
+        return {}
 
     def format_game_data(self, game_data: Any) -> str:
         """ゲームデータを天鳳JSON形式に変換
@@ -345,10 +369,10 @@ class TenhouJsonFormatter:
         stats = self._cache_manager.get_stats()
         # キャッシュエントリ数をカウント
         tile_cache_count = 0
-        if hasattr(self._cache_manager._backend, "_cache"):
+        if hasattr(self._cache_manager.backend, "_cache"):
             # tile:で始まるキーをカウント
             tile_cache_count = sum(
-                1 for k in self._cache_manager._backend._cache if k.startswith("tile:")
+                1 for k in self._cache_manager.backend._cache if k.startswith("tile:")
             )
 
         return {
