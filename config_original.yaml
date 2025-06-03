@@ -1,0 +1,202 @@
+# 麻雀牌譜作成システム設定ファイル - 天鳳JSON形式専用
+
+# 天鳳JSON出力設定
+tenhou_json:
+  # 基本設定
+  format_version: "1.0"
+  encoding: "utf-8"
+  pretty_print: true
+
+  # 牌譜メタデータ
+  metadata:
+    include_timestamp: true
+    include_player_names: true
+    include_game_rules: true
+    include_score_details: true
+
+  # 局面データ設定
+  game_data:
+    include_dora_indicators: true
+    include_hand_states: true
+    include_action_details: true
+    include_timing_info: false  # パフォーマンス最適化のため無効
+
+  # 圧縮・最適化設定
+  optimization:
+    compress_redundant_data: true
+    merge_consecutive_actions: true
+    remove_empty_fields: true
+
+# 動画処理設定
+video:
+  # フレーム抽出設定
+  frame_extraction:
+    fps: 1  # 1秒間に1フレーム抽出
+    output_format: "jpg"
+    quality: 95
+
+  # 前処理設定
+  preprocessing:
+    target_width: 1920
+    target_height: 1080
+    normalize: true
+    denoise: true
+
+# 画像処理設定
+image:
+  # 牌検出設定
+  tile_detection:
+    min_tile_size: 20  # 最小牌サイズ（ピクセル）
+    max_tile_size: 200  # 最大牌サイズ（ピクセル）
+    confidence_threshold: 0.5
+
+  # 前処理設定
+  preprocessing:
+    gaussian_blur_kernel: 3
+    brightness_adjustment: 1.0
+    contrast_adjustment: 1.0
+
+# ログ設定
+logging:
+  level: "INFO"
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}"
+  file_path: "logs/mahjong_system.log"
+  rotation: "1 day"
+  retention: "30 days"
+
+# ディレクトリ設定
+directories:
+  input: "data/input"
+  output: "data/output"
+  temp: "data/temp"
+  models: "models"
+  logs: "logs"
+
+# 麻雀牌定義（天鳳形式）
+tiles:
+  # 数牌（天鳳表記）
+  manzu: ["1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m"]
+  pinzu: ["1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p"]
+  souzu: ["1s", "2s", "3s", "4s", "5s", "6s", "7s", "8s", "9s"]
+  # 字牌（天鳳表記）
+  jihai: ["1z", "2z", "3z", "4z", "5z", "6z", "7z"]  # 東南西北白發中
+  # 赤ドラ（天鳳表記）
+  akadora: ["0m", "0p", "0s"]  # 天鳳では0で表記
+
+# AI/ML設定（フェーズ2）
+ai:
+  # 牌検出設定
+  detection:
+    model_type: "yolo"  # yolo または cnn
+    model_path: "models/tile_detector.pt"
+    confidence_threshold: 0.5
+    nms_threshold: 0.4
+    input_size: [640, 640]
+
+  # 牌分類設定
+  classification:
+    model_type: "cnn"  # cnn または resnet
+    model_path: "models/tile_classifier.pt"
+    confidence_threshold: 0.8
+    input_size: [224, 224]
+    num_classes: 37  # 34種類の牌 + 3種類の赤ドラ
+
+  # 学習設定
+  training:
+    batch_size: 32
+    learning_rate: 0.001
+    epochs: 100
+    device: "auto"  # auto, cpu, cuda
+
+  # データ拡張設定
+  augmentation:
+    rotation_range: 15
+    brightness_range: [0.8, 1.2]
+    contrast_range: [0.8, 1.2]
+    noise_factor: 0.1
+
+# 教師データ作成設定
+training:
+  # データベース設定
+  database_path: "data/training/dataset.db"
+  dataset_root: "data/training"
+
+  # フレーム抽出設定
+  frame_extraction:
+    min_quality_score: 0.6
+    max_frames_per_video: 1000
+    frame_interval_seconds: 2.0
+    diversity_threshold: 0.3
+    output_dir: "data/training/extracted_frames"
+
+  # 半自動ラベリング設定
+  semi_auto_labeling:
+    confidence_threshold: 0.5
+    auto_area_classification: true
+    enable_occlusion_detection: true
+    labeling_output_dir: "data/training/labeling"
+
+  # データセット管理設定
+  dataset_management:
+    max_versions: 10
+    auto_cleanup: true
+    export_formats: ["yolo", "coco", "pascal_voc"]
+    backup_enabled: true
+
+# パフォーマンス最適化設定
+performance:
+  # メモリ最適化
+  memory:
+    max_cache_size: "2GB"
+    enable_garbage_collection: true
+    gc_threshold: 1000
+
+  # 処理最適化
+  processing:
+    enable_parallel_processing: true
+    max_workers: 4
+    chunk_size: 100
+    enable_batch_optimization: true
+
+  # I/O最適化
+  io:
+    buffer_size: 8192
+    enable_async_io: true
+    compression_level: 6
+
+# システム設定
+system:
+  max_workers: 4  # 並列処理数
+  memory_limit: "8GB"
+  gpu_enabled: true  # フェーズ2で有効化
+  output_format: "tenhou_json"  # 固定値：天鳳JSON形式
+
+  # パフォーマンス定数
+  constants:
+    min_tile_size: 10  # タイル画像の最小サイズ（ピクセル）
+    estimated_fps: 2.0  # 推定処理速度（フレーム/秒）
+    default_batch_size: 32  # デフォルトのバッチサイズ
+
+# 検証設定
+validation:
+  # 品質スコアのペナルティ値
+  penalties:
+    missing_field: 20  # 必須フィールド不足
+    wrong_type: 15     # 型エラー
+    no_rounds: 30      # ラウンドデータなし
+    invalid_structure: 10  # 構造エラー
+    no_actions: 25     # アクションデータなし
+    invalid_player_count: 20  # プレイヤー数エラー
+
+  # 品質スコアのしきい値
+  quality_thresholds:
+    excellent: 90
+    good: 70
+    acceptable: 50
+    poor: 30
+
+  # 検証設定
+  settings:
+    skip_optional_fields: false
+    strict_mode: false
+    log_validation_details: true

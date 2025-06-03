@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ..utils.cache_manager import CacheManager, MemoryCacheBackend
 from ..utils.logger import get_logger
 from ..utils.tile_definitions import TileDefinitions
 
@@ -19,10 +20,11 @@ class TenhouJsonFormatter:
         """フォーマッターの初期化"""
         self.tile_definitions = TileDefinitions()
         self.logger = get_logger(__name__)
-        # メモリ最適化：キャッシュサイズ制限
-        self._format_cache: dict[str, str] = {}
-        self._tile_cache: dict[str, str] = {}
-        self._max_cache_size = 1000  # キャッシュサイズ制限
+        # キャッシュマネージャーを使用
+        self._cache_manager = CacheManager(
+            backend=MemoryCacheBackend(),
+            default_ttl=3600,  # 1時間のTTL
+        )
 
     def format_game_data(self, game_data: Any) -> str:
         """ゲームデータを天鳳JSON形式に変換
@@ -241,17 +243,19 @@ class TenhouJsonFormatter:
 
     def _get_tenhou_tile(self, tile: str) -> str:
         """牌を天鳳記法に変換（最適化キャッシュ付き）"""
-        if tile in self._tile_cache:
-            return self._tile_cache[tile]
+        cache_key = f"tile:{tile}"
 
-        # キャッシュサイズ制限
-        if len(self._tile_cache) >= self._max_cache_size:
-            # 古いエントリを削除（FIFO）
-            oldest_key = next(iter(self._tile_cache))
-            del self._tile_cache[oldest_key]
+        # キャッシュから取得
+        cached_value = self._cache_manager.get(cache_key)
+        if cached_value is not None:
+            return cached_value
 
+        # 変換して
         tenhou_tile = self.tile_definitions.convert_to_tenhou_notation(tile)
-        self._tile_cache[tile] = tenhou_tile
+
+        # キャッシュに保存
+        self._cache_manager.set(cache_key, tenhou_tile)
+
         return tenhou_tile
 
     def _get_final_scores(self, data: dict[str, Any]) -> list[int]:

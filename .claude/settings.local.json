@@ -53,7 +53,9 @@
       "Bash(/Users/flagboy/.nodebrew/node/v19.6.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/x64-darwin/rg \"def.*frame\" /Users/flagboy/Works/haihu-generator/src/tracking/state_tracker.py -n)",
       "Bash(timeout 30s uv run pytest:*)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr checks:*)"
+      "Bash(gh pr checks:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

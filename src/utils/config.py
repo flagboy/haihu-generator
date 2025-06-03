@@ -74,25 +74,9 @@ class ConfigManager:
         """
         return self._config.copy()
 
-    def get_video_config(self) -> dict[str, Any]:
-        """動画処理設定を取得"""
-        return self.get("video", {})
-
     def get_image_config(self) -> dict[str, Any]:
         """画像処理設定を取得"""
         return self.get("image", {})
-
-    def get_logging_config(self) -> dict[str, Any]:
-        """ログ設定を取得"""
-        return self.get("logging", {})
-
-    def get_directories(self) -> dict[str, str]:
-        """ディレクトリ設定を取得"""
-        return self.get("directories", {})
-
-    def get_tile_definitions(self) -> dict[str, Any]:
-        """麻雀牌定義を取得"""
-        return self.get("tiles", {})
 
     def get_system_config(self) -> dict[str, Any]:
         """システム設定を取得"""
@@ -124,3 +108,80 @@ class ConfigManager:
             yaml.dump(
                 self._config, f, default_flow_style=False, allow_unicode=True, sort_keys=False
             )
+
+    # ====================
+    # 天鳳形式対応メソッド
+    # ====================
+
+    def get_tenhou_config(self) -> dict[str, Any]:
+        """天鳳形式設定を取得"""
+        return self.get("tenhou", {})
+
+    def get_tenhou_output_config(self) -> dict[str, Any]:
+        """天鳳出力設定を取得"""
+        return self.get("tenhou.output", {})
+
+    def get_tenhou_notation(self) -> dict[str, Any]:
+        """天鳳牌表記を取得"""
+        return self.get("tenhou.specification.tile_notation", {})
+
+    def get_ai_config(self) -> dict[str, Any]:
+        """AI/ML設定を取得"""
+        return self.get("ai", {})
+
+    def get_pipeline_config(self) -> dict[str, Any]:
+        """パイプライン設定を取得"""
+        return self.get("pipeline", {})
+
+    def get_optimization_config(self) -> dict[str, Any]:
+        """最適化設定を取得"""
+        return self.get("optimization", {})
+
+    # ====================
+    # 後方互換性メソッド
+    # ====================
+
+    def get_directories(self) -> dict[str, str]:
+        """ディレクトリ設定を取得（新旧両形式対応）"""
+        # 新形式チェック
+        if "system" in self._config and "output" in self._config["system"]:
+            output_dir = self.get("system.output.directory", "data/output")
+            return {
+                "input": "data/input",
+                "output": output_dir,
+                "temp": "data/temp",
+                "models": "models",
+                "logs": "logs",
+            }
+
+        # 旧形式フォールバック
+        return self.get("directories", {})
+
+    def get_video_config(self) -> dict[str, Any]:
+        """動画処理設定を取得（新旧両形式対応）"""
+        # 新形式チェック
+        if "pipeline" in self._config and "video" in self._config["pipeline"]:
+            return self.get("pipeline.video", {})
+
+        # 旧形式フォールバック
+        return self.get("video", {})
+
+    def get_logging_config(self) -> dict[str, Any]:
+        """ログ設定を取得（新旧両形式対応）"""
+        # 新形式チェック
+        if "system" in self._config and "logging" in self._config["system"]:
+            return self.get("system.logging", {})
+
+        # 旧形式フォールバック
+        return self.get("logging", {})
+
+    def get_tile_definitions(self) -> dict[str, Any]:
+        """麻雀牌定義を取得（新旧両形式対応）"""
+        # 新形式チェック
+        if "tenhou" in self._config:
+            notation = self.get("tenhou.specification.tile_notation", {})
+            if notation:
+                return notation
+
+        # 旧形式フォールバック
+        return self.get("tiles", {})
