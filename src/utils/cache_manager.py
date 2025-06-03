@@ -63,8 +63,9 @@ class CacheBackend(ABC):
 class MemoryCacheBackend(CacheBackend):
     """メモリベースのキャッシュバックエンド"""
 
-    def __init__(self):
+    def __init__(self, max_size: int = 1000):
         self._cache: dict[str, CacheEntry] = {}
+        self.max_size = max_size
 
     def get(self, key: str) -> Any | None:
         """キャッシュから値を取得"""
@@ -80,6 +81,12 @@ class MemoryCacheBackend(CacheBackend):
 
     def set(self, key: str, value: Any, ttl: float | None = None):
         """キャッシュに値を設定"""
+        # サイズ制限チェック
+        if len(self._cache) >= self.max_size and key not in self._cache:
+            # 最も古いエントリを削除（LRU風）
+            oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k].timestamp)
+            self.delete(oldest_key)
+
         self._cache[key] = CacheEntry(key=key, value=value, timestamp=time.time(), ttl=ttl)
 
     def delete(self, key: str):

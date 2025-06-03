@@ -26,7 +26,19 @@ class TenhouJsonFormatter:
             default_ttl=3600,  # 1時間のTTL
         )
         # 後方互換性のためのエイリアス
-        self._max_cache_size = 1000
+        self._max_cache_size_value = 1000
+        self._cache_manager.backend.max_size = self._max_cache_size_value
+
+    @property
+    def _max_cache_size(self) -> int:
+        """キャッシュサイズ制限"""
+        return self._max_cache_size_value
+
+    @_max_cache_size.setter
+    def _max_cache_size(self, value: int):
+        """キャッシュサイズ制限を設定"""
+        self._max_cache_size_value = value
+        self._cache_manager.backend.max_size = value
 
     @property
     def _format_cache(self) -> dict:
@@ -40,15 +52,50 @@ class TenhouJsonFormatter:
         return {}
 
     @property
-    def _tile_cache(self) -> dict:
+    def _tile_cache(self):
         """後方互換性のためのプロパティ"""
-        if hasattr(self._cache_manager.backend, "_cache"):
-            return {
-                k.replace("tile:", ""): v
-                for k, v in self._cache_manager.backend._cache.items()
-                if k.startswith("tile:")
-            }
-        return {}
+
+        class TileCacheProxy:
+            def __init__(self, cache_manager):
+                self._cache_manager = cache_manager
+
+            def __getitem__(self, key):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    cache_key = f"tile:{key}"
+                    if cache_key in self._cache_manager.backend._cache:
+                        return self._cache_manager.backend._cache[cache_key].value
+                raise KeyError(key)
+
+            def __contains__(self, key):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    return f"tile:{key}" in self._cache_manager.backend._cache
+                return False
+
+            def __len__(self):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    return sum(
+                        1 for k in self._cache_manager.backend._cache if k.startswith("tile:")
+                    )
+                return 0
+
+            def clear(self):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    tile_keys = [
+                        k for k in self._cache_manager.backend._cache if k.startswith("tile:")
+                    ]
+                    for key in tile_keys:
+                        self._cache_manager.backend.delete(key)
+
+            def items(self):
+                if hasattr(self._cache_manager.backend, "_cache"):
+                    return [
+                        (k.replace("tile:", ""), v.value)
+                        for k, v in self._cache_manager.backend._cache.items()
+                        if k.startswith("tile:")
+                    ]
+                return []
+
+        return TileCacheProxy(self._cache_manager)
 
     def format_game_data(self, game_data: Any) -> str:
         """ゲームデータを天鳳JSON形式に変換
