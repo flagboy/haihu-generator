@@ -1,0 +1,15 @@
+{
+  "video_info": {
+    "path": "/var/folders/81/zq3pjwdd3k9c4btnn5wkmyr00000gn/T/tmpll3tvnlu.mp4",
+    "hash": "d41d8cd98f00b204",
+    "fps": 0.0,
+    "frame_count": 0,
+    "width": 0,
+    "height": 0,
+    "duration": 0,
+    "created_at": "2025-06-05T18:51:49.021279"
+  },
+  "extracted_frames": {},
+  "hand_regions": {},
+  "processed_frames": []
+}

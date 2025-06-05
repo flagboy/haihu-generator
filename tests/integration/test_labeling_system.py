@@ -39,24 +39,36 @@ class TestLabelingSystemIntegration:
     def test_end_to_end_workflow(self, test_config):
         """エンドツーエンドのワークフローテスト"""
         # 1. 動画からフレーム抽出
+        import os
+        import tempfile
+
         from hand_training_system.backend.core.frame_extractor import FrameExtractor
 
-        extractor = FrameExtractor()
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            video_path = f.name
 
-        # 2. 手牌領域の設定
-        from hand_training_system.backend.core.hand_area_detector import HandAreaDetector
+        try:
+            with tempfile.TemporaryDirectory() as output_dir:
+                extractor = FrameExtractor(video_path, output_dir)
 
-        detector = HandAreaDetector()
+                # 2. 手牌領域の設定
+                from hand_training_system.backend.core.hand_area_detector import HandAreaDetector
 
-        # 3. 牌の分割
-        from hand_training_system.backend.core.tile_splitter import TileSplitter
+                detector = HandAreaDetector()
 
-        splitter = TileSplitter()
+                # 3. 牌の分割
+                from hand_training_system.backend.core.tile_splitter import TileSplitter
 
-        # ワークフローの動作確認
-        assert extractor is not None
-        assert detector is not None
-        assert splitter is not None
+                splitter = TileSplitter()
+
+                # ワークフローの動作確認
+                assert extractor is not None
+                assert detector is not None
+                assert splitter is not None
+        finally:
+            # 一時ファイルをクリーンアップ
+            if os.path.exists(video_path):
+                os.unlink(video_path)
 
     def test_data_persistence(self, test_config):
         """データの永続化テスト"""

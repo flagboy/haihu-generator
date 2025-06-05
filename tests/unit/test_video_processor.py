@@ -25,24 +25,24 @@ class TestVideoProcessor:
         return temp_path
 
     @pytest.fixture
-    def processor_labeling(self):
+    def processor_labeling(self, temp_video):
         """hand_labeling_systemのprocessorを取得"""
         from hand_labeling_system.backend.core.video_processor import VideoProcessor
 
-        return VideoProcessor()
+        return VideoProcessor(temp_video)
 
     @pytest.fixture
-    def extractor_training(self):
+    def extractor_training(self, temp_video, tmp_path):
         """hand_training_systemのextractorを取得"""
         from hand_training_system.backend.core.frame_extractor import FrameExtractor
 
-        return FrameExtractor()
+        return FrameExtractor(temp_video, str(tmp_path))
 
     def test_cache_functionality(self, processor_labeling):
         """キャッシュ機能のテスト"""
         # VideoProcessorにはキャッシュ機能がある
         assert hasattr(processor_labeling, "cache_dir")
-        assert hasattr(processor_labeling, "_get_cache_path")
+        assert hasattr(processor_labeling, "_get_frame_cache_path")
 
     def test_scene_detection(self, processor_labeling):
         """シーン変化検出機能のテスト"""
@@ -52,7 +52,7 @@ class TestVideoProcessor:
     def test_basic_extraction(self, extractor_training):
         """基本的なフレーム抽出機能のテスト"""
         # FrameExtractorは基本的な抽出機能のみ
-        assert hasattr(extractor_training, "extract_frames")
+        assert hasattr(extractor_training, "extract_frames_at_interval")
 
     def test_progress_tracking(self, processor_labeling):
         """進捗管理機能のテスト"""
@@ -79,8 +79,8 @@ class TestVideoProcessor:
 
     def test_frame_interval(self, extractor_training):
         """フレーム間隔設定のテスト"""
-        # デフォルトは1秒間隔
-        assert hasattr(extractor_training, "default_interval")
+        # extract_frames_at_intervalメソッドで間隔を指定できる
+        assert hasattr(extractor_training, "extract_frames_at_interval")
 
     def test_hand_change_detection(self, extractor_training):
         """手牌変化検出のテスト"""
