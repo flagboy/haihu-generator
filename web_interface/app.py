@@ -25,7 +25,11 @@ from src.training.labeling.api import websocket as labeling_websocket
 from src.training.labeling.api.routes import labeling_bp
 
 # 統合された手牌ラベリングシステムのインポート
+from src.training.labeling.core.hand_area_detector import (
+    UnifiedHandAreaDetector as HandAreaDetector,
+)
 from src.training.labeling.core.tile_splitter import TileSplitter
+from src.training.labeling.core.video_processor import EnhancedVideoProcessor as HandFrameExtractor
 from src.training.learning.training_manager import TrainingConfig, TrainingManager
 from src.training.semi_auto_labeler import SemiAutoLabeler
 from src.utils.config import ConfigManager

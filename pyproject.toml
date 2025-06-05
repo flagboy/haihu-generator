@@ -63,6 +63,7 @@ packages = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["backups/", "hand_labeling_system/", "hand_training_system/"]
 
 [tool.ruff.lint]
 select = [

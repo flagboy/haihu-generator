@@ -186,7 +186,7 @@ class TestLabelingIntegration:
 
             # 10. アノテーションを作成
             annotations = []
-            for i, tile in enumerate(tiles[:3]):  # 最初の3枚のみ
+            for i, _tile in enumerate(tiles[:3]):  # 最初の3枚のみ
                 annotations.append(
                     {
                         "index": i,
@@ -222,7 +222,7 @@ class TestLabelingIntegration:
         detector = UnifiedHandAreaDetector()
         detector.regions = new_format
 
-        assert detector.validate_regions() == False  # 4人分必要
+        assert not detector.validate_regions()  # 4人分必要
 
         # 全員分を設定
         detector.regions = {
@@ -232,4 +232,4 @@ class TestLabelingIntegration:
             "right": {"x": 0.8, "y": 0.3, "w": 0.15, "h": 0.4},
         }
 
-        assert detector.validate_regions() == True
+        assert detector.validate_regions()

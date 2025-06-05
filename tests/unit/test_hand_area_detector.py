@@ -56,7 +56,7 @@ class TestHandAreaDetector:
         mapping = {"player1": "bottom", "player2": "right", "player3": "top", "player4": "left"}
 
         # 変換が正しいことを確認
-        for player, direction in mapping.items():
+        for _player, direction in mapping.items():
             assert direction in ["bottom", "top", "left", "right"]
 
     def test_detect_hand_regions(self, detector_labeling, sample_frame):

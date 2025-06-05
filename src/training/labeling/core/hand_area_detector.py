@@ -171,15 +171,18 @@ class UnifiedHandAreaDetector:
                     }
 
             # 左側プレイヤー（left）
-            elif cx < width * 0.3 and candidate["position"] == "vertical":
-                if "left" not in detected or candidate["area"] > detected["left"]["area"]:
-                    detected["left"] = {
-                        "x": candidate["x"],
-                        "y": candidate["y"],
-                        "w": candidate["w"],
-                        "h": candidate["h"],
-                        "area": candidate["area"],
-                    }
+            elif (
+                cx < width * 0.3
+                and candidate["position"] == "vertical"
+                and ("left" not in detected or candidate["area"] > detected["left"]["area"])
+            ):
+                detected["left"] = {
+                    "x": candidate["x"],
+                    "y": candidate["y"],
+                    "w": candidate["w"],
+                    "h": candidate["h"],
+                    "area": candidate["area"],
+                }
 
         # areaフィールドを削除
         for player in detected:
@@ -281,10 +284,7 @@ class UnifiedHandAreaDetector:
             return False
 
         # サイズチェック
-        if region["w"] < 50 or region["h"] < 30:
-            return False
-
-        return True
+        return region["w"] >= 50 and region["h"] >= 30
 
     def _validate_relative_region(self, region: dict[str, float]) -> bool:
         """領域の妥当性を検証（相対座標）"""
@@ -292,9 +292,7 @@ class UnifiedHandAreaDetector:
             return False
         if not (0 < region["w"] <= 1 and 0 < region["h"] <= 1):
             return False
-        if region["x"] + region["w"] > 1 or region["y"] + region["h"] > 1:
-            return False
-        return True
+        return not (region["x"] + region["w"] > 1 or region["y"] + region["h"] > 1)
 
     def _get_absolute_regions(self) -> dict[str, dict[str, int]]:
         """相対座標から絶対座標への変換"""

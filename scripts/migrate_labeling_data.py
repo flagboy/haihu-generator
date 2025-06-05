@@ -18,8 +18,8 @@ from loguru import logger
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.training.labeling.core.labeling_session import LabelingSession
-from src.utils.logger import setup_logger
+from src.training.labeling.core.labeling_session import LabelingSession  # noqa: E402
+from src.utils.logger import setup_logger  # noqa: E402
 
 
 class LabelingDataMigrator:

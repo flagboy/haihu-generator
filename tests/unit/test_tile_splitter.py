@@ -57,9 +57,6 @@ class TestTileSplitter:
 
     def test_adjust_tile_boundaries(self, tile_splitter):
         """牌の境界調整のテスト"""
-        # 初期境界
-        boundaries = [(i * 40, (i + 1) * 40) for i in range(14)]
-
         # 境界調整メソッドの存在を確認
         assert hasattr(tile_splitter, "adjust_boundaries")
 
@@ -77,9 +74,6 @@ class TestTileSplitter:
 
     def test_horizontal_tiles(self, tile_splitter):
         """横向き牌の検出テスト"""
-        # 横向きの牌を含む手牌領域
-        hand_area = np.ones((80, 520, 3), dtype=np.uint8) * 255
-
         # 横向き牌の検出メソッドの存在を確認
         assert hasattr(tile_splitter, "detect_horizontal_tiles")
 

@@ -123,7 +123,6 @@ class TileSplitter:
 
         # 牌を切り出し
         tiles = []
-        h = hand_image.shape[0]
 
         for i in range(len(boundaries) - 1):
             x_start = boundaries[i]
@@ -192,13 +191,13 @@ class TileSplitter:
 
         # 明度補正
         lab = cv2.cvtColor(resized, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
+        lightness, a, b = cv2.split(lab)
 
         # CLAHE（Contrast Limited Adaptive Histogram Equalization）
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
+        lightness = clahe.apply(lightness)
 
-        enhanced = cv2.merge([l, a, b])
+        enhanced = cv2.merge([lightness, a, b])
         enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
 
         return enhanced

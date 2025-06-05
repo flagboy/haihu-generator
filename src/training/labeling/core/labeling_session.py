@@ -142,7 +142,7 @@ class LabelingSession:
 
         # 現在のフレームを更新
         if self.session_data["annotations"]:
-            latest_frame = max(int(f) for f in self.session_data["annotations"].keys())
+            latest_frame = max(int(f) for f in self.session_data["annotations"])
             self.session_data["progress"]["current_frame"] = latest_frame
 
     def get_progress(self) -> dict[str, int]:
@@ -230,7 +230,7 @@ class LabelingSession:
             frame_number = int(frame_str)
             annotations = []
 
-            for player, player_data in frame_data.get("players", {}).items():
+            for _player, player_data in frame_data.get("players", {}).items():
                 for tile in player_data.get("tiles", []):
                     # YOLOフォーマット: class x_center y_center width height
                     class_id = self._tile_to_category_id(tile["label"]) - 1  # 0-indexed
@@ -363,7 +363,7 @@ class LabelingSession:
     def get_unlabeled_frames(self) -> list[int]:
         """未ラベルのフレーム番号リストを取得"""
         total_frames = self.session_data["progress"]["total_frames"]
-        labeled_frames = set(int(f) for f in self.session_data["annotations"].keys())
+        labeled_frames = {int(f) for f in self.session_data["annotations"]}
 
         unlabeled = []
         for i in range(total_frames):
