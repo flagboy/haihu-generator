@@ -75,8 +75,10 @@ class TestHandAreaDetector:
         detector_training.set_frame_size(1920, 1080)
         detector_training.regions["bottom"] = {"x": 0.15, "y": 0.75, "w": 0.7, "h": 0.15}
 
-        abs_region = detector_training.get_absolute_region("bottom")
-        assert abs_region["x"] == int(1920 * 0.15)
-        assert abs_region["y"] == int(1080 * 0.75)
-        assert abs_region["w"] == int(1920 * 0.7)
-        assert abs_region["h"] == int(1080 * 0.15)
+        abs_regions = detector_training.get_absolute_regions()
+        assert "bottom" in abs_regions
+        x, y, w, h = abs_regions["bottom"]
+        assert x == int(1920 * 0.15)
+        assert y == int(1080 * 0.75)
+        assert w == int(1920 * 0.7)
+        assert h == int(1080 * 0.15)
