@@ -19,6 +19,15 @@ let panX = 0;
 let panY = 0;
 let frameList = [];
 let currentFrameIndex = -1;
+let sessionId = null;
+let currentPlayer = 'bottom';  // 現在選択中のプレイヤー
+let handAreas = {  // 手牌領域設定
+    bottom: null,
+    top: null,
+    left: null,
+    right: null
+};
+let isSettingHandArea = false;  // 手牌領域設定モード
 
 // 牌種類マッピング
 const TILE_NAMES = {
@@ -45,6 +54,9 @@ function initializeLabeling() {
     canvas = document.getElementById('labeling-canvas');
     ctx = canvas.getContext('2d');
 
+    // セッションIDを生成
+    sessionId = `labeling_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     // イベントリスナー設定
     setupEventListeners();
 
@@ -53,6 +65,9 @@ function initializeLabeling() {
 
     // WebSocketイベント設定
     setupWebSocketEvents();
+
+    // 手牌領域設定UI追加
+    addHandAreaControls();
 
     console.log('ラベリング機能が初期化されました');
 }
@@ -869,6 +884,476 @@ function onKeyDown(event) {
             }
             break;
     }
+}
+
+/**
+ * 手牌領域設定UIを追加
+ */
+function addHandAreaControls() {
+    // カード本体の後に手牌領域設定UIを追加
+    const canvasCard = document.querySelector('#canvas-container').closest('.card');
+    const handAreaCard = document.createElement('div');
+    handAreaCard.className = 'card mt-3';
+    handAreaCard.innerHTML = `
+        <div class="card-header">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-hand-paper me-2"></i>手牌領域設定
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="btn-group w-100 mb-2" role="group">
+                <button type="button" class="btn btn-outline-primary player-select-btn" data-player="bottom">
+                    <i class="fas fa-user"></i> 自分
+                </button>
+                <button type="button" class="btn btn-outline-primary player-select-btn" data-player="top">
+                    <i class="fas fa-user"></i> 対面
+                </button>
+                <button type="button" class="btn btn-outline-primary player-select-btn" data-player="left">
+                    <i class="fas fa-user"></i> 左
+                </button>
+                <button type="button" class="btn btn-outline-primary player-select-btn" data-player="right">
+                    <i class="fas fa-user"></i> 右
+                </button>
+            </div>
+            <button id="set-hand-area-btn" class="btn btn-warning w-100 mb-2">
+                <i class="fas fa-crop"></i> 領域を設定
+            </button>
+            <button id="split-tiles-btn" class="btn btn-info w-100" disabled>
+                <i class="fas fa-cut"></i> 牌を分割
+            </button>
+        </div>
+    `;
+
+    canvasCard.parentNode.insertBefore(handAreaCard, canvasCard.nextSibling);
+
+    // プレイヤー選択ボタンのイベント
+    document.querySelectorAll('.player-select-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.player-select-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            currentPlayer = e.target.dataset.player;
+            updateHandAreaDisplay();
+        });
+    });
+
+    // デフォルトで「自分」を選択
+    document.querySelector('.player-select-btn[data-player="bottom"]').classList.add('active');
+
+    // 手牌領域設定ボタン
+    document.getElementById('set-hand-area-btn').addEventListener('click', toggleHandAreaSetting);
+
+    // 牌分割ボタン
+    document.getElementById('split-tiles-btn').addEventListener('click', splitTilesForCurrentPlayer);
+}
+
+/**
+ * 手牌領域設定モードの切り替え
+ */
+function toggleHandAreaSetting() {
+    isSettingHandArea = !isSettingHandArea;
+    const btn = document.getElementById('set-hand-area-btn');
+
+    if (isSettingHandArea) {
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-success');
+        btn.innerHTML = '<i class="fas fa-check"></i> 設定完了';
+        showNotification('手牌領域をドラッグで選択してください', 'info');
+    } else {
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-warning');
+        btn.innerHTML = '<i class="fas fa-crop"></i> 領域を設定';
+
+        // 設定を保存
+        saveHandAreas();
+    }
+}
+
+/**
+ * 手牌領域を保存
+ */
+async function saveHandAreas() {
+    try {
+        await apiRequest('/api/labeling/hand_areas', {
+            method: 'POST',
+            body: JSON.stringify({
+                frame_size: currentImage ? [currentImage.width, currentImage.height] : null,
+                regions: handAreas
+            })
+        });
+
+        showNotification('手牌領域を保存しました', 'success');
+        document.getElementById('split-tiles-btn').disabled = false;
+    } catch (error) {
+        console.error('手牌領域保存エラー:', error);
+        showNotification('手牌領域の保存に失敗しました', 'error');
+    }
+}
+
+/**
+ * 現在のプレイヤーの牌を分割
+ */
+async function splitTilesForCurrentPlayer() {
+    if (!currentVideo || !currentFrame || !handAreas[currentPlayer]) {
+        showNotification('手牌領域が設定されていません', 'warning');
+        return;
+    }
+
+    try {
+        showLoading('牌を分割中...');
+
+        const response = await apiRequest('/api/labeling/split_tiles', {
+            method: 'POST',
+            body: JSON.stringify({
+                video_id: currentVideo.id,
+                frame_number: currentFrameIndex,
+                player: currentPlayer
+            })
+        });
+
+        if (response.tiles) {
+            // 既存のアノテーションをクリア
+            annotations = [];
+
+            // 分割結果からアノテーションを作成
+            response.tiles.forEach(tile => {
+                const handArea = handAreas[currentPlayer];
+                const annotation = {
+                    id: Date.now().toString() + '_' + tile.index,
+                    tile_id: tile.label || selectedTileType || '1m',
+                    bbox: {
+                        x1: handArea.x * canvas.width + tile.bbox.x,
+                        y1: handArea.y * canvas.height + tile.bbox.y,
+                        x2: handArea.x * canvas.width + tile.bbox.x + tile.bbox.w,
+                        y2: handArea.y * canvas.height + tile.bbox.y + tile.bbox.h
+                    },
+                    confidence: tile.confidence || 0,
+                    area_type: 'hand',
+                    player: currentPlayer,
+                    is_face_up: true,
+                    is_occluded: false,
+                    occlusion_ratio: 0.0,
+                    annotator: 'auto_split',
+                    notes: ''
+                };
+                annotations.push(annotation);
+            });
+
+            updateAnnotationList();
+            redrawCanvas();
+            showNotification(`${response.tiles.length}個の牌を検出しました`, 'success');
+        }
+
+        hideLoading();
+    } catch (error) {
+        console.error('牌分割エラー:', error);
+        showNotification('牌の分割に失敗しました', 'error');
+        hideLoading();
+    }
+}
+
+/**
+ * 手牌領域の表示を更新
+ */
+function updateHandAreaDisplay() {
+    redrawCanvas();
+}
+
+/**
+ * 動画選択時の処理（拡張）
+ */
+const originalOnVideoSelect = onVideoSelect;
+async function onVideoSelect(event) {
+    await originalOnVideoSelect.call(this, event);
+
+    const videoId = event.target.value;
+    if (videoId && currentVideo) {
+        // 動画をラベリング用に読み込み
+        try {
+            const response = await apiRequest('/api/labeling/load_video', {
+                method: 'POST',
+                body: JSON.stringify({
+                    video_path: currentVideo.path,
+                    video_id: videoId
+                })
+            });
+
+            if (response.video_id) {
+                currentVideo.id = response.video_id;
+                console.log('動画をラベリング用に読み込みました');
+            }
+        } catch (error) {
+            console.error('動画読み込みエラー:', error);
+        }
+    }
+}
+
+/**
+ * キャンバス再描画（拡張）
+ */
+const originalRedrawCanvas = redrawCanvas;
+function redrawCanvas() {
+    originalRedrawCanvas();
+
+    // 手牌領域を描画
+    if (currentImage) {
+        ctx.save();
+        ctx.scale(zoomLevel, zoomLevel);
+        ctx.translate(panX, panY);
+
+        Object.entries(handAreas).forEach(([player, area]) => {
+            if (area) {
+                const color = player === currentPlayer ? '#00ff00' : '#ffff00';
+                const alpha = player === currentPlayer ? 0.3 : 0.1;
+
+                // 領域を塗りつぶし
+                ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, '0');
+                ctx.fillRect(
+                    area.x * canvas.width / zoomLevel,
+                    area.y * canvas.height / zoomLevel,
+                    area.w * canvas.width / zoomLevel,
+                    area.h * canvas.height / zoomLevel
+                );
+
+                // 枠線
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2 / zoomLevel;
+                ctx.strokeRect(
+                    area.x * canvas.width / zoomLevel,
+                    area.y * canvas.height / zoomLevel,
+                    area.w * canvas.width / zoomLevel,
+                    area.h * canvas.height / zoomLevel
+                );
+
+                // ラベル
+                ctx.fillStyle = color;
+                ctx.font = `${16 / zoomLevel}px Arial`;
+                const playerName = {
+                    bottom: '自分',
+                    top: '対面',
+                    left: '左',
+                    right: '右'
+                }[player];
+                ctx.fillText(
+                    playerName,
+                    area.x * canvas.width / zoomLevel + 5,
+                    area.y * canvas.height / zoomLevel + 20 / zoomLevel
+                );
+            }
+        });
+
+        ctx.restore();
+    }
+}
+
+/**
+ * マウスイベント処理（拡張）
+ */
+const originalOnCanvasMouseDown = onCanvasMouseDown;
+function onCanvasMouseDown(event) {
+    if (isSettingHandArea) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / canvas.width;
+        const y = (event.clientY - rect.top) / canvas.height;
+
+        isDrawing = true;
+        startX = x;
+        startY = y;
+        currentBbox = { x1: x, y1: y, x2: x, y2: y };
+    } else {
+        originalOnCanvasMouseDown.call(this, event);
+    }
+}
+
+const originalOnCanvasMouseMove = onCanvasMouseMove;
+function onCanvasMouseMove(event) {
+    if (isSettingHandArea && isDrawing) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / canvas.width;
+        const y = (event.clientY - rect.top) / canvas.height;
+
+        currentBbox.x2 = x;
+        currentBbox.y2 = y;
+        redrawCanvas();
+
+        // 一時的な領域を描画
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+            Math.min(currentBbox.x1, currentBbox.x2) * canvas.width,
+            Math.min(currentBbox.y1, currentBbox.y2) * canvas.height,
+            Math.abs(currentBbox.x2 - currentBbox.x1) * canvas.width,
+            Math.abs(currentBbox.y2 - currentBbox.y1) * canvas.height
+        );
+    } else {
+        originalOnCanvasMouseMove.call(this, event);
+    }
+}
+
+const originalOnCanvasMouseUp = onCanvasMouseUp;
+function onCanvasMouseUp(event) {
+    if (isSettingHandArea && isDrawing) {
+        isDrawing = false;
+
+        if (currentBbox) {
+            // 正規化
+            const area = {
+                x: Math.min(currentBbox.x1, currentBbox.x2),
+                y: Math.min(currentBbox.y1, currentBbox.y2),
+                w: Math.abs(currentBbox.x2 - currentBbox.x1),
+                h: Math.abs(currentBbox.y2 - currentBbox.y1)
+            };
+
+            if (area.w > 0.01 && area.h > 0.01) {
+                handAreas[currentPlayer] = area;
+                showNotification(`${currentPlayer}の手牌領域を設定しました`, 'success');
+            }
+
+            currentBbox = null;
+            redrawCanvas();
+        }
+    } else {
+        originalOnCanvasMouseUp.call(this, event);
+    }
+}
+
+/**
+ * 自動ラベリング（拡張）
+ */
+async function performAutoLabeling() {
+    if (!currentFrame || !currentVideo) {
+        showNotification('フレームが選択されていません', 'warning');
+        return;
+    }
+
+    try {
+        showLoading('自動ラベリング中...');
+
+        const response = await apiRequest('/api/labeling/auto_label', {
+            method: 'POST',
+            body: JSON.stringify({
+                video_id: currentVideo.id,
+                frame_number: currentFrameIndex,
+                player: currentPlayer
+            })
+        });
+
+        if (response.tiles) {
+            // 自動ラベリング結果を既存のアノテーションに反映
+            response.tiles.forEach((tile, index) => {
+                if (annotations[index]) {
+                    annotations[index].tile_id = tile.label;
+                    annotations[index].confidence = tile.confidence;
+                    annotations[index].annotator = 'auto_label';
+                }
+            });
+
+            updateAnnotationList();
+            redrawCanvas();
+            showNotification('自動ラベリングが完了しました', 'success');
+        }
+
+        hideLoading();
+
+    } catch (error) {
+        console.error('自動ラベリングエラー:', error);
+        showNotification('自動ラベリングに失敗しました', 'error');
+        hideLoading();
+    }
+}
+
+/**
+ * 進捗を保存（拡張）
+ */
+async function saveProgress() {
+    if (!currentFrame || annotations.length === 0) {
+        showNotification('保存するアノテーションがありません', 'warning');
+        return;
+    }
+
+    try {
+        showLoading('保存中...');
+
+        // 新しいAPIエンドポイントを使用
+        await apiRequest('/api/labeling/save_annotations', {
+            method: 'POST',
+            body: JSON.stringify({
+                session_id: sessionId,
+                annotations: [{
+                    video_id: currentVideo.id,
+                    frame_number: currentFrameIndex,
+                    player: currentPlayer,
+                    tiles: annotations.map(ann => ({
+                        tile_id: ann.tile_id,
+                        bbox: ann.bbox,
+                        confidence: ann.confidence,
+                        area_type: ann.area_type,
+                        is_face_up: ann.is_face_up,
+                        is_occluded: ann.is_occluded,
+                        occlusion_ratio: ann.occlusion_ratio
+                    }))
+                }]
+            })
+        });
+
+        // フレーム情報を更新
+        frameList[currentFrameIndex].tiles = annotations;
+        updateProgress();
+
+        showNotification('アノテーションを保存しました', 'success');
+        hideLoading();
+
+    } catch (error) {
+        console.error('保存エラー:', error);
+        showNotification('保存に失敗しました', 'error');
+        hideLoading();
+    }
+}
+
+/**
+ * キーボードショートカット（拡張）
+ */
+const originalOnKeyDown = onKeyDown;
+function onKeyDown(event) {
+    // 数字キー + Q/W/E で牌を選択
+    if (event.key >= '1' && event.key <= '9') {
+        event.preventDefault();
+        let tileType = '';
+
+        if (event.shiftKey || event.key === 'Q' || event.key === 'q') {
+            tileType = event.key + 'm';  // 萬子
+        } else if (event.ctrlKey || event.key === 'W' || event.key === 'w') {
+            tileType = event.key + 'p';  // 筒子
+        } else if (event.altKey || event.key === 'E' || event.key === 'e') {
+            tileType = event.key + 's';  // 索子
+        } else {
+            // デフォルトは萬子
+            tileType = event.key + 'm';
+        }
+
+        // 対応するボタンをクリック
+        const btn = document.querySelector(`.tile-button[data-tile="${tileType}"]`);
+        if (btn) btn.click();
+    }
+
+    // 字牌のショートカット
+    const honorKeys = {
+        'a': '1z', // 東
+        's': '2z', // 南
+        'd': '3z', // 西
+        'f': '4z', // 北
+        'g': '5z', // 白
+        'h': '6z', // 發
+        'j': '7z'  // 中
+    };
+
+    if (honorKeys[event.key.toLowerCase()]) {
+        event.preventDefault();
+        const btn = document.querySelector(`.tile-button[data-tile="${honorKeys[event.key.toLowerCase()]}"]`);
+        if (btn) btn.click();
+    }
+
+    // その他のショートカットは元の処理を実行
+    originalOnKeyDown.call(this, event);
 }
 
 console.log('ラベリング機能が読み込まれました');

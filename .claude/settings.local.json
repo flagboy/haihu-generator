@@ -56,7 +56,10 @@
       "Bash(gh pr checks:*)",
       "Bash(mv:*)",
       "Bash(cp:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(ffprobe:*)",
+      "Bash(flake8:*)",
+      "Bash(gh run watch:*)"
     ],
     "deny": []
   }
