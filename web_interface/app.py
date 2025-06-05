@@ -21,6 +21,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.training.dataset_manager import DatasetManager
 from src.training.frame_extractor import FrameExtractor
+from src.training.labeling.api import websocket as labeling_websocket
+from src.training.labeling.api.routes import labeling_bp
+
+# 統合された手牌ラベリングシステムのインポート
+from src.training.labeling.core.tile_splitter import TileSplitter
 from src.training.learning.training_manager import TrainingConfig, TrainingManager
 from src.training.semi_auto_labeler import SemiAutoLabeler
 from src.utils.config import ConfigManager
@@ -53,6 +58,12 @@ class WebInterfaceManager(LoggerMixin):
         # セッション管理
         self.active_sessions: dict[str, dict] = {}
         self.training_sessions: dict[str, str] = {}  # session_id -> training_session_id
+
+        # 手牌ラベリング用コンポーネント
+        self.hand_area_detector = HandAreaDetector()
+        self.tile_splitter = TileSplitter()
+        self.hand_frame_extractors: dict[str, HandFrameExtractor] = {}  # video_id -> extractor
+        self.labeling_sessions: dict[str, dict] = {}  # session_id -> labeling data
 
         self.logger.info("WebInterfaceManager初期化完了")
 
@@ -254,6 +265,258 @@ def start_training():
         return jsonify({"error": str(e)}), 500
 
 
+# 手牌ラベリングAPI
+
+
+@app.route("/api/labeling/hand_areas", methods=["GET"])
+def get_hand_areas():
+    """手牌領域設定を取得"""
+    try:
+        # 現在の設定を取得
+        regions = web_manager.hand_area_detector.regions
+        frame_size = web_manager.hand_area_detector.frame_size
+
+        return jsonify({"regions": regions, "frame_size": frame_size})
+    except Exception as e:
+        web_manager.logger.error(f"手牌領域取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/labeling/hand_areas", methods=["POST"])
+def set_hand_areas():
+    """手牌領域を設定"""
+    try:
+        data = request.get_json()
+        frame_size = data.get("frame_size")
+        regions = data.get("regions")
+
+        if frame_size:
+            web_manager.hand_area_detector.set_frame_size(frame_size[0], frame_size[1])
+
+        if regions:
+            for player, region in regions.items():
+                web_manager.hand_area_detector.set_region(
+                    player, region["x"], region["y"], region["w"], region["h"]
+                )
+
+        return jsonify({"success": True})
+    except Exception as e:
+        web_manager.logger.error(f"手牌領域設定エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/labeling/split_tiles", methods=["POST"])
+def split_tiles():
+    """手牌領域から牌を分割"""
+    try:
+        data = request.get_json()
+        video_id = data.get("video_id")
+        frame_number = data.get("frame_number")
+        player = data.get("player", "bottom")
+
+        if not video_id or frame_number is None:
+            return jsonify({"error": "video_idとframe_numberが必要です"}), 400
+
+        # フレーム抽出器を取得
+        if video_id not in web_manager.hand_frame_extractors:
+            return jsonify({"error": "動画が読み込まれていません"}), 400
+
+        extractor = web_manager.hand_frame_extractors[video_id]
+
+        # フレームを取得
+        frame = extractor.extract_frame(frame_number)
+        if frame is None:
+            return jsonify({"error": "フレームを取得できません"}), 400
+
+        # 手牌領域を抽出
+        hand_region = web_manager.hand_area_detector.extract_hand_region(frame, player)
+        if hand_region is None:
+            return jsonify({"error": "手牌領域を抽出できません"}), 400
+
+        # 牌を分割
+        tile_bboxes = web_manager.tile_splitter.split_hand_auto(hand_region)
+
+        # 結果を返す
+        result = {"player": player, "frame_number": frame_number, "tiles": []}
+
+        for i, (x, y, w, h) in enumerate(tile_bboxes):
+            result["tiles"].append(
+                {
+                    "index": i,
+                    "bbox": {"x": x, "y": y, "w": w, "h": h},
+                    "label": None,
+                    "confidence": None,
+                }
+            )
+
+        return jsonify(result)
+    except Exception as e:
+        web_manager.logger.error(f"牌分割エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/labeling/auto_label", methods=["POST"])
+def auto_label_tiles():
+    """AIを使用して牌を自動ラベリング"""
+    try:
+        data = request.get_json()
+        video_id = data.get("video_id")
+        frame_number = data.get("frame_number")
+        player = data.get("player", "bottom")
+
+        if not video_id or frame_number is None:
+            return jsonify({"error": "video_idとframe_numberが必要です"}), 400
+
+        # フレーム抽出器を取得
+        if video_id not in web_manager.hand_frame_extractors:
+            return jsonify({"error": "動画が読み込まれていません"}), 400
+
+        extractor = web_manager.hand_frame_extractors[video_id]
+
+        # フレームを取得
+        frame = extractor.extract_frame(frame_number)
+        if frame is None:
+            return jsonify({"error": "フレームを取得できません"}), 400
+
+        # 手牌領域を抽出
+        hand_region = web_manager.hand_area_detector.extract_hand_region(frame, player)
+        if hand_region is None:
+            return jsonify({"error": "手牌領域を抽出できません"}), 400
+
+        # 牌を分割
+        tile_images = web_manager.tile_splitter.split_hand_auto(hand_region)
+
+        # 各牌を分類
+        result = {"player": player, "frame_number": frame_number, "tiles": []}
+
+        for i, tile_img in enumerate(tile_images):
+            # 牌を分類（semi_auto_labelerを使用）
+            enhanced_tile = web_manager.tile_splitter.enhance_tile_image(tile_img)
+            classification_result = web_manager.semi_auto_labeler.tile_classifier.classify_tile(
+                enhanced_tile
+            )
+
+            result["tiles"].append(
+                {
+                    "index": i,
+                    "label": classification_result.tile_name,
+                    "confidence": classification_result.confidence,
+                }
+            )
+
+        return jsonify(result)
+    except Exception as e:
+        web_manager.logger.error(f"自動ラベリングエラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/labeling/save_annotations", methods=["POST"])
+def save_labeling_annotations():
+    """ラベリング結果を保存"""
+    try:
+        data = request.get_json()
+        session_id = data.get("session_id")
+        annotations = data.get("annotations")
+
+        if not session_id or not annotations:
+            return jsonify({"error": "session_idとannotationsが必要です"}), 400
+
+        # セッションデータに保存
+        if session_id not in web_manager.labeling_sessions:
+            web_manager.labeling_sessions[session_id] = {
+                "created_at": datetime.now(),
+                "annotations": [],
+            }
+
+        web_manager.labeling_sessions[session_id]["annotations"].extend(annotations)
+        web_manager.labeling_sessions[session_id]["updated_at"] = datetime.now()
+
+        # データベースに保存（dataset_managerを使用）
+        for annotation in annotations:
+            web_manager.dataset_manager.add_frame_annotation(
+                video_id=annotation["video_id"],
+                frame_number=annotation["frame_number"],
+                tiles=annotation["tiles"],
+                annotator="web_interface",
+                metadata={"session_id": session_id, "player": annotation.get("player", "bottom")},
+            )
+
+        return jsonify({"success": True, "saved_count": len(annotations)})
+    except Exception as e:
+        web_manager.logger.error(f"アノテーション保存エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/labeling/load_video", methods=["POST"])
+def load_video_for_labeling():
+    """ラベリング用に動画を読み込み"""
+    try:
+        data = request.get_json()
+        video_path = data.get("video_path")
+        video_id = data.get("video_id", str(uuid.uuid4()))
+
+        if not video_path or not os.path.exists(video_path):
+            return jsonify({"error": "動画ファイルが見つかりません"}), 400
+
+        # フレーム抽出器を作成
+        output_dir = f"data/hand_training/frames/{video_id}"
+        extractor = HandFrameExtractor(video_path, output_dir)
+        web_manager.hand_frame_extractors[video_id] = extractor
+
+        # 動画情報を返す
+        return jsonify(
+            {
+                "video_id": video_id,
+                "fps": extractor.fps,
+                "frame_count": extractor.frame_count,
+                "width": extractor.width,
+                "height": extractor.height,
+                "duration": extractor.frame_count / extractor.fps if extractor.fps > 0 else 0,
+            }
+        )
+    except Exception as e:
+        web_manager.logger.error(f"動画読み込みエラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/labeling/export", methods=["POST"])
+def export_labeling_data():
+    """ラベリングデータをエクスポート"""
+    try:
+        data = request.get_json()
+        session_id = data.get("session_id")
+        format_type = data.get("format", "json")  # json, coco, yolo
+
+        if session_id not in web_manager.labeling_sessions:
+            return jsonify({"error": "セッションが見つかりません"}), 400
+
+        annotations = web_manager.labeling_sessions[session_id]["annotations"]
+
+        if format_type == "json":
+            # シンプルなJSON形式
+            return jsonify(
+                {
+                    "session_id": session_id,
+                    "annotations": annotations,
+                    "export_time": datetime.now().isoformat(),
+                }
+            )
+        elif format_type == "coco":
+            # COCO形式に変換
+            # TODO: COCO形式への変換実装
+            return jsonify({"error": "COCO形式は未実装です"}), 501
+        elif format_type == "yolo":
+            # YOLO形式に変換
+            # TODO: YOLO形式への変換実装
+            return jsonify({"error": "YOLO形式は未実装です"}), 501
+        else:
+            return jsonify({"error": "不明なフォーマット"}), 400
+
+    except Exception as e:
+        web_manager.logger.error(f"エクスポートエラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # WebSocket イベントハンドラー
 
 
@@ -394,6 +657,12 @@ def start_training_background(session_id: str, config: TrainingConfig):
             room=session_id,
         )
 
+
+# APIブループリントを登録
+app.register_blueprint(labeling_bp)
+
+# WebSocketを初期化
+labeling_websocket.init_socketio(app)
 
 if __name__ == "__main__":
     # 開発サーバー起動

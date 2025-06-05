@@ -76,6 +76,12 @@
                 <select id="video-selector" class="form-select mb-2">
                     <option value="">動画を選択...</option>
                 </select>
+                <select id="session-selector" class="form-select mb-2">
+                    <option value="">セッションを選択...</option>
+                </select>
+                <button id="create-session-btn" class="btn btn-primary w-100 mb-2">
+                    <i class="fas fa-plus me-1"></i>新規セッション
+                </button>
                 <div id="video-info" class="small text-muted" style="display: none;">
                     <div>解像度: <span id="video-resolution">-</span></div>
                     <div>FPS: <span id="video-fps">-</span></div>
@@ -84,21 +90,42 @@
             </div>
         </div>
 
-        <!-- フレーム一覧 -->
+        <!-- プレイヤー選択 -->
         <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
                 <h6 class="card-title mb-0">
-                    <i class="fas fa-images me-2"></i>フレーム一覧
+                    <i class="fas fa-user me-2"></i>プレイヤー選択
                 </h6>
-                <button id="extract-frames-btn" class="btn btn-sm btn-outline-primary" disabled>
-                    <i class="fas fa-plus"></i>
+            </div>
+            <div class="card-body">
+                <select id="player-selector" class="form-select mb-2">
+                    <option value="bottom">自分（下）</option>
+                    <option value="right">右</option>
+                    <option value="top">対面（上）</option>
+                    <option value="left">左</option>
+                </select>
+                <button id="set-hand-area-btn" class="btn btn-outline-primary btn-sm w-100 mb-1">
+                    <i class="fas fa-crop me-1"></i>手牌領域を設定
+                </button>
+                <button id="auto-detect-btn" class="btn btn-outline-info btn-sm w-100">
+                    <i class="fas fa-magic me-1"></i>自動検出
                 </button>
             </div>
-            <div class="card-body p-0">
-                <div id="frame-list" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
-                    <div class="text-center text-muted p-3">
-                        動画を選択してください
-                    </div>
+        </div>
+
+        <!-- フレーム制御 -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-film me-2"></i>フレーム制御
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <input type="range" id="frame-slider" class="form-range" min="0" max="0" value="0">
+                </div>
+                <div class="text-center">
+                    <span id="frame-number">0 / 0</span>
                 </div>
             </div>
         </div>
@@ -113,20 +140,24 @@
             <div class="card-body">
                 <div class="mb-2">
                     <small class="text-muted">ラベリング進捗</small>
-                    <div class="progress-indicator">
-                        <div id="labeling-progress" class="progress-bar-custom" style="width: 0%"></div>
+                    <div class="progress">
+                        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
                     </div>
-                    <small class="text-muted">
-                        <span id="labeled-count">0</span> / <span id="total-count">0</span> フレーム
+                    <small id="progress-text" class="text-muted">
+                        0 / 0 (0.0%)
                     </small>
                 </div>
                 <div class="mb-2">
-                    <small class="text-muted">総牌数: <span id="total-tiles">0</span></small>
-                </div>
-                <div>
-                    <button id="save-progress-btn" class="btn btn-sm btn-success w-100">
-                        <i class="fas fa-save me-1"></i>進捗保存
+                    <button id="export-btn" class="btn btn-sm btn-success w-100">
+                        <i class="fas fa-download me-1"></i>エクスポート
                     </button>
+                </div>
+                <hr>
+                <div>
+                    <small class="text-muted">参加者:</small>
+                    <ul id="participants-list" class="list-unstyled small mb-0">
+                        <li>-</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -333,5 +364,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/labeling.js') }}"></script>
+<!-- Socket.IO -->
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<!-- 統合されたラベリングアプリケーション -->
+<script type="module" src="{{ url_for('static', filename='js/labeling-app.js') }}"></script>
 {% endblock %}

@@ -56,7 +56,8 @@
       "Bash(gh pr checks:*)",
       "Bash(mv:*)",
       "Bash(cp:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(ffprobe:*)"
     ],
     "deny": []
   }

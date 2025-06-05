@@ -1,0 +1,9 @@
+{
+    "backup_date": "2025-01-05",
+    "purpose": "手牌学習データ作成システムのリファクタリング前のバックアップ",
+    "included_directories": [
+        "hand_labeling_system",
+        "hand_training_system"
+    ],
+    "notes": "Phase 1実施前の完全なバックアップ"
+}
