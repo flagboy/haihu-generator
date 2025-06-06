@@ -99,25 +99,116 @@ def create_session():
             if not found:
                 return jsonify({"error": f"動画ファイルが見つかりません: {video_path}"}), 400
 
+        # ビデオIDを取得（ファイル名から拡張子を除いたもの）
+        video_id = Path(video_path).stem
+        logger.info(f"ビデオID: {video_id}")
+
+        # 同じビデオの既存セッションをチェック
+        existing_session_id = None
+        existing_session = None
+
+        # メモリ上のセッションをチェック
+        for sid, session in _sessions.items():
+            if Path(session.video_path).stem == video_id:
+                logger.info(f"メモリ上に既存セッションを発見: {sid}")
+                existing_session_id = sid
+                existing_session = session
+                break
+
+        # データベースから既存セッションを探す
+        if not existing_session_id:
+            db_path = "data/training/game_scene_labels.db"
+            if Path(db_path).exists():
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+
+                try:
+                    # 同じビデオIDのセッションを全て取得
+                    cursor.execute(
+                        """
+                        SELECT session_id, labeled_frames
+                        FROM labeling_sessions
+                        WHERE video_id = ?
+                        ORDER BY labeled_frames DESC
+                    """,
+                        (video_id,),
+                    )
+
+                    sessions = cursor.fetchall()
+                    if sessions:
+                        # 最もラベル数が多いセッションを使用
+                        existing_session_id = sessions[0][0]
+                        logger.info(
+                            f"データベースから既存セッション発見: {existing_session_id} (ラベル数: {sessions[0][1]})"
+                        )
+
+                        # 他のセッション（ラベル数が少ない）を削除
+                        if len(sessions) > 1:
+                            for sid, labeled_count in sessions[1:]:
+                                logger.info(
+                                    f"ラベル数の少ないセッションを削除: {sid} (ラベル数: {labeled_count})"
+                                )
+                                cursor.execute(
+                                    """
+                                    DELETE FROM labeling_sessions
+                                    WHERE session_id = ?
+                                """,
+                                    (sid,),
+                                )
+                            conn.commit()
+
+                except sqlite3.Error as e:
+                    logger.error(f"データベースエラー: {e}")
+                finally:
+                    conn.close()
+
         # セッション作成または再開
-        if not session_id:
-            session_id = str(uuid.uuid4())
+        if existing_session_id:
+            # 既存セッションを使用
+            session_id = existing_session_id
+            if existing_session:
+                # メモリ上に既にある場合はそれを使用
+                session = existing_session
+                logger.info(f"既存のメモリ上のセッションを再利用: {session_id}")
+            else:
+                # データベースから読み込んで新しいセッションを作成
+                classifier = SceneLabelingAPI.get_classifier()
+                try:
+                    session = SceneLabelingSession(
+                        session_id=session_id, video_path=video_path, classifier=classifier
+                    )
+                    _sessions[session_id] = session
+                    logger.info(f"データベースからセッションを復元: {session_id}")
+                except Exception as e:
+                    logger.error(f"SceneLabelingSession作成エラー: {e}")
+                    logger.error(f"エラーの詳細: {type(e).__name__}: {str(e)}")
+                    import traceback
 
-        classifier = SceneLabelingAPI.get_classifier()
+                    logger.error(f"スタックトレース:\n{traceback.format_exc()}")
+                    return jsonify({"error": f"セッション作成に失敗しました: {str(e)}"}), 500
+        else:
+            # 新規セッション作成
+            if not session_id:
+                session_id = str(uuid.uuid4())
 
-        try:
-            session = SceneLabelingSession(
-                session_id=session_id, video_path=video_path, classifier=classifier
-            )
-        except Exception as e:
-            logger.error(f"SceneLabelingSession作成エラー: {e}")
-            logger.error(f"エラーの詳細: {type(e).__name__}: {str(e)}")
-            import traceback
+            classifier = SceneLabelingAPI.get_classifier()
+            try:
+                session = SceneLabelingSession(
+                    session_id=session_id, video_path=video_path, classifier=classifier
+                )
+                _sessions[session_id] = session
+                logger.info(f"新規セッションを作成: {session_id}")
+            except Exception as e:
+                logger.error(f"SceneLabelingSession作成エラー: {e}")
+                logger.error(f"エラーの詳細: {type(e).__name__}: {str(e)}")
+                import traceback
 
-            logger.error(f"スタックトレース:\n{traceback.format_exc()}")
-            return jsonify({"error": f"セッション作成に失敗しました: {str(e)}"}), 500
+                logger.error(f"スタックトレース:\n{traceback.format_exc()}")
+                return jsonify({"error": f"セッション作成に失敗しました: {str(e)}"}), 500
 
-        _sessions[session_id] = session
+        # 統計情報を取得
+        statistics = session.get_statistics()
+        logger.info(f"セッション統計情報: {statistics}")
 
         # セッション情報を返す
         return jsonify(
@@ -131,8 +222,8 @@ def create_session():
                     "height": session.height,
                     "duration": session.total_frames / session.fps if session.fps > 0 else 0,
                 },
-                "statistics": session.get_statistics(),
-                "is_resumed": session.get_statistics()["labeled_frames"] > 0,
+                "statistics": statistics,
+                "is_resumed": statistics["labeled_frames"] > 0,
             }
         )
 

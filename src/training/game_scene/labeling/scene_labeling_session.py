@@ -269,6 +269,13 @@ class SceneLabelingSession(LoggerMixin):
 
         self.logger.info(f"既存ラベル読み込み: {len(self.labels)}件")
 
+        # デバッグ用: ラベルの内訳を表示
+        if self.labels:
+            game_count = sum(1 for label in self.labels.values() if label.is_game_scene)
+            non_game_count = len(self.labels) - game_count
+            self.logger.info(f"  - 対局画面: {game_count}件")
+            self.logger.info(f"  - 非対局画面: {non_game_count}件")
+
     def get_frame(self, frame_number: int) -> np.ndarray | None:
         """
         指定フレームを取得

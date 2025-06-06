@@ -22,8 +22,8 @@ class SceneDataset(Dataset, LoggerMixin):
 
     def __init__(
         self,
-        db_path: str = "data/training/game_scene_labels.db",
-        cache_dir: str = "data/training/game_scene_cache",
+        db_path: str = "web_interface/data/training/game_scene_labels.db",
+        cache_dir: str = "web_interface/data/training/game_scene_cache",
         transform: transforms.Compose | None = None,
         split: str = "train",  # train, val, test
         split_ratio: tuple[float, float, float] = (0.7, 0.15, 0.15),
@@ -73,23 +73,49 @@ class SceneDataset(Dataset, LoggerMixin):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        # ラベル付きデータを取得
+        # まず、すべてのvideo_idと最新のvideo_pathを取得
         cursor.execute("""
-            SELECT DISTINCT
-                l.video_id,
-                l.frame_number,
-                l.is_game_scene,
-                l.confidence,
-                l.annotator,
-                s.video_path
+            SELECT DISTINCT l.video_id,
+                   (SELECT video_path FROM labeling_sessions
+                    WHERE video_id = l.video_id
+                    ORDER BY created_at DESC LIMIT 1) as video_path
             FROM game_scene_labels l
-            JOIN labeling_sessions s ON l.video_id = s.video_id
-            ORDER BY l.video_id, l.frame_number
+        """)
+        video_info = {row[0]: row[1] for row in cursor.fetchall()}
+
+        self.logger.info(f"動画情報: {video_info}")
+
+        # ラベル付きデータを取得（シンプルなクエリ）
+        cursor.execute("""
+            SELECT video_id, frame_number, is_game_scene, confidence, annotator
+            FROM game_scene_labels
+            ORDER BY video_id, frame_number
         """)
 
         all_data = []
-        for row in cursor.fetchall():
-            video_id, frame_number, is_game_scene, confidence, annotator, video_path = row
+        rows = cursor.fetchall()
+        self.logger.info(f"SQLクエリ結果: {len(rows)}行")
+
+        for idx, row in enumerate(rows):
+            # sqlite3.Rowオブジェクトから値を取得
+            video_id = row["video_id"]
+            frame_number = row["frame_number"]
+            is_game_scene = row["is_game_scene"]
+            confidence = row["confidence"]
+            annotator = row["annotator"]
+            video_path = row["video_path"]
+
+            # デバッグ：最初の数行を出力
+            if idx < 5:
+                self.logger.debug(
+                    f"Row {idx}: video_id={video_id}, frame={frame_number}, is_game={is_game_scene}, path={video_path}"
+                )
+
+            # video_pathがNoneの場合の処理
+            if video_path is None:
+                self.logger.warning(f"video_pathがNULL: video_id={video_id}, frame={frame_number}")
+                continue
+
             all_data.append(
                 {
                     "video_id": video_id,
@@ -102,6 +128,14 @@ class SceneDataset(Dataset, LoggerMixin):
             )
 
         conn.close()
+
+        # デバッグ：読み込みデータの統計
+        total_game_scenes = sum(1 for item in all_data if item["label"] == 1)
+        total_non_game_scenes = len(all_data) - total_game_scenes
+        self.logger.info(
+            f"データベースから読み込み: 総数={len(all_data)}, "
+            f"対局画面={total_game_scenes}, 非対局画面={total_non_game_scenes}"
+        )
 
         # データを分割
         self._split_data(all_data)
@@ -126,6 +160,36 @@ class SceneDataset(Dataset, LoggerMixin):
         np.random.shuffle(video_ids)
 
         n_videos = len(video_ids)
+
+        # 動画が少ない場合はフレームレベルで分割
+        if n_videos <= 3:
+            # 全フレームをシャッフルして分割
+            np.random.seed(42)
+            np.random.shuffle(all_data)
+
+            n_frames = len(all_data)
+            train_end = int(n_frames * self.split_ratio[0])
+            val_end = train_end + int(n_frames * self.split_ratio[1])
+
+            if self.split == "train":
+                self.data = all_data[:train_end]
+            elif self.split == "val":
+                self.data = all_data[train_end:val_end]
+            elif self.split == "test":
+                self.data = all_data[val_end:]
+            else:
+                raise ValueError(f"不明な分割: {self.split}")
+
+            # デバッグ情報を追加
+            game_scenes = sum(1 for item in self.data if item["label"] == 1)
+            non_game_scenes = len(self.data) - game_scenes
+            self.logger.info(
+                f"データ分割完了（フレームレベル）: {self.split} - {len(self.data)}フレーム "
+                f"(対局画面: {game_scenes}, 非対局画面: {non_game_scenes})"
+            )
+            return
+
+        # 動画が十分ある場合は動画レベルで分割
         train_end = int(n_videos * self.split_ratio[0])
         val_end = train_end + int(n_videos * self.split_ratio[1])
 

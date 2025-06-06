@@ -371,29 +371,24 @@ class SceneLabelingApp {
                         console.log(`フレーム ${frameNumber} の前フレームとの類似度: ${prevFrameSimilarity.toFixed(3)}`);
                     }
 
-                    // 最後にラベル付けしたフレームとの類似度チェック（未ラベルフレームのみ）
+                    // 前フレームとの類似度チェック（未ラベルフレームのみ）
                     // スキップが終了したばかりの場合はスキップしない
-                    if (this.autoSkipEnabled && !result.label && this.lastLabeledFrameData && this.lastLabeledFrame && !this.skipJustEnded) {
-                        const labeledSimilarity = this.calculateFrameSimilarity(
-                            this.lastLabeledFrameData,
-                            currentFrameData
-                        );
-
-                        console.log(`フレーム ${frameNumber} の最後ラベル付けフレーム（#${this.lastLabeledFrame.frameNumber}）との類似度: ${labeledSimilarity.toFixed(3)}`);
-                        console.log(`前フレーム類似度: ${prevFrameSimilarity.toFixed(3)}, ラベル付けフレーム類似度: ${labeledSimilarity.toFixed(3)}, 閾値: ${this.similarityThreshold.toFixed(3)}`);
+                    if (this.autoSkipEnabled && !result.label && this.previousFrameData && !this.skipJustEnded) {
+                        console.log(`フレーム ${frameNumber} の前フレームとの類似度: ${prevFrameSimilarity.toFixed(3)}`);
+                        console.log(`前フレーム類似度: ${prevFrameSimilarity.toFixed(3)}, 閾値: ${this.similarityThreshold.toFixed(3)}`);
                         console.log(`🔍 詳細比較:`);
-                        console.log(`   labeledSimilarity = ${labeledSimilarity} (型: ${typeof labeledSimilarity})`);
+                        console.log(`   prevFrameSimilarity = ${prevFrameSimilarity} (型: ${typeof prevFrameSimilarity})`);
                         console.log(`   similarityThreshold = ${this.similarityThreshold} (型: ${typeof this.similarityThreshold})`);
-                        console.log(`   labeledSimilarity > similarityThreshold = ${labeledSimilarity > this.similarityThreshold}`);
-                        console.log(`   数値比較: ${Number(labeledSimilarity)} > ${Number(this.similarityThreshold)} = ${Number(labeledSimilarity) > Number(this.similarityThreshold)}`);
+                        console.log(`   prevFrameSimilarity > similarityThreshold = ${prevFrameSimilarity > this.similarityThreshold}`);
+                        console.log(`   数値比較: ${Number(prevFrameSimilarity)} > ${Number(this.similarityThreshold)} = ${Number(prevFrameSimilarity) > Number(this.similarityThreshold)}`);
 
-                        // ラベル付けフレームとの類似度が閾値を超えている場合
-                        if (labeledSimilarity > this.similarityThreshold) {
+                        // 前フレームとの類似度が閾値を超えている場合
+                        if (prevFrameSimilarity > this.similarityThreshold && this.lastLabeledFrame) {
                             // 類似フレームをスキップ
                             this.skipCount++;
                             console.log(`🚀 スキップ実行: フレーム ${frameNumber}`);
-                            console.log(`   理由: 最後のラベル付けフレーム #${this.lastLabeledFrame.frameNumber} との類似度が閾値を超過`);
-                            console.log(`   類似度: ${labeledSimilarity.toFixed(3)} > 閾値: ${this.similarityThreshold.toFixed(3)}`);
+                            console.log(`   理由: 前フレームとの類似度が閾値を超過`);
+                            console.log(`   類似度: ${prevFrameSimilarity.toFixed(3)} > 閾値: ${this.similarityThreshold.toFixed(3)}`);
                             console.log(`   付与ラベル: ${this.lastLabeledFrame.isGameScene ? '対局画面' : '非対局画面'}`);
 
                             // スキップ中はボタンを無効化
@@ -427,8 +422,8 @@ class SceneLabelingApp {
                             return;
                         } else {
                             console.log(`⏹️ スキップしない: フレーム ${frameNumber}`);
-                            console.log(`   理由: 最後のラベル付けフレーム #${this.lastLabeledFrame.frameNumber} との類似度が閾値以下`);
-                            console.log(`   類似度: ${labeledSimilarity.toFixed(3)} <= 閾値: ${this.similarityThreshold.toFixed(3)}`);
+                            console.log(`   理由: 前フレームとの類似度が閾値以下`);
+                            console.log(`   類似度: ${prevFrameSimilarity.toFixed(3)} <= 閾値: ${this.similarityThreshold.toFixed(3)}`);
                         }
                     } else {
                         // スキップ条件に合わない場合の理由をログ出力
@@ -436,8 +431,10 @@ class SceneLabelingApp {
                             console.log(`⏹️ スキップしない: 自動スキップが無効`);
                         } else if (result.label) {
                             console.log(`⏹️ スキップしない: フレーム ${frameNumber} は既にラベル済み`);
-                        } else if (!this.lastLabeledFrameData || !this.lastLabeledFrame) {
-                            console.log(`⏹️ スキップしない: 比較対象のラベル付けフレームがありません`);
+                        } else if (!this.previousFrameData) {
+                            console.log(`⏹️ スキップしない: 比較対象の前フレームデータがありません`);
+                        } else if (!this.lastLabeledFrame) {
+                            console.log(`⏹️ スキップしない: 付与するラベル情報がありません`);
                         } else if (this.skipJustEnded) {
                             console.log(`⏹️ スキップしない: スキップが終了したばかりです`);
                         }
@@ -700,10 +697,11 @@ class SceneLabelingApp {
         return similarity;
     }
 
-    updateSimilarityDisplay(similarity) {
+    updateSimilarityDisplay(similarity, isSkipping = false) {
         // 類似度を画面に表示
         const similarityScore = document.getElementById('similarityScore');
         const currentThreshold = document.getElementById('currentThreshold');
+        const similarityTarget = document.getElementById('similarityTarget');
 
         if (similarityScore) {
             const percentage = (similarity * 100).toFixed(1);
@@ -723,6 +721,11 @@ class SceneLabelingApp {
                     alertElement.classList.add('alert-secondary');
                 }
             }
+        }
+
+        if (similarityTarget) {
+            // 常に前フレームとの比較を表示
+            similarityTarget.textContent = '（前フレームとの比較）';
         }
 
         if (currentThreshold) {
@@ -1115,25 +1118,29 @@ class SceneLabelingApp {
         }
 
         // 類似度をチェック（スキップ中でも必要）
-        if (this.lastLabeledFrameData && this.lastLabeledFrame) {
+        if (this.previousFrameData && this.lastLabeledFrame) {
             // 現在のフレームの画像データを取得
             const currentFrameData = this.getCanvasImageData();
 
-            // 最後にラベル付けしたフレームとの類似度を計算
+            // 前フレームとの類似度を計算
             const similarity = this.calculateFrameSimilarity(
-                this.lastLabeledFrameData,
+                this.previousFrameData,
                 currentFrameData
             );
 
-            console.log(`スキップ中: フレーム ${frameNumber} の類似度: ${(similarity * 100).toFixed(1)}% (閾値: ${(this.similarityThreshold * 100).toFixed(0)}%)`);
+            console.log(`スキップ中: フレーム ${frameNumber} の前フレームとの類似度: ${(similarity * 100).toFixed(1)}% (閾値: ${(this.similarityThreshold * 100).toFixed(0)}%)`);
+
+            // 類似度を画面に表示
+            this.updateSimilarityDisplay(similarity);
+
+            // 現在のフレームデータを次回比較用に保存
+            this.previousFrameData = currentFrameData;
 
             // 類似度が閾値未満の場合はスキップ終了
             if (similarity < this.similarityThreshold) {
                 console.log(`類似度が閾値未満のためスキップを終了: ${(similarity * 100).toFixed(1)}% < ${(this.similarityThreshold * 100).toFixed(0)}%`);
 
-                // スキップ終了前に比較データをクリア（再スキップを防ぐ）
-                this.lastLabeledFrameData = null;
-                this.lastLabeledFrame = null;
+                // スキップ終了前にフラグを設定（再スキップを防ぐ）
                 this.skipJustEnded = true;  // スキップが終了したことをマーク
 
                 this.endSkipping();
@@ -1188,8 +1195,7 @@ class SceneLabelingApp {
         this.disableLabelingButtons(false);
         this.hideSkippingUI();
 
-        // スキップ停止時に比較データをクリア
-        this.previousFrameData = null;
+        // スキップ停止時にラベル情報をクリア（前フレームデータは保持）
         this.lastLabeledFrameData = null;
         this.lastLabeledFrame = null;
 
