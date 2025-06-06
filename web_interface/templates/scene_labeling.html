@@ -6,6 +6,7 @@
 <div class="container-fluid">
     <h1 class="mt-4">対局画面ラベリング</h1>
 
+
     <!-- 動画選択エリア -->
     <div class="row mt-4">
         <div class="col-md-12">
@@ -15,11 +16,54 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label for="videoFile" class="form-label">動画ファイルを選択</label>
-                        <input type="file" class="form-control" id="videoFile" accept="video/*">
+                        <label for="videoPath" class="form-label">動画ファイルパスを入力</label>
+                        <input type="text" class="form-control" id="videoPath" placeholder="例: /path/to/video.mp4 または web_interface/uploads/output.mp4" value="web_interface/uploads/output.mp4">
+                        <small class="form-text text-muted">
+                            絶対パスまたはプロジェクトルートからの相対パスを入力してください
+                        </small>
                     </div>
-                    <button class="btn btn-primary" id="startSession">セッション開始</button>
-                    <button class="btn btn-secondary" id="loadExisting" disabled>既存のセッションを読み込み</button>
+                    <div class="mb-3">
+                        <button class="btn btn-info btn-sm" id="browseUploads">アップロード済みファイル一覧</button>
+                        <div id="uploadedFilesList" class="mt-2" style="display: none;">
+                            <div class="list-group" id="filesListContent">
+                                <!-- 動的に追加 -->
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="startSession">新規セッション開始</button>
+                    <button class="btn btn-secondary" id="loadExisting">既存のセッションを読み込み</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 既存セッション一覧 -->
+    <div class="row mt-4" id="sessionListArea" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>既存のセッション</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="sessionTable">
+                            <thead>
+                                <tr>
+                                    <th>動画名</th>
+                                    <th>総フレーム数</th>
+                                    <th>ラベル済み</th>
+                                    <th>進捗</th>
+                                    <th>更新日時</th>
+                                    <th>状態</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessionTableBody">
+                                <!-- JavaScriptで動的に追加 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-sm btn-secondary" id="cancelSessionList">キャンセル</button>
                 </div>
             </div>
         </div>
@@ -43,7 +87,6 @@
                         </div>
                         <p class="mt-2">
                             フレーム: <span id="currentFrame">0</span> / <span id="totalFrames">0</span>
-                            (<span id="timestamp">0.0</span>秒)
                         </p>
                     </div>
                 </div>
@@ -100,6 +143,9 @@
                         <button class="btn btn-lg btn-danger" id="labelNonGame">
                             非対局画面 (N)
                         </button>
+                        <button class="btn btn-lg btn-warning" id="stopSkipping" style="display: none;">
+                            スキップ中断 (ESC)
+                        </button>
                     </div>
 
                     <!-- AI推論結果 -->
@@ -108,6 +154,24 @@
                         <div class="alert alert-info">
                             <strong>予測:</strong> <span id="aiResult">-</span><br>
                             <strong>信頼度:</strong> <span id="aiConfidence">-</span>
+                        </div>
+                    </div>
+
+                    <!-- フレーム類似度 -->
+                    <div class="mt-3" id="frameSimilarity">
+                        <h6>フレーム類似度</h6>
+                        <div class="alert alert-secondary">
+                            <strong>前フレームとの類似度:</strong> <span id="similarityScore">-</span>%<br>
+                            <small class="text-muted">閾値: <span id="currentThreshold">90</span>%</small>
+                        </div>
+                    </div>
+
+                    <!-- スキップ進捗 -->
+                    <div class="mt-3" id="skipProgress" style="display: none;">
+                        <h6>スキップ進捗</h6>
+                        <div class="alert alert-info">
+                            <strong>スキップ中:</strong> <span id="skipCount">0</span>フレーム<br>
+                            <small class="text-muted">ESCキーまたはボタンで中断</small>
                         </div>
                     </div>
 
@@ -187,6 +251,23 @@
                     <button class="btn btn-warning w-100" id="autoLabel">
                         自動ラベリング実行
                     </button>
+
+                    <!-- 類似フレーム自動スキップ設定 -->
+                    <div class="mt-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="autoSkipSimilar" checked>
+                            <label class="form-check-label" for="autoSkipSimilar">
+                                類似フレームを自動スキップ
+                            </label>
+                        </div>
+                        <div class="mt-1">
+                            <label for="similarityThreshold" class="form-label small">
+                                類似度閾値 (<span id="similarityValue">90</span>%)
+                            </label>
+                            <input type="range" class="form-range" id="similarityThreshold"
+                                   min="80" max="100" value="90" step="1">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -288,11 +369,13 @@
                 N: 非対局画面<br>
                 ←/→: 前/次のフレーム<br>
                 Space: 次の未ラベル<br>
-                U: 不確実なフレーム
+                U: 不確実なフレーム<br>
+                S: 30フレームスキップ<br>
+                D: 60フレームスキップ
             </small>
         </div>
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/scene_labeling.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scene_labeling.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

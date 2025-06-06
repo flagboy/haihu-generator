@@ -5,6 +5,7 @@
 """
 
 import sqlite3
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +41,7 @@ class SceneLabelingSession(LoggerMixin):
         self,
         session_id: str,
         video_path: str,
-        db_path: str = "data/training/game_scene_labels.db",
+        db_path: str = "web_interface/data/training/game_scene_labels.db",
         classifier: GameSceneClassifier | None = None,
     ):
         """
@@ -59,19 +60,86 @@ class SceneLabelingSession(LoggerMixin):
         self.feature_extractor = FeatureExtractor()
 
         # 動画情報を取得
-        self.cap = cv2.VideoCapture(video_path)
+        self.logger.info(f"動画を開こうとしています: {video_path}")
+        self.logger.info(f"ファイルが存在するか: {Path(video_path).exists()}")
+        self.logger.info(f"絶対パス: {Path(video_path).absolute()}")
+
+        # ファイルサイズを確認
+        if Path(video_path).exists():
+            file_size = Path(video_path).stat().st_size
+            self.logger.info(
+                f"ファイルサイズ: {file_size:,} bytes ({file_size / 1024 / 1024:.2f} MB)"
+            )
+
+        # OpenCVのビルド情報を確認
+        try:
+            self.logger.info(f"OpenCVバージョン: {cv2.__version__}")
+            # ビルド情報は長すぎるので削除
+            # self.logger.info(f"利用可能なバックエンド: {cv2.getBuildInformation()}")
+        except Exception as e:
+            self.logger.warning(f"OpenCV情報取得エラー: {e}")
+
+        try:
+            self.cap = cv2.VideoCapture(str(video_path))  # strで明示的に変換
+            self.logger.info(f"VideoCapture作成後: isOpened={self.cap.isOpened()}")
+        except Exception as e:
+            self.logger.error(f"VideoCapture作成エラー: {e}")
+            self.logger.error(f"エラーの詳細: {type(e).__name__}: {str(e)}")
+            import traceback
+
+            self.logger.error(f"スタックトレース:\n{traceback.format_exc()}")
+            raise
+
         if not self.cap.isOpened():
-            raise ValueError(f"動画を開けません: {video_path}")
+            # FFmpegバックエンドを明示的に使用してみる
+            self.logger.warning("デフォルトバックエンドで開けません。FFmpegを試します。")
+            self.cap = cv2.VideoCapture(str(video_path), cv2.CAP_FFMPEG)
+            self.logger.info(f"FFmpegバックエンド使用後: isOpened={self.cap.isOpened()}")
+
+            if not self.cap.isOpened():
+                # AVFoundationバックエンドを試す（macOS）
+                self.logger.warning("FFmpegでも開けません。AVFoundationを試します。")
+                self.cap = cv2.VideoCapture(str(video_path), cv2.CAP_AVFOUNDATION)
+                self.logger.info(f"AVFoundationバックエンド使用後: isOpened={self.cap.isOpened()}")
+
+                if not self.cap.isOpened():
+                    raise ValueError(f"動画を開けません: {video_path}")
+
+        # VideoCaptureのバッファサイズを設定（安定性向上）
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+        self.logger.info(
+            f"動画プロパティ: total_frames={self.total_frames}, fps={self.fps}, size={self.width}x{self.height}"
+        )
+
+        # ビデオコーデック情報を取得
+        fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
+        codec = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)])
+        self.logger.info(f"ビデオコーデック: {codec}")
+
+        # 最初のフレームを試しに読み込む
+        self.logger.info("最初のフレームの読み込みテスト...")
+        ret, test_frame = self.cap.read()
+        self.logger.info(f"テスト読み込み結果: ret={ret}, frame_is_none={test_frame is None}")
+        if ret and test_frame is not None:
+            self.logger.info(f"テストフレーム: shape={test_frame.shape}, dtype={test_frame.dtype}")
+            # 位置を最初に戻す
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        else:
+            self.logger.warning("最初のフレームの読み込みテストに失敗")
+
         # セッション情報
         self.current_frame = 0
         self.labels: dict[int, FrameLabel] = {}
         self.uncertainty_frames: list[int] = []
+
+        # スレッドロック（複数のリクエストが同時にVideoCaptureを使用するのを防ぐ）
+        self._video_lock = threading.Lock()
 
         # データベース初期化
         self._init_database()
@@ -84,6 +152,12 @@ class SceneLabelingSession(LoggerMixin):
             f"video={Path(video_path).name}, "
             f"frames={self.total_frames}"
         )
+
+    def __del__(self):
+        """デストラクタ - リソースを解放"""
+        if hasattr(self, "cap") and self.cap is not None:
+            self.cap.release()
+            self.logger.debug("VideoCaptureを解放しました")
 
     def _init_database(self):
         """データベースを初期化"""
@@ -205,17 +279,123 @@ class SceneLabelingSession(LoggerMixin):
         Returns:
             フレーム画像
         """
-        if frame_number < 0 or frame_number >= self.total_frames:
-            return None
+        self.logger.info(f"=== get_frame開始: frame_number={frame_number} ===")
 
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        ret, frame = self.cap.read()
+        # スレッドロックを取得
+        with self._video_lock:
+            if frame_number < 0 or frame_number >= self.total_frames:
+                self.logger.error(
+                    f"無効なフレーム番号: {frame_number} (総フレーム数: {self.total_frames})"
+                )
+                return None
 
-        if ret:
-            self.current_frame = frame_number
-            return frame
-        else:
-            return None
+            try:
+                # VideoCaptureの詳細な状態を確認
+                is_opened = self.cap.isOpened()
+                self.logger.info(f"VideoCaptureの状態: isOpened={is_opened}")
+
+                if not is_opened:
+                    self.logger.error("VideoCaptureが開いていません。再オープンを試みます。")
+                    self.cap.release()
+                    self.logger.info(f"動画を再オープン: {self.video_path}")
+                    self.cap = cv2.VideoCapture(str(self.video_path))
+                    if not self.cap.isOpened():
+                        self.logger.error(f"動画ファイルを開けません: {self.video_path}")
+                        self.logger.error(f"ファイル存在確認: {Path(self.video_path).exists()}")
+                        return None
+                    else:
+                        self.logger.info("動画の再オープンに成功")
+
+                # 現在の位置を確認
+                current_pos = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+                self.logger.info(f"現在のフレーム位置: {current_pos}, 要求位置: {frame_number}")
+
+                # フレーム位置を設定
+                success = self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                self.logger.info(f"フレーム位置設定: success={success}")
+
+                if not success:
+                    self.logger.error(f"フレーム位置の設定に失敗: {frame_number}")
+                    # 代替方法：最初から読み進める
+                    self.logger.info("最初から読み進める方法を試します")
+                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    for i in range(frame_number + 1):
+                        ret, frame = self.cap.read()
+                        if not ret:
+                            self.logger.error(f"フレーム {i} で読み込み失敗")
+                            return None
+                    if ret and frame is not None:
+                        self.logger.info(f"読み進めによりフレーム {frame_number} を取得")
+                        self.current_frame = frame_number
+                        return frame
+                    return None
+
+                # 現在のフレーム位置を確認
+                actual_pos = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+                if actual_pos != frame_number:
+                    self.logger.warning(
+                        f"フレーム位置の不一致: 要求={frame_number}, 実際={actual_pos}"
+                    )
+
+                # フレームを読み込み
+                self.logger.info("cv2.VideoCapture.read()を実行...")
+                ret, frame = self.cap.read()
+                self.logger.info(
+                    f"read()の結果: ret={ret}, frame_type={type(frame)}, frame_is_none={frame is None}"
+                )
+
+                if ret and frame is not None:
+                    # フレームの詳細情報
+                    self.logger.info(
+                        f"フレーム情報: shape={frame.shape}, dtype={frame.dtype}, size={frame.size}"
+                    )
+
+                    # フレームの妥当性チェック
+                    if frame.size == 0:
+                        self.logger.error(f"フレーム {frame_number} は空です")
+                        return None
+
+                    self.current_frame = frame_number
+                    self.logger.info(f"フレーム {frame_number} を正常に取得完了")
+                    return frame
+                else:
+                    self.logger.error(
+                        f"フレーム {frame_number} の読み込みに失敗 (ret={ret}, frame={'None' if frame is None else 'not None'})"
+                    )
+
+                    # 動画デコーダの問題の可能性があるため、別の方法を試す
+                    if frame_number > 0:
+                        self.logger.info("前のフレームから読み進める方法を試します")
+                        start_frame = max(0, frame_number - 10)
+                        self.cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+                        self.logger.info(f"フレーム {start_frame} から読み進めます")
+
+                        for i in range(start_frame, frame_number):
+                            ret, _ = self.cap.read()
+                            if not ret:
+                                self.logger.error(f"フレーム {i} で読み込み失敗")
+                                break
+
+                        # 目的のフレームを読む
+                        ret, frame = self.cap.read()
+                        if ret and frame is not None:
+                            self.logger.info(f"読み進めによりフレーム {frame_number} を取得成功")
+                            self.current_frame = frame_number
+                            return frame
+                        else:
+                            self.logger.error("読み進めでも取得失敗")
+
+                    return None
+
+            except Exception as e:
+                self.logger.error(f"フレーム取得で例外が発生 (frame: {frame_number}): {e}")
+                self.logger.error(f"例外の詳細: {type(e).__name__}: {str(e)}")
+                import traceback
+
+                self.logger.error(f"スタックトレース:\n{traceback.format_exc()}")
+                return None
+            finally:
+                self.logger.info(f"=== get_frame終了: frame_number={frame_number} ===")
 
     def get_next_unlabeled_frame(self, start_from: int | None = None) -> int | None:
         """

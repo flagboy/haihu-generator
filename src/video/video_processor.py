@@ -11,6 +11,7 @@ import numpy as np
 
 from ..utils.config import ConfigManager
 from ..utils.logger import LoggerMixin
+from ..utils.video_codec_validator import VideoCodecValidator
 
 
 class VideoProcessor(LoggerMixin):
@@ -39,7 +40,75 @@ class VideoProcessor(LoggerMixin):
         self.normalize = self.video_config.get("preprocessing", {}).get("normalize", True)
         self.denoise = self.video_config.get("preprocessing", {}).get("denoise", True)
 
+        # フレーム類似度チェック設定
+        self.skip_similar_frames = self.video_config.get("frame_extraction", {}).get(
+            "skip_similar_frames", True
+        )
+        self.similarity_threshold = self.video_config.get("frame_extraction", {}).get(
+            "similarity_threshold", 0.99
+        )
+        self.prev_frame_hash = None  # 前フレームのハッシュ値
+
+        # コーデックバリデーター
+        self.codec_validator = VideoCodecValidator()
+
         self.logger.info("VideoProcessorが初期化されました")
+
+    def calculate_frame_similarity(self, frame1: np.ndarray, frame2: np.ndarray) -> float:
+        """
+        2つのフレームの類似度を計算
+
+        Args:
+            frame1: フレーム1
+            frame2: フレーム2
+
+        Returns:
+            類似度（0.0～1.0）
+        """
+        # グレースケールに変換
+        gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY) if len(frame1.shape) == 3 else frame1
+        gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY) if len(frame2.shape) == 3 else frame2
+
+        # サイズを統一
+        size = (640, 480)  # 計算効率のために縮小
+        gray1 = cv2.resize(gray1, size)
+        gray2 = cv2.resize(gray2, size)
+
+        # 構造類似度指標（SSIM）の簡易版
+        # 平均二乗誤差から類似度を計算
+        mse = np.mean((gray1.astype(float) - gray2.astype(float)) ** 2)
+        max_pixel_value = 255.0
+
+        if mse == 0:
+            return 1.0
+
+        # PSNRを類似度に変換
+        psnr = 20 * np.log10(max_pixel_value / np.sqrt(mse))
+        # PSNRを 0-1 の範囲に正規化（40dB以上でほぼ同一）
+        similarity = min(1.0, psnr / 40.0)
+
+        return similarity
+
+    def calculate_frame_hash(self, frame: np.ndarray) -> str:
+        """
+        フレームのハッシュ値を計算（高速な重複チェック用）
+
+        Args:
+            frame: フレーム
+
+        Returns:
+            ハッシュ値
+        """
+        # グレースケールに変換して縮小
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
+        small = cv2.resize(gray, (16, 16))
+
+        # 平均値を計算
+        avg = small.mean()
+
+        # バイナリハッシュを作成
+        diff = small > avg
+        return diff.tobytes().hex()
 
     def extract_frames(
         self, video_path: str, output_dir: str | None = None, frame_skip_manager=None
@@ -58,6 +127,26 @@ class VideoProcessor(LoggerMixin):
         video_path = Path(video_path)
         if not video_path.exists():
             raise FileNotFoundError(f"動画ファイルが見つかりません: {video_path}")
+
+        # 動画ファイルのコーデックを検証
+        self.logger.info("動画ファイルのコーデックを検証中...")
+        validation_result = self.codec_validator.validate_video_file(str(video_path))
+
+        if not validation_result["valid"]:
+            self.logger.error(f"動画ファイルの検証に失敗: {validation_result}")
+            self.logger.error(f"推奨事項: {validation_result['recommendation']}")
+
+            # 自動変換を試みる（オプション）
+            if validation_result["codec_info"] and not validation_result["opencv_test"]["can_open"]:
+                raise ValueError(
+                    f"動画ファイルを開けません。{validation_result['recommendation']}\n"
+                    f"検出されたコーデック: {validation_result.get('detected_codec', '不明')}"
+                )
+        else:
+            self.logger.info(
+                f"動画ファイル検証成功 - コーデック: {validation_result.get('detected_codec', '不明')}, "
+                f"解像度: {validation_result['opencv_test'].get('width')}x{validation_result['opencv_test'].get('height')}"
+            )
 
         if output_dir is None:
             output_dir = Path(self.directories.get("temp", "data/temp")) / "frames"
@@ -90,6 +179,8 @@ class VideoProcessor(LoggerMixin):
             extracted_files = []
             frame_count = 0
             extracted_count = 0
+            prev_frame = None  # 前フレームを保持
+            similar_frame_count = 0  # 類似フレーム数
 
             # 動画IDを取得（フレームスキップマネージャー用）
             video_id = Path(video_path).stem
@@ -97,7 +188,17 @@ class VideoProcessor(LoggerMixin):
             while True:
                 ret, frame = cap.read()
                 if not ret:
+                    if frame_count == 0:
+                        self.logger.error(
+                            "最初のフレームも読み込めません。動画ファイルが破損している可能性があります。"
+                        )
                     break
+
+                # フレームの妥当性チェック
+                if frame is None or frame.size == 0:
+                    self.logger.warning(f"フレーム {frame_count} が無効です。スキップします。")
+                    frame_count += 1
+                    continue
 
                 # フレームスキップチェック
                 if frame_skip_manager and frame_skip_manager.should_skip_frame(
@@ -108,8 +209,32 @@ class VideoProcessor(LoggerMixin):
 
                 # 指定間隔でフレームを抽出
                 if frame_count % frame_interval == 0:
+                    # 類似フレームチェック
+                    should_skip = False
+                    if self.skip_similar_frames and prev_frame is not None:
+                        # ハッシュ値で高速チェック
+                        current_hash = self.calculate_frame_hash(frame)
+                        if current_hash == self.prev_frame_hash:
+                            should_skip = True
+                            similar_frame_count += 1
+                        else:
+                            # ハッシュが異なる場合は詳細な類似度チェック
+                            similarity = self.calculate_frame_similarity(frame, prev_frame)
+                            if similarity >= self.similarity_threshold:
+                                should_skip = True
+                                similar_frame_count += 1
+                            else:
+                                self.prev_frame_hash = current_hash
+                    else:
+                        self.prev_frame_hash = self.calculate_frame_hash(frame)
+
+                    if should_skip:
+                        frame_count += 1
+                        continue
+
                     # フレームを前処理
                     processed_frame = self.preprocess_frame(frame)
+                    prev_frame = frame.copy()  # 次回比較用に保存
 
                     # ファイル名を生成
                     timestamp = frame_count / video_fps if video_fps > 0 else frame_count
@@ -138,7 +263,10 @@ class VideoProcessor(LoggerMixin):
                         f"フレーム抽出進捗: {progress:.1f}% ({extracted_count}フレーム抽出)"
                     )
 
-            self.logger.info(f"フレーム抽出完了: {extracted_count}フレームを抽出")
+            self.logger.info(
+                f"フレーム抽出完了: {extracted_count}フレームを抽出 "
+                f"(類似フレーム{similar_frame_count}フレームをスキップ)"
+            )
             return extracted_files
 
         finally:
@@ -340,7 +468,7 @@ class VideoProcessor(LoggerMixin):
         # ブラー検出（簡易版）
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        return bool(laplacian_var >= 100)  # 閾値は調整が必要
+        return laplacian_var >= 100  # 閾値は調整が必要
 
     def get_video_info(self, video_path: str) -> dict:
         """

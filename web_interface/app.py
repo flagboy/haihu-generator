@@ -124,7 +124,244 @@ def scene_labeling():
     return render_template("scene_labeling.html")
 
 
+# エクスポート関数
+
+
+def _export_coco_format(dataset_manager: DatasetManager, export_path: Path) -> Path:
+    """データセットをCOCO形式でエクスポート"""
+    import json
+    from datetime import datetime
+
+    # COCO形式の基本構造
+    coco_data = {
+        "info": {
+            "description": "Mahjong Tile Detection Dataset",
+            "version": "1.0",
+            "year": datetime.now().year,
+            "contributor": "Haihu Generator",
+            "date_created": datetime.now().isoformat(),
+        },
+        "licenses": [{"id": 1, "name": "Private", "url": ""}],
+        "categories": [],
+        "images": [],
+        "annotations": [],
+    }
+
+    # カテゴリ情報を追加
+    from src.utils.tile_definitions import TILE_CLASSES
+
+    for _, (class_name, class_id) in enumerate(TILE_CLASSES.items()):
+        coco_data["categories"].append(
+            {"id": class_id, "name": class_name, "supercategory": "tile"}
+        )
+
+    # 画像とアノテーション情報を収集
+    videos = dataset_manager.list_videos()
+    annotation_id = 1
+    image_id = 1
+
+    for video in videos:
+        frames = dataset_manager.list_frames(video_id=video["id"])
+
+        for frame in frames:
+            # 画像情報を追加
+            frame_path = Path(frame["path"])
+            if frame_path.exists():
+                img = cv2.imread(str(frame_path))
+                height, width = img.shape[:2]
+
+                coco_data["images"].append(
+                    {
+                        "id": image_id,
+                        "file_name": frame_path.name,
+                        "width": width,
+                        "height": height,
+                        "date_captured": datetime.now().isoformat(),
+                    }
+                )
+
+                # アノテーション情報を追加
+                annotations = dataset_manager.get_frame_annotations(frame["id"])
+                for ann in annotations:
+                    coco_data["annotations"].append(
+                        {
+                            "id": annotation_id,
+                            "image_id": image_id,
+                            "category_id": ann["class_id"],
+                            "bbox": [ann["x"], ann["y"], ann["width"], ann["height"]],
+                            "area": ann["width"] * ann["height"],
+                            "segmentation": [],
+                            "iscrowd": 0,
+                        }
+                    )
+                    annotation_id += 1
+
+                image_id += 1
+
+    # JSONファイルを保存
+    annotations_file = export_path / "annotations.json"
+    with open(annotations_file, "w", encoding="utf-8") as f:
+        json.dump(coco_data, f, indent=2, ensure_ascii=False)
+
+    # 画像ファイルをコピー
+    images_dir = export_path / "images"
+    images_dir.mkdir(exist_ok=True)
+
+    for video in videos:
+        frames = dataset_manager.list_frames(video_id=video["id"])
+        for frame in frames:
+            frame_path = Path(frame["path"])
+            if frame_path.exists():
+                import shutil
+
+                shutil.copy2(frame_path, images_dir / frame_path.name)
+
+    return export_path
+
+
+def _export_voc_format(dataset_manager: DatasetManager, export_path: Path) -> Path:
+    """データセットをPascal VOC形式でエクスポート"""
+    import xml.etree.ElementTree as ET
+    from xml.dom import minidom
+
+    # VOCディレクトリ構造を作成
+    annotations_dir = export_path / "Annotations"
+    images_dir = export_path / "JPEGImages"
+    imagesets_dir = export_path / "ImageSets" / "Main"
+
+    annotations_dir.mkdir(parents=True, exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    imagesets_dir.mkdir(parents=True, exist_ok=True)
+
+    # 画像リストを作成
+    train_list = []
+    val_list = []
+    trainval_list = []
+
+    videos = dataset_manager.list_videos()
+    image_counter = 0
+
+    for video_idx, video in enumerate(videos):
+        frames = dataset_manager.list_frames(video_id=video["id"])
+
+        for frame in frames:
+            frame_path = Path(frame["path"])
+            if not frame_path.exists():
+                continue
+
+            # 画像をコピー
+            image_name = f"{image_counter:06d}"
+            image_ext = frame_path.suffix
+            new_image_name = f"{image_name}{image_ext}"
+
+            import shutil
+
+            shutil.copy2(frame_path, images_dir / new_image_name)
+
+            # アノテーションXMLを作成
+            annotations = dataset_manager.get_frame_annotations(frame["id"])
+            if annotations:
+                # XMLルート要素
+                root = ET.Element("annotation")
+
+                # 基本情報
+                ET.SubElement(root, "folder").text = "VOC"
+                ET.SubElement(root, "filename").text = new_image_name
+
+                # ソース情報
+                source = ET.SubElement(root, "source")
+                ET.SubElement(source, "database").text = "Mahjong Tile Detection"
+                ET.SubElement(source, "annotation").text = "Haihu Generator"
+                ET.SubElement(source, "image").text = "mahjong"
+
+                # 画像サイズ
+                img = cv2.imread(str(frame_path))
+                height, width, depth = img.shape
+
+                size = ET.SubElement(root, "size")
+                ET.SubElement(size, "width").text = str(width)
+                ET.SubElement(size, "height").text = str(height)
+                ET.SubElement(size, "depth").text = str(depth)
+
+                ET.SubElement(root, "segmented").text = "0"
+
+                # オブジェクト情報
+                from src.utils.tile_definitions import get_tile_name_by_id
+
+                for ann in annotations:
+                    obj = ET.SubElement(root, "object")
+                    ET.SubElement(obj, "name").text = get_tile_name_by_id(ann["class_id"])
+                    ET.SubElement(obj, "pose").text = "Unspecified"
+                    ET.SubElement(obj, "truncated").text = "0"
+                    ET.SubElement(obj, "difficult").text = "0"
+
+                    bbox = ET.SubElement(obj, "bndbox")
+                    ET.SubElement(bbox, "xmin").text = str(int(ann["x"]))
+                    ET.SubElement(bbox, "ymin").text = str(int(ann["y"]))
+                    ET.SubElement(bbox, "xmax").text = str(int(ann["x"] + ann["width"]))
+                    ET.SubElement(bbox, "ymax").text = str(int(ann["y"] + ann["height"]))
+
+                # XMLを整形して保存
+                xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
+                xml_path = annotations_dir / f"{image_name}.xml"
+                with open(xml_path, "w", encoding="utf-8") as f:
+                    f.write(xml_str)
+
+                # 画像リストに追加（8:2の比率でtrain/valに分割）
+                trainval_list.append(image_name)
+                if video_idx % 5 < 4:  # 80% train
+                    train_list.append(image_name)
+                else:  # 20% val
+                    val_list.append(image_name)
+
+            image_counter += 1
+
+    # ImageSetsファイルを作成
+    with open(imagesets_dir / "train.txt", "w") as f:
+        f.write("\n".join(train_list))
+
+    with open(imagesets_dir / "val.txt", "w") as f:
+        f.write("\n".join(val_list))
+
+    with open(imagesets_dir / "trainval.txt", "w") as f:
+        f.write("\n".join(trainval_list))
+
+    return export_path
+
+
 # API エンドポイント
+
+
+@app.route("/api/list_uploaded_videos", methods=["GET"])
+def list_uploaded_videos():
+    """アップロード済み動画ファイル一覧を取得"""
+    try:
+        upload_dir = Path(app.config["UPLOAD_FOLDER"])
+        files = []
+
+        if upload_dir.exists():
+            for file_path in upload_dir.glob("*.mp4"):
+                stat = file_path.stat()
+                files.append(
+                    {
+                        "filename": file_path.name,
+                        "path": str(file_path),
+                        "size": f"{stat.st_size / (1024 * 1024 * 1024):.2f} GB"
+                        if stat.st_size > 1024 * 1024 * 1024
+                        else f"{stat.st_size / (1024 * 1024):.2f} MB",
+                        "modified": datetime.fromtimestamp(stat.st_mtime).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
+                    }
+                )
+
+        # 更新日時でソート（新しい順）
+        files.sort(key=lambda x: x["modified"], reverse=True)
+
+        return jsonify(files)
+    except Exception as e:
+        web_manager.logger.error(f"ファイル一覧取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/upload_video", methods=["POST"])
@@ -220,6 +457,143 @@ def get_dataset_statistics():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/videos")
+def get_videos():
+    """動画一覧取得API"""
+    try:
+        dataset_manager = DatasetManager()
+        videos = dataset_manager.list_videos()
+        # 各動画のフレーム数とアノテーション数を追加
+        video_list = []
+        for video in videos:
+            frame_count = dataset_manager.get_frame_count(video["id"])
+            annotation_count = dataset_manager.get_annotation_count(video_id=video["id"])
+            video_list.append(
+                {
+                    "id": video["id"],
+                    "name": video["name"],
+                    "path": video["path"],
+                    "upload_date": video["upload_date"],
+                    "frame_count": frame_count,
+                    "annotation_count": annotation_count,
+                    "status": "annotated" if annotation_count > 0 else "pending",
+                }
+            )
+        return jsonify(video_list)
+    except Exception as e:
+        app.logger.error(f"動画一覧取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/videos/<int:video_id>")
+def get_video_detail(video_id):
+    """動画詳細取得API"""
+    try:
+        dataset_manager = DatasetManager()
+        video_info = dataset_manager.get_video_info(video_id)
+        if not video_info:
+            return jsonify({"error": "Video not found"}), 404
+
+        frame_count = dataset_manager.get_frame_count(video_id)
+        annotation_count = dataset_manager.get_annotation_count(video_id=video_id)
+
+        return jsonify(
+            {
+                "id": video_info["id"],
+                "name": video_info["name"],
+                "path": video_info["path"],
+                "upload_date": video_info["upload_date"],
+                "frame_count": frame_count,
+                "annotation_count": annotation_count,
+                "fps": video_info.get("fps", 30),
+                "width": video_info.get("width", 1920),
+                "height": video_info.get("height", 1080),
+                "duration": video_info.get("duration", 0),
+            }
+        )
+    except Exception as e:
+        app.logger.error(f"動画詳細取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/videos/<int:video_id>/frames")
+def get_video_frames(video_id):
+    """動画のフレーム一覧取得API"""
+    try:
+        dataset_manager = DatasetManager()
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 50, type=int)
+
+        frames = dataset_manager.list_frames(video_id=video_id)
+
+        # ページネーション
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_frames = frames[start:end]
+
+        # 各フレームのアノテーション情報を追加
+        frame_list = []
+        for frame in paginated_frames:
+            annotations = dataset_manager.get_frame_annotations(frame["id"])
+            frame_list.append(
+                {
+                    "id": frame["id"],
+                    "video_id": frame["video_id"],
+                    "frame_number": frame["frame_number"],
+                    "timestamp": frame["timestamp"],
+                    "path": frame["path"],
+                    "annotation_count": len(annotations),
+                    "annotated": len(annotations) > 0,
+                }
+            )
+
+        return jsonify(
+            {
+                "frames": frame_list,
+                "total": len(frames),
+                "page": page,
+                "per_page": per_page,
+                "pages": (len(frames) + per_page - 1) // per_page,
+            }
+        )
+    except Exception as e:
+        app.logger.error(f"フレーム一覧取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/videos/<int:video_id>", methods=["DELETE"])
+def delete_video(video_id):
+    """動画削除API"""
+    try:
+        dataset_manager = DatasetManager()
+
+        # 動画情報を取得
+        video_info = dataset_manager.get_video_info(video_id)
+        if not video_info:
+            return jsonify({"error": "Video not found"}), 404
+
+        # 関連するフレームとアノテーションも削除
+        dataset_manager.delete_video(video_id)
+
+        # 物理ファイルも削除（オプション）
+        if request.args.get("delete_files", "false").lower() == "true":
+            video_path = Path(video_info["path"])
+            if video_path.exists():
+                video_path.unlink()
+
+            # フレーム画像も削除
+            frames = dataset_manager.list_frames(video_id=video_id)
+            for frame in frames:
+                frame_path = Path(frame["path"])
+                if frame_path.exists():
+                    frame_path.unlink()
+
+        return jsonify({"message": "Video deleted successfully"})
+    except Exception as e:
+        app.logger.error(f"動画削除エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/dataset/versions")
 def get_dataset_versions():
     """データセットバージョン一覧API"""
@@ -228,6 +602,136 @@ def get_dataset_versions():
         return jsonify(versions)
     except Exception as e:
         web_manager.logger.error(f"バージョン一覧取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dataset/create_version", methods=["POST"])
+def create_dataset_version():
+    """データセットバージョン作成API"""
+    try:
+        data = request.get_json()
+        description = data.get("description", "")
+
+        dataset_manager = DatasetManager()
+        version_info = dataset_manager.create_dataset_version(description)
+
+        return jsonify({"message": "Dataset version created successfully", "version": version_info})
+    except Exception as e:
+        app.logger.error(f"バージョン作成エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dataset/versions/<version_id>", methods=["DELETE"])
+def delete_dataset_version(version_id):
+    """データセットバージョン削除API"""
+    try:
+        dataset_manager = DatasetManager()
+
+        # バージョン情報を確認
+        versions = dataset_manager.list_versions()
+        version_exists = any(v["id"] == version_id for v in versions)
+
+        if not version_exists:
+            return jsonify({"error": "Version not found"}), 404
+
+        # 古いバージョンを削除
+        dataset_manager.cleanup_old_versions(keep_count=100)  # 十分大きい数を指定
+
+        # 特定バージョンのディレクトリを直接削除
+        version_dir = dataset_manager.dataset_dir / "versions" / version_id
+        if version_dir.exists():
+            import shutil
+
+            shutil.rmtree(version_dir)
+
+        return jsonify({"message": "Version deleted successfully"})
+    except Exception as e:
+        app.logger.error(f"バージョン削除エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dataset/export", methods=["POST"])
+def export_dataset():
+    """データセットエクスポートAPI"""
+    try:
+        data = request.get_json()
+        export_format = data.get("format", "yolo")
+        version_id = data.get("version_id")
+
+        dataset_manager = DatasetManager()
+
+        # バージョンを指定された場合はそれを使用、そうでなければ現在のデータを使用
+        if version_id:
+            version_dir = dataset_manager.dataset_dir / "versions" / version_id
+            if not version_dir.exists():
+                return jsonify({"error": "Version not found"}), 404
+            export_path = version_dir / f"export_{export_format}"
+        else:
+            # 新しいバージョンを作成
+            version_info = dataset_manager.create_dataset_version(f"Export to {export_format}")
+            version_id = version_info["id"]
+            export_path = dataset_manager.dataset_dir / "exports" / f"{version_id}_{export_format}"
+
+        export_path.mkdir(parents=True, exist_ok=True)
+
+        if export_format == "yolo":
+            # YOLO形式でエクスポート
+            from src.training.annotation_data import AnnotationData
+
+            # アノテーションデータを収集
+            videos = dataset_manager.list_videos()
+            annotation_data = AnnotationData()
+
+            for video in videos:
+                frames = dataset_manager.list_frames(video_id=video["id"])
+                for frame in frames:
+                    annotations = dataset_manager.get_frame_annotations(frame["id"])
+                    if annotations:
+                        # AnnotationData形式に変換
+                        frame_annotation = {
+                            "frame_path": frame["path"],
+                            "tiles": [
+                                {
+                                    "bbox": {
+                                        "x": ann["x"],
+                                        "y": ann["y"],
+                                        "width": ann["width"],
+                                        "height": ann["height"],
+                                    },
+                                    "class_id": ann["class_id"],
+                                    "confidence": ann.get("confidence", 1.0),
+                                }
+                                for ann in annotations
+                            ],
+                        }
+                        annotation_data.add_frame_annotation(
+                            video["name"], frame["frame_number"], frame_annotation["tiles"]
+                        )
+
+            # YOLO形式でエクスポート
+            annotation_data.export_yolo_format(str(export_path))
+
+        elif export_format == "coco":
+            # COCO形式でエクスポート
+            export_path = _export_coco_format(dataset_manager, export_path)
+
+        elif export_format == "voc":
+            # Pascal VOC形式でエクスポート
+            export_path = _export_voc_format(dataset_manager, export_path)
+
+        else:
+            return jsonify({"error": f"Unsupported format: {export_format}"}), 400
+
+        return jsonify(
+            {
+                "message": f"Dataset exported successfully in {export_format} format",
+                "export_path": str(export_path),
+                "version_id": version_id,
+            }
+        )
+
+    except Exception as e:
+        app.logger.error(f"エクスポートエラー: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -794,4 +1298,4 @@ labeling_websocket.init_socketio(app)
 
 if __name__ == "__main__":
     # 開発サーバー起動
-    socketio.run(app, debug=True, host="0.0.0.0", port=5000)
+    socketio.run(app, debug=True, host="0.0.0.0", port=5001, allow_unsafe_werkzeug=True)

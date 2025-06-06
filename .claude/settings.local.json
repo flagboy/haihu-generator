@@ -63,7 +63,13 @@
       "Bash(curl:*)",
       "Bash(pkill:*)",
       "Bash(PORT=5001 uv run:*)",
-      "Bash(claude config set --global preferredNotifChannel terminal_bell)"
+      "Bash(claude config set --global preferredNotifChannel terminal_bell)",
+      "Bash(chmod:*)",
+      "Bash(sqlite3:*)",
+      "Bash(echo:*)",
+      "Bash(kill:*)",
+      "Bash(node:*)",
+      "Bash(PORT=5002 uv run:*)"
     ],
     "deny": []
   }

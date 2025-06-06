@@ -4,6 +4,7 @@
 動画から対局シーンのセグメントを検出する
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,7 +57,10 @@ class SceneDetector(LoggerMixin):
         self.logger.info("SceneDetector初期化完了")
 
     def detect_scenes(
-        self, video_path: str, sample_interval: int = 30, progress_callback: callable | None = None
+        self,
+        video_path: str,
+        sample_interval: int = 30,
+        progress_callback: Callable[[float], None] | None = None,
     ) -> list[SceneSegment]:
         """
         動画から対局シーンを検出

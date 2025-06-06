@@ -239,3 +239,24 @@ class TileDefinitions:
             return tile[0] in "1234567"
 
         return False
+
+
+# グローバルインスタンス
+_tile_manager = TileDefinitions()
+
+
+# 便利な関数をエクスポート
+def get_tile_name_by_id(tile_id: int) -> str:
+    """牌IDから牌名を取得"""
+    return _tile_manager.get_tile_by_id(tile_id)
+
+
+def get_tile_id_by_name(tile_name: str) -> int:
+    """牌名から牌IDを取得"""
+    return _tile_manager.get_tile_id(tile_name)
+
+
+# クラスマッピングをエクスポート
+TILE_CLASSES = {}
+for tile in _tile_manager._all_tiles:
+    TILE_CLASSES[tile] = _tile_manager.get_tile_id(tile)
