@@ -21,6 +21,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.training.dataset_manager import DatasetManager
 from src.training.frame_extractor import FrameExtractor
+from src.training.game_scene.labeling.api.scene_routes import scene_labeling_bp
+from src.training.game_scene.utils.frame_skip_manager import FrameSkipManager
 from src.training.labeling.api import websocket as labeling_websocket
 from src.training.labeling.api.routes import labeling_bp
 
@@ -39,7 +41,8 @@ from src.utils.logger import LoggerMixin
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "mahjong-tile-detection-system-2024"
 app.config["UPLOAD_FOLDER"] = "web_interface/uploads"
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB
+# app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB - 制限なしに変更
+app.config["MAX_CONTENT_LENGTH"] = None  # ファイルサイズ制限なし
 
 # WebSocket設定
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
@@ -68,6 +71,9 @@ class WebInterfaceManager(LoggerMixin):
         self.tile_splitter = TileSplitter()
         self.hand_frame_extractors: dict[str, HandFrameExtractor] = {}  # video_id -> extractor
         self.labeling_sessions: dict[str, dict] = {}  # session_id -> labeling data
+
+        # フレームスキップマネージャー
+        self.frame_skip_manager = FrameSkipManager()
 
         self.logger.info("WebInterfaceManager初期化完了")
 
@@ -110,6 +116,12 @@ def training():
 def data_management():
     """データ管理ページ"""
     return render_template("data_management.html")
+
+
+@app.route("/scene_labeling")
+def scene_labeling():
+    """対局画面ラベリングページ"""
+    return render_template("scene_labeling.html")
 
 
 # API エンドポイント
@@ -462,9 +474,11 @@ def load_video_for_labeling():
         if not video_path or not os.path.exists(video_path):
             return jsonify({"error": "動画ファイルが見つかりません"}), 400
 
-        # フレーム抽出器を作成
+        # フレーム抽出器を作成（フレームスキップマネージャーを渡す）
         output_dir = f"data/hand_training/frames/{video_id}"
-        extractor = HandFrameExtractor(video_path, output_dir)
+        extractor = HandFrameExtractor(
+            video_path, output_dir, frame_skip_manager=web_manager.frame_skip_manager
+        )
         web_manager.hand_frame_extractors[video_id] = extractor
 
         # 動画情報を返す
@@ -662,8 +676,118 @@ def start_training_background(session_id: str, config: TrainingConfig):
         )
 
 
+# 対局画面学習API
+@app.route("/api/scene_training/prepare", methods=["POST"])
+def prepare_scene_training():
+    """対局画面学習データの準備"""
+    try:
+        from src.training.game_scene.learning.scene_dataset import SceneDataset
+
+        # データセットを作成
+        train_dataset = SceneDataset(split="train")
+        val_dataset = SceneDataset(split="val")
+        test_dataset = SceneDataset(split="test")
+
+        # 統計情報を取得
+        stats = {
+            "train": train_dataset.get_statistics(),
+            "val": val_dataset.get_statistics(),
+            "test": test_dataset.get_statistics(),
+        }
+
+        return jsonify(
+            {
+                "success": True,
+                "statistics": stats,
+                "ready": all(s["total_samples"] > 0 for s in stats.values()),
+            }
+        )
+    except Exception as e:
+        web_manager.logger.error(f"学習データ準備エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/scene_training/start", methods=["POST"])
+def start_scene_training():
+    """対局画面分類モデルの学習開始"""
+    try:
+        from src.training.game_scene.learning.scene_dataset import SceneDataset
+        from src.training.game_scene.learning.scene_trainer import SceneTrainer
+
+        data = request.get_json()
+
+        # パラメータ取得
+        epochs = data.get("epochs", 50)
+        batch_size = data.get("batch_size", 32)
+        learning_rate = data.get("learning_rate", 0.001)
+
+        # データセット準備
+        train_dataset = SceneDataset(split="train")
+        val_dataset = SceneDataset(split="val")
+
+        if len(train_dataset) == 0 or len(val_dataset) == 0:
+            return jsonify({"error": "学習データが不足しています"}), 400
+
+        # トレーナー初期化
+        trainer = SceneTrainer()
+
+        # 学習を非同期で開始
+        session_id = str(uuid.uuid4())
+
+        def train_background():
+            try:
+                results = trainer.train(
+                    train_dataset=train_dataset,
+                    val_dataset=val_dataset,
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    learning_rate=learning_rate,
+                )
+
+                # 結果をWebSocketで通知
+                socketio.emit(
+                    "scene_training_complete",
+                    {"session_id": session_id, "results": results},
+                    room=session_id,
+                )
+            except Exception as e:
+                socketio.emit(
+                    "scene_training_error",
+                    {"session_id": session_id, "error": str(e)},
+                    room=session_id,
+                )
+
+        socketio.start_background_task(train_background)
+
+        return jsonify({"success": True, "session_id": session_id, "message": "学習を開始しました"})
+
+    except Exception as e:
+        web_manager.logger.error(f"学習開始エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/scene_training/datasets")
+def get_scene_datasets():
+    """対局画面データセットの情報を取得"""
+    try:
+        from src.training.game_scene.learning.scene_dataset import SceneDataset
+
+        datasets = {}
+        for split in ["train", "val", "test"]:
+            try:
+                dataset = SceneDataset(split=split)
+                datasets[split] = dataset.get_statistics()
+            except Exception as e:
+                datasets[split] = {"error": str(e), "total_samples": 0}
+
+        return jsonify(datasets)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # APIブループリントを登録
 app.register_blueprint(labeling_bp)
+app.register_blueprint(scene_labeling_bp)
 
 # WebSocketを初期化
 labeling_websocket.init_socketio(app)

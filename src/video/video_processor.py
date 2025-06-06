@@ -41,13 +41,16 @@ class VideoProcessor(LoggerMixin):
 
         self.logger.info("VideoProcessorが初期化されました")
 
-    def extract_frames(self, video_path: str, output_dir: str | None = None) -> list[str]:
+    def extract_frames(
+        self, video_path: str, output_dir: str | None = None, frame_skip_manager=None
+    ) -> list[str]:
         """
         動画からフレームを抽出
 
         Args:
             video_path: 動画ファイルのパス
             output_dir: 出力ディレクトリ（指定しない場合はtempディレクトリ）
+            frame_skip_manager: フレームスキップマネージャー（対局画面のみ抽出）
 
         Returns:
             抽出されたフレームファイルのパスリスト
@@ -88,10 +91,20 @@ class VideoProcessor(LoggerMixin):
             frame_count = 0
             extracted_count = 0
 
+            # 動画IDを取得（フレームスキップマネージャー用）
+            video_id = Path(video_path).stem
+
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
+
+                # フレームスキップチェック
+                if frame_skip_manager and frame_skip_manager.should_skip_frame(
+                    video_id, frame_count
+                ):
+                    frame_count += 1
+                    continue
 
                 # 指定間隔でフレームを抽出
                 if frame_count % frame_interval == 0:

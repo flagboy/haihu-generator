@@ -14,7 +14,8 @@ class Config:
 
     # アップロード設定
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB
+    # MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB - 制限なしに変更
+    MAX_CONTENT_LENGTH = None  # ファイルサイズ制限なし
     ALLOWED_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "wmv", "flv", "webm"}
 
     # データベース設定

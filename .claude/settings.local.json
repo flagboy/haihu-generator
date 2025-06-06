@@ -59,7 +59,11 @@
       "Bash(gh pr create:*)",
       "Bash(ffprobe:*)",
       "Bash(flake8:*)",
-      "Bash(gh run watch:*)"
+      "Bash(gh run watch:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(PORT=5001 uv run:*)",
+      "Bash(claude config set --global preferredNotifChannel terminal_bell)"
     ],
     "deny": []
   }
