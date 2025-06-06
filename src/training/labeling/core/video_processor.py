@@ -18,13 +18,16 @@ from tqdm import tqdm
 class EnhancedVideoProcessor:
     """統合された動画処理クラス"""
 
-    def __init__(self, video_path: str, cache_dir: str = "data/training/frames"):
+    def __init__(
+        self, video_path: str, cache_dir: str = "data/training/frames", frame_skip_manager=None
+    ):
         """
         初期化
 
         Args:
             video_path: 動画ファイルのパス
             cache_dir: フレームキャッシュディレクトリ
+            frame_skip_manager: フレームスキップマネージャー（対局画面のみ処理）
         """
         self.video_path = Path(video_path)
         if not self.video_path.exists():
@@ -32,6 +35,9 @@ class EnhancedVideoProcessor:
 
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # フレームスキップマネージャー
+        self.frame_skip_manager = frame_skip_manager
 
         # 動画情報を取得
         self.cap = cv2.VideoCapture(str(self.video_path))
@@ -119,6 +125,13 @@ class EnhancedVideoProcessor:
         if frame_number < 0 or frame_number >= self.frame_count:
             logger.warning(f"無効なフレーム番号: {frame_number}")
             return None
+
+        # フレームスキップチェック
+        if self.frame_skip_manager:
+            video_id = self.video_path.stem
+            if self.frame_skip_manager.should_skip_frame(video_id, frame_number):
+                logger.debug(f"非対局フレームをスキップ: {frame_number}")
+                return None
 
         # キャッシュをチェック
         if use_cache:

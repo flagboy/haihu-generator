@@ -317,6 +317,19 @@ wheels = [
 ]
 
 [[package]]
+name = "flask-socketio"
+version = "5.5.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flask" },
+    { name = "python-socketio" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/1f/54d3de4982df695682af99c65d4b89f8a46fe6739780c5a68690195835a0/flask_socketio-5.5.1.tar.gz", hash = "sha256:d946c944a1074ccad8e99485a6f5c79bc5789e3ea4df0bb9c864939586c51ec4", size = 37401, upload-time = "2025-01-06T19:49:59.056Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/47/38/1b75b3ba3452860211ec87710f9854112911a436ee4d155533e0b83b5cd9/Flask_SocketIO-5.5.1-py3-none-any.whl", hash = "sha256:35a50166db44d055f68021d6ec32cb96f1f925cd82de4504314be79139ea846f", size = 18259, upload-time = "2025-01-06T19:49:56.555Z" },
+]
+
+[[package]]
 name = "fonttools"
 version = "4.58.1"
 source = { registry = "https://pypi.org/simple" }
@@ -367,12 +380,14 @@ dependencies = [
     { name = "flask" },
     { name = "flask-cors" },
     { name = "flask-restx" },
+    { name = "flask-socketio" },
     { name = "loguru" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "opencv-python" },
     { name = "pillow" },
     { name = "psutil" },
+    { name = "python-engineio" },
     { name = "python-socketio" },
     { name = "pyyaml" },
     { name = "scikit-learn" },
@@ -380,6 +395,7 @@ dependencies = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "tqdm" },
+    { name = "werkzeug" },
 ]
 
 [package.dev-dependencies]
@@ -403,12 +419,14 @@ requires-dist = [
     { name = "flask", specifier = ">=2.0.0" },
     { name = "flask-cors", specifier = ">=6.0.0" },
     { name = "flask-restx", specifier = ">=1.3.0" },
+    { name = "flask-socketio", specifier = ">=5.5.1" },
     { name = "loguru", specifier = ">=0.6.0" },
     { name = "matplotlib", specifier = ">=3.5.0" },
     { name = "numpy", specifier = ">=1.21.0" },
     { name = "opencv-python", specifier = ">=4.5.0" },
     { name = "pillow", specifier = ">=9.0.0" },
     { name = "psutil", specifier = ">=5.8.0" },
+    { name = "python-engineio", specifier = ">=4.12.1" },
     { name = "python-socketio", specifier = ">=5.13.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "scikit-learn", specifier = ">=1.0.0" },
@@ -416,6 +434,7 @@ requires-dist = [
     { name = "torch", specifier = "==2.2.0" },
     { name = "torchvision", specifier = "==0.17.0" },
     { name = "tqdm", specifier = ">=4.62.0" },
+    { name = "werkzeug", specifier = ">=3.1.3" },
 ]
 
 [package.metadata.requires-dev]

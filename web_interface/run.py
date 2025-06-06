@@ -29,7 +29,16 @@ def main():
     print(f"デバッグモード: {debug}")
 
     # SocketIOサーバーを起動
-    socketio.run(app, host=host, port=port, debug=debug, use_reloader=debug, log_output=debug)
+    # 開発環境でのみ allow_unsafe_werkzeug=True を使用
+    socketio.run(
+        app,
+        host=host,
+        port=port,
+        debug=debug,
+        use_reloader=debug,
+        log_output=debug,
+        allow_unsafe_werkzeug=True,
+    )
 
 
 if __name__ == "__main__":
