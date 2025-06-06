@@ -608,20 +608,29 @@ def list_sessions():
     import sqlite3
     from pathlib import Path
 
-    sessions_info = []
+    # ビデオIDごとに最新のセッションのみを保持する辞書
+    video_sessions = {}
 
-    # アクティブなセッションを追加
+    # アクティブなセッションを処理
     for session_id, session in _sessions.items():
-        sessions_info.append(
-            {
-                "session_id": session_id,
-                "video_path": session.video_path,
-                "statistics": session.get_statistics(),
-                "is_active": True,
-                "created_at": None,
-                "updated_at": None,
-            }
-        )
+        video_id = Path(session.video_path).stem
+        session_info = {
+            "session_id": session_id,
+            "video_id": video_id,
+            "video_path": session.video_path,
+            "statistics": session.get_statistics(),
+            "is_active": True,
+            "created_at": None,
+            "updated_at": None,
+        }
+
+        # 同じビデオIDのセッションがない、またはよりラベル数が多い場合に更新
+        if (
+            video_id not in video_sessions
+            or session_info["statistics"]["labeled_frames"]
+            > video_sessions[video_id]["statistics"]["labeled_frames"]
+        ):
+            video_sessions[video_id] = session_info
 
     # データベースから保存済みセッションを取得
     db_path = "web_interface/data/training/game_scene_labels.db"
@@ -634,7 +643,7 @@ def list_sessions():
                 SELECT session_id, video_id, video_path, total_frames, labeled_frames,
                        created_at, updated_at
                 FROM labeling_sessions
-                ORDER BY updated_at DESC
+                ORDER BY labeled_frames DESC, updated_at DESC
             """)
 
             for row in cursor.fetchall():
@@ -650,26 +659,36 @@ def list_sessions():
 
                 # アクティブセッションと重複する場合はスキップ
                 if session_id not in _sessions:
-                    sessions_info.append(
-                        {
-                            "session_id": session_id,
-                            "video_id": video_id,
-                            "video_path": video_path,
-                            "statistics": {
-                                "total_frames": total_frames,
-                                "labeled_frames": labeled_frames,
-                                "progress": labeled_frames / total_frames
-                                if total_frames > 0
-                                else 0,
-                            },
-                            "is_active": False,
-                            "created_at": created_at,
-                            "updated_at": updated_at,
-                        }
-                    )
+                    session_info = {
+                        "session_id": session_id,
+                        "video_id": video_id,
+                        "video_path": video_path,
+                        "statistics": {
+                            "total_frames": total_frames,
+                            "labeled_frames": labeled_frames,
+                            "progress": labeled_frames / total_frames if total_frames > 0 else 0,
+                        },
+                        "is_active": False,
+                        "created_at": created_at,
+                        "updated_at": updated_at,
+                    }
+
+                    # 同じビデオIDのセッションがない、またはよりラベル数が多い場合に更新
+                    if (
+                        video_id not in video_sessions
+                        or labeled_frames > video_sessions[video_id]["statistics"]["labeled_frames"]
+                    ):
+                        video_sessions[video_id] = session_info
+
         except sqlite3.Error as e:
             _logger.error(f"データベースエラー: {e}")
         finally:
             conn.close()
+
+    # 辞書から値のリストに変換
+    sessions_info = list(video_sessions.values())
+
+    # 更新日時でソート（新しい順）
+    sessions_info.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
 
     return jsonify({"sessions": sessions_info, "total": len(sessions_info)})
