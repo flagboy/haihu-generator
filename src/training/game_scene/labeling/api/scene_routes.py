@@ -117,7 +117,7 @@ def create_session():
 
         # データベースから既存セッションを探す
         if not existing_session_id:
-            db_path = "data/training/game_scene_labels.db"
+            db_path = "web_interface/data/training/game_scene_labels.db"
             if Path(db_path).exists():
                 conn = sqlite3.connect(db_path)
                 cursor = conn.cursor()
@@ -256,7 +256,7 @@ def get_session(session_id: str):
     import sqlite3
     from pathlib import Path
 
-    db_path = "data/training/game_scene_labels.db"
+    db_path = "web_interface/data/training/game_scene_labels.db"
     if Path(db_path).exists():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -512,7 +512,7 @@ def delete_session(session_id: str):
 
         # データベースからも削除
         deleted_rows = 0
-        db_path = "data/training/game_scene_labels.db"
+        db_path = "web_interface/data/training/game_scene_labels.db"
         if Path(db_path).exists():
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
@@ -624,7 +624,7 @@ def list_sessions():
         )
 
     # データベースから保存済みセッションを取得
-    db_path = "data/training/game_scene_labels.db"
+    db_path = "web_interface/data/training/game_scene_labels.db"
     if Path(db_path).exists():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
