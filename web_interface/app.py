@@ -22,6 +22,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.training.dataset_manager import DatasetManager
 from src.training.frame_extractor import FrameExtractor
 from src.training.game_scene.labeling.api.scene_routes import scene_labeling_bp
+from src.training.game_scene.learning.api.training_routes import scene_training_bp
 from src.training.game_scene.utils.frame_skip_manager import FrameSkipManager
 from src.training.labeling.api import websocket as labeling_websocket
 from src.training.labeling.api.routes import labeling_bp
@@ -1292,6 +1293,7 @@ def get_scene_datasets():
 # APIブループリントを登録
 app.register_blueprint(labeling_bp)
 app.register_blueprint(scene_labeling_bp)
+app.register_blueprint(scene_training_bp)
 
 # WebSocketを初期化
 labeling_websocket.init_socketio(app)

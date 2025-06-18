@@ -117,9 +117,11 @@ def create_session():
 
         # データベースから既存セッションを探す
         if not existing_session_id:
-            db_path = "web_interface/data/training/game_scene_labels.db"
-            if Path(db_path).exists():
-                conn = sqlite3.connect(db_path)
+            # プロジェクトルートからの絶対パスを使用
+            project_root = Path(__file__).parent.parent.parent.parent.parent.parent
+            db_path = project_root / "web_interface" / "data" / "training" / "game_scene_labels.db"
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path))
                 cursor = conn.cursor()
 
                 try:
@@ -608,10 +610,13 @@ def list_sessions():
     import sqlite3
     from pathlib import Path
 
+    _logger.info("list_sessions() が呼び出されました")
+
     # ビデオIDごとに最新のセッションのみを保持する辞書
     video_sessions = {}
 
     # アクティブなセッションを処理
+    _logger.info(f"アクティブセッション数: {len(_sessions)}")
     for session_id, session in _sessions.items():
         video_id = Path(session.video_path).stem
         session_info = {
@@ -633,9 +638,12 @@ def list_sessions():
             video_sessions[video_id] = session_info
 
     # データベースから保存済みセッションを取得
-    db_path = "web_interface/data/training/game_scene_labels.db"
-    if Path(db_path).exists():
-        conn = sqlite3.connect(db_path)
+    # プロジェクトルートからの絶対パスを使用
+    project_root = Path(__file__).parent.parent.parent.parent.parent.parent
+    db_path = project_root / "web_interface" / "data" / "training" / "game_scene_labels.db"
+    _logger.info(f"データベースパス: {db_path}, 存在: {db_path.exists()}")
+    if db_path.exists():
+        conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
 
         try:
@@ -646,7 +654,10 @@ def list_sessions():
                 ORDER BY labeled_frames DESC, updated_at DESC
             """)
 
-            for row in cursor.fetchall():
+            rows = cursor.fetchall()
+            _logger.info(f"データベースから取得したセッション数: {len(rows)}")
+
+            for row in rows:
                 (
                     session_id,
                     video_id,
@@ -659,6 +670,9 @@ def list_sessions():
 
                 # アクティブセッションと重複する場合はスキップ
                 if session_id not in _sessions:
+                    _logger.debug(
+                        f"データベースセッション: {session_id}, video_id={video_id}, labeled={labeled_frames}"
+                    )
                     session_info = {
                         "session_id": session_id,
                         "video_id": video_id,
@@ -687,6 +701,9 @@ def list_sessions():
 
     # 辞書から値のリストに変換
     sessions_info = list(video_sessions.values())
+    _logger.info(
+        f"最終的なセッション数: {len(sessions_info)}, ビデオID別: {list(video_sessions.keys())}"
+    )
 
     # 更新日時でソート（新しい順）
     sessions_info.sort(key=lambda x: x.get("updated_at") or "", reverse=True)

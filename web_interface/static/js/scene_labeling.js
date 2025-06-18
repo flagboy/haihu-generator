@@ -1377,6 +1377,13 @@ class SceneLabelingApp {
 
                 socket.emit('join_session', { session_id: this.trainingSessionId });
 
+                // 学習進捗イベントをリッスン
+                socket.on('scene_training_progress', (data) => {
+                    if (data.session_id === this.trainingSessionId) {
+                        this.onTrainingProgress(data);
+                    }
+                });
+
                 // 学習完了イベントをリッスン
                 socket.on('scene_training_complete', (data) => {
                     if (data.session_id === this.trainingSessionId) {
@@ -1401,12 +1408,40 @@ class SceneLabelingApp {
         }
     }
 
+    onTrainingProgress(data) {
+        console.log('学習進捗:', data);
+
+        // 進捗バーを更新
+        const progressBar = document.getElementById('trainingProgressBar');
+        const progress = data.progress || (data.current_epoch / data.total_epochs);
+        const progressPercent = Math.min(100, Math.max(0, progress * 100));
+
+        progressBar.style.width = `${progressPercent}%`;
+        progressBar.textContent = `${Math.round(progressPercent)}%`;
+
+        // ログメッセージを追加
+        const log = document.getElementById('trainingLog');
+        const timestamp = new Date().toLocaleTimeString();
+        const logMessage = `
+            <div class="mb-1">
+                <small class="text-muted">[${timestamp}]</small>
+                ${data.message}
+                ${data.current_epoch ? ` (${data.current_epoch}/${data.total_epochs})` : ''}
+                ${data.train_loss ? ` - 損失: ${data.train_loss.toFixed(4)}` : ''}
+                ${data.val_accuracy ? ` - 精度: ${data.val_accuracy.toFixed(2)}%` : ''}
+            </div>
+        `;
+
+        log.innerHTML += logMessage;
+        log.scrollTop = log.scrollHeight; // 自動スクロール
+    }
+
     onTrainingComplete(results) {
         document.getElementById('trainingProgressBar').style.width = '100%';
         document.getElementById('trainingProgressBar').textContent = '完了';
 
         const log = document.getElementById('trainingLog');
-        log.innerHTML = `
+        log.innerHTML += `
             <div class="alert alert-success">
                 <h6>学習完了</h6>
                 <div>エポック数: ${results.epochs_trained}</div>

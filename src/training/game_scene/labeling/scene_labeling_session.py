@@ -41,7 +41,7 @@ class SceneLabelingSession(LoggerMixin):
         self,
         session_id: str,
         video_path: str,
-        db_path: str = "web_interface/data/training/game_scene_labels.db",
+        db_path: str | None = None,
         classifier: GameSceneClassifier | None = None,
     ):
         """
@@ -55,7 +55,17 @@ class SceneLabelingSession(LoggerMixin):
         """
         self.session_id = session_id
         self.video_path = video_path
-        self.db_path = db_path
+
+        # データベースパスの処理（絶対パスを使用）
+        if db_path is None:
+            # プロジェクトルートからの絶対パスを使用
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            self.db_path = str(
+                project_root / "web_interface" / "data" / "training" / "game_scene_labels.db"
+            )
+        else:
+            self.db_path = db_path
+
         self.classifier = classifier
         self.feature_extractor = FeatureExtractor()
 
@@ -240,10 +250,31 @@ class SceneLabelingSession(LoggerMixin):
 
     def _load_existing_labels(self):
         """既存のラベルを読み込み"""
+        self.logger.info(
+            f"ラベル読み込み開始: DB={self.db_path}, video_id={Path(self.video_path).stem}"
+        )
+
+        # データベースファイルの存在確認
+        if not Path(self.db_path).exists():
+            self.logger.error(f"データベースファイルが存在しません: {self.db_path}")
+            return
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         video_id = Path(self.video_path).stem
+
+        # デバッグ用: データベース内のラベル総数を確認
+        cursor.execute("SELECT COUNT(*) FROM game_scene_labels WHERE video_id = ?", (video_id,))
+        total_count = cursor.fetchone()[0]
+        self.logger.info(f"データベース内のラベル総数: {total_count}")
+
+        # デバッグ用: データベース内の全ビデオIDを確認
+        cursor.execute(
+            "SELECT DISTINCT video_id, COUNT(*) FROM game_scene_labels GROUP BY video_id"
+        )
+        all_videos = cursor.fetchall()
+        self.logger.info(f"データベース内の全ビデオ: {all_videos}")
 
         cursor.execute(
             """
@@ -267,7 +298,7 @@ class SceneLabelingSession(LoggerMixin):
 
         conn.close()
 
-        self.logger.info(f"既存ラベル読み込み: {len(self.labels)}件")
+        self.logger.info(f"既存ラベル読み込み: {len(self.labels)}件 (DB: {self.db_path})")
 
         # デバッグ用: ラベルの内訳を表示
         if self.labels:

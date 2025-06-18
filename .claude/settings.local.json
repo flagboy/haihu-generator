@@ -69,7 +69,15 @@
       "Bash(echo:*)",
       "Bash(kill:*)",
       "Bash(node:*)",
-      "Bash(PORT=5002 uv run:*)"
+      "Bash(PORT=5002 uv run:*)",
+      "Bash(pgrep:*)",
+      "Bash(ps:*)",
+      "Bash(top:*)",
+      "Bash(sudo lsof:*)",
+      "Bash(ping:*)",
+      "Bash(./run_web_server.sh:*)",
+      "Bash(screen:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }
