@@ -15,6 +15,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+from ....utils.config import ConfigManager
 from ....utils.logger import LoggerMixin
 
 
@@ -23,11 +24,12 @@ class SceneDataset(Dataset, LoggerMixin):
 
     def __init__(
         self,
-        db_path: str = "web_interface/data/training/game_scene_labels.db",
-        cache_dir: str = "web_interface/data/training/game_scene_cache",
+        db_path: str | None = None,
+        cache_dir: str | None = None,
         transform: transforms.Compose | None = None,
         split: str = "train",  # train, val, test
         split_ratio: tuple[float, float, float] = (0.7, 0.15, 0.15),
+        config_manager: ConfigManager | None = None,
     ):
         """
         初期化
@@ -41,7 +43,23 @@ class SceneDataset(Dataset, LoggerMixin):
         """
         super().__init__()
 
-        # データベースパスを絶対パスに変換
+        # 設定管理を初期化
+        self.config_manager = config_manager or ConfigManager()
+        config = self.config_manager.get_config()
+
+        # データベースパスの設定
+        if db_path is None:
+            db_path = config.get("directories", {}).get(
+                "game_scene_db", "web_interface/data/training/game_scene_labels.db"
+            )
+
+        # キャッシュディレクトリの設定
+        if cache_dir is None:
+            cache_dir = config.get("directories", {}).get(
+                "game_scene_cache", "web_interface/data/training/game_scene_cache"
+            )
+
+        # パスを絶対パスに変換
         if not os.path.isabs(db_path):
             project_root = Path(__file__).parent.parent.parent.parent.parent
             self.db_path = str(project_root / db_path)

@@ -10,6 +10,7 @@ from pathlib import Path
 import cv2
 from flask import Blueprint, jsonify, request
 
+from .....utils.config import ConfigManager
 from .....utils.logger import LoggerMixin, get_logger
 from ...core.game_scene_classifier import GameSceneClassifier
 from ..scene_labeling_session import SceneLabelingSession
@@ -20,9 +21,24 @@ scene_labeling_bp = Blueprint("scene_labeling", __name__, url_prefix="/api/scene
 # グローバル変数でセッションを管理
 _sessions: dict[str, SceneLabelingSession] = {}
 _classifier = None
+_config_manager = ConfigManager()
 
 # モジュールレベルのロガー
 _logger = get_logger(__name__)
+
+
+def get_db_path() -> Path:
+    """データベースパスを取得"""
+    global _config_manager
+    config = _config_manager.get_config()
+    db_path = config.get("directories", {}).get(
+        "game_scene_db", "web_interface/data/training/game_scene_labels.db"
+    )
+
+    if not Path(db_path).is_absolute():
+        project_root = Path(__file__).parent.parent.parent.parent.parent.parent
+        return project_root / db_path
+    return Path(db_path)
 
 
 class SceneLabelingAPI(LoggerMixin):
@@ -31,10 +47,13 @@ class SceneLabelingAPI(LoggerMixin):
     @classmethod
     def get_classifier(cls) -> GameSceneClassifier:
         """分類器を取得（シングルトン）"""
-        global _classifier
+        global _classifier, _config_manager
         if _classifier is None:
-            # TODO: 学習済みモデルパスを設定から取得
-            model_path = "models/game_scene_classifier.pth"
+            config = _config_manager.get_config()
+            model_path = (
+                config.get("directories", {}).get("game_scene_models", "models/game_scene")
+                + "/classifier.pth"
+            )
             if Path(model_path).exists():
                 _classifier = GameSceneClassifier(model_path=model_path)
             else:
@@ -119,7 +138,7 @@ def create_session():
         if not existing_session_id:
             # プロジェクトルートからの絶対パスを使用
             project_root = Path(__file__).parent.parent.parent.parent.parent.parent
-            db_path = project_root / "web_interface" / "data" / "training" / "game_scene_labels.db"
+            db_path = get_db_path()
             if db_path.exists():
                 conn = sqlite3.connect(str(db_path))
                 cursor = conn.cursor()
@@ -258,7 +277,7 @@ def get_session(session_id: str):
     import sqlite3
     from pathlib import Path
 
-    db_path = "web_interface/data/training/game_scene_labels.db"
+    db_path = get_db_path()
     if Path(db_path).exists():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -514,7 +533,7 @@ def delete_session(session_id: str):
 
         # データベースからも削除
         deleted_rows = 0
-        db_path = "web_interface/data/training/game_scene_labels.db"
+        db_path = get_db_path()
         if Path(db_path).exists():
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()

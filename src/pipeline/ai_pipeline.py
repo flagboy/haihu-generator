@@ -13,6 +13,7 @@ import numpy as np
 
 from ..classification.tile_classifier import ClassificationResult, TileClassifier
 from ..detection.tile_detector import DetectionResult, TileDetector
+from ..training.game_scene.core.game_scene_classifier import GameSceneClassifier
 from ..utils.config import ConfigManager
 from ..utils.logger import get_logger
 
@@ -56,6 +57,15 @@ class AIPipeline:
         self.detector = TileDetector(config_manager)
         self.classifier = TileClassifier(config_manager)
 
+        # 対局画面分類器を初期化
+        self.game_scene_classifier = self._initialize_game_scene_classifier()
+        self.enable_scene_filtering = (
+            self.config.get_config().get("ai", {}).get("enable_scene_filtering", True)
+        )
+        self.scene_confidence_threshold = (
+            self.config.get_config().get("ai", {}).get("scene_confidence_threshold", 0.8)
+        )
+
         # バッチ処理設定
         self.batch_config = self._setup_batch_config()
 
@@ -66,9 +76,31 @@ class AIPipeline:
             "total_classifications": 0,
             "total_processing_time": 0.0,
             "average_processing_time": 0.0,
+            "skipped_frames": 0,
+            "game_scene_frames": 0,
         }
 
-        self.logger.info("AIPipeline initialized")
+        self.logger.info("AIPipeline initialized with scene filtering")
+
+    def _initialize_game_scene_classifier(self) -> GameSceneClassifier | None:
+        """対局画面分類器を初期化"""
+        try:
+            config = self.config.get_config()
+            model_path = (
+                config.get("directories", {}).get("game_scene_models", "models/game_scene")
+                + "/classifier.pth"
+            )
+
+            from pathlib import Path
+
+            if Path(model_path).exists():
+                return GameSceneClassifier(model_path=model_path)
+            else:
+                self.logger.warning(f"Game scene classifier model not found at {model_path}")
+                return GameSceneClassifier()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize game scene classifier: {e}")
+            return None
 
     def _setup_batch_config(self) -> BatchProcessingConfig:
         """バッチ処理設定の初期化"""
@@ -97,6 +129,31 @@ class AIPipeline:
         start_time = time.time()
 
         try:
+            # 0. 対局画面チェック（有効な場合）
+            if self.enable_scene_filtering and self.game_scene_classifier:
+                is_game_scene, confidence = self.game_scene_classifier.predict(frame)
+
+                if not is_game_scene or confidence < self.scene_confidence_threshold:
+                    self.logger.debug(
+                        f"Frame {frame_id}: Skipped (not game scene, confidence={confidence:.2f})"
+                    )
+                    self.stats["skipped_frames"] += 1
+
+                    # 空の結果を返す
+                    return PipelineResult(
+                        frame_id=frame_id,
+                        detections=[],
+                        classifications=[],
+                        processing_time=time.time() - start_time,
+                        tile_areas={},
+                        confidence_scores={"scene_confidence": confidence},
+                    )
+                else:
+                    self.stats["game_scene_frames"] += 1
+                    self.logger.debug(
+                        f"Frame {frame_id}: Game scene detected (confidence={confidence:.2f})"
+                    )
+
             # 1. 牌検出
             detections = self.detector.detect_tiles(frame)
             self.logger.debug(f"Frame {frame_id}: Detected {len(detections)} tiles")

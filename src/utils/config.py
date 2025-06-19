@@ -41,8 +41,15 @@ class ConfigManager:
     def _ensure_directories(self):
         """必要なディレクトリを作成"""
         directories = self.get("directories", {})
-        for _dir_name, dir_path in directories.items():
-            Path(dir_path).mkdir(parents=True, exist_ok=True)
+        for dir_name, dir_path in directories.items():
+            # データベースファイルやファイルパスの場合は、親ディレクトリのみ作成
+            path = Path(dir_path)
+            if dir_name.endswith(("_db", "_file")) or path.suffix:
+                # ファイルの場合は親ディレクトリを作成
+                path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                # ディレクトリの場合はそのまま作成
+                path.mkdir(parents=True, exist_ok=True)
 
     def get(self, key: str, default: Any = None) -> Any:
         """

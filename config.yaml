@@ -85,6 +85,10 @@ tiles:
 
 # AI/ML設定（フェーズ2）
 ai:
+  # 対局画面フィルタリング設定
+  enable_scene_filtering: true
+  scene_confidence_threshold: 0.8
+
   # 牌検出設定
   detection:
     model_type: "yolo"  # yolo または cnn
@@ -114,6 +118,26 @@ ai:
     brightness_range: [0.8, 1.2]
     contrast_range: [0.8, 1.2]
     noise_factor: 0.1
+
+# ディレクトリ設定
+directories:
+  # モデル保存ディレクトリ
+  models: "models"
+  detection_models: "models/detection"
+  classification_models: "models/classification"
+  game_scene_models: "models/game_scene"
+
+  # データベースパス
+  training_db: "data/training/dataset.db"
+  game_scene_db: "web_interface/data/training/game_scene_labels.db"
+
+  # キャッシュディレクトリ
+  cache_root: "web_interface/data/training"
+  game_scene_cache: "web_interface/data/training/game_scene_cache"
+
+  # 作業ディレクトリ
+  work_dir: "work/training"
+  temp_dir: "temp"
 
 # 教師データ作成設定
 training:

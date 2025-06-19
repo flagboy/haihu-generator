@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 
 from ....utils.logger import LoggerMixin
+from ....utils.video_capture_manager import VideoCaptureContext
 from .game_scene_classifier import GameSceneClassifier
 
 
@@ -73,59 +74,58 @@ class SceneDetector(LoggerMixin):
         Returns:
             シーンセグメントのリスト
         """
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            self.logger.error(f"動画を開けません: {video_path}")
-            return []
-
         try:
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
+            with VideoCaptureContext(video_path) as cap:
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                fps = cap.get(cv2.CAP_PROP_FPS)
 
-            self.logger.info(
-                f"動画解析開始: {Path(video_path).name} "
-                f"(総フレーム数: {total_frames}, FPS: {fps:.1f})"
-            )
+                self.logger.info(
+                    f"動画解析開始: {Path(video_path).name} "
+                    f"(総フレーム数: {total_frames}, FPS: {fps:.1f})"
+                )
 
-            # フレームごとの分類結果
-            frame_classifications = []
-            frame_numbers = []
+                # フレームごとの分類結果
+                frame_classifications = []
+                frame_numbers = []
 
-            # サンプリングしながら分類
-            for frame_idx in range(0, total_frames, sample_interval):
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
+                # サンプリングしながら分類
+                for frame_idx in range(0, total_frames, sample_interval):
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                    ret, frame = cap.read()
 
-                if not ret:
-                    break
+                    if not ret:
+                        break
 
-                # 分類
-                is_game, confidence = self.classifier.classify_frame(frame)
-                frame_classifications.append((is_game, confidence))
-                frame_numbers.append(frame_idx)
+                    # 分類
+                    is_game, confidence = self.classifier.classify_frame(frame)
+                    frame_classifications.append((is_game, confidence))
+                    frame_numbers.append(frame_idx)
 
-                # 進捗通知
-                if progress_callback:
-                    progress = frame_idx / total_frames
-                    progress_callback(progress)
+                    # 進捗通知
+                    if progress_callback:
+                        progress = frame_idx / total_frames
+                        progress_callback(progress)
 
-            # 分類結果をスムージング
-            smoothed_classifications = self._smooth_classifications(
-                frame_classifications, frame_numbers
-            )
+                # 分類結果をスムージング
+                smoothed_classifications = self._smooth_classifications(
+                    frame_classifications, frame_numbers
+                )
 
-            # セグメント検出
-            segments = self._detect_segments(smoothed_classifications, frame_numbers, total_frames)
+                # セグメント検出
+                segments = self._detect_segments(
+                    smoothed_classifications, frame_numbers, total_frames
+                )
 
-            # 短いセグメントをフィルタリング
-            segments = self._filter_short_segments(segments)
+                # 短いセグメントをフィルタリング
+                segments = self._filter_short_segments(segments)
 
-            self.logger.info(f"検出完了: {len(segments)}個の対局シーンを検出")
+                self.logger.info(f"検出完了: {len(segments)}個の対局シーンを検出")
 
-            return segments
+                return segments
 
-        finally:
-            cap.release()
+        except Exception as e:
+            self.logger.error(f"シーン検出エラー: {e}")
+            return []
 
     def detect_scenes_from_frames(
         self, frame_paths: list[str], frame_numbers: list[int] | None = None
