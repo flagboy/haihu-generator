@@ -97,20 +97,27 @@ def get_device_info() -> dict[str, dict[str, any]]:
 
     # CUDA情報
     if info["cuda"]["available"]:
-        info["cuda"]["device_count"] = torch.cuda.device_count()
-        info["cuda"]["current_device"] = torch.cuda.current_device()
-        for i in range(info["cuda"]["device_count"]):
-            device_props = torch.cuda.get_device_properties(i)
-            info["cuda"]["devices"].append(
-                {
-                    "index": i,
-                    "name": device_props.name,
-                    "total_memory": device_props.total_memory,
-                    "major": device_props.major,
-                    "minor": device_props.minor,
-                    "multi_processor_count": device_props.multi_processor_count,
-                }
-            )
+        try:
+            info["cuda"]["device_count"] = torch.cuda.device_count()
+            info["cuda"]["current_device"] = torch.cuda.current_device()
+            for i in range(info["cuda"]["device_count"]):
+                device_props = torch.cuda.get_device_properties(i)
+                info["cuda"]["devices"].append(
+                    {
+                        "index": i,
+                        "name": device_props.name,
+                        "total_memory": device_props.total_memory,
+                        "major": device_props.major,
+                        "minor": device_props.minor,
+                        "multi_processor_count": device_props.multi_processor_count,
+                    }
+                )
+        except RuntimeError as e:
+            # CUDAの初期化に失敗した場合
+            logger.debug(f"CUDA情報の取得に失敗: {e}")
+            info["cuda"]["available"] = False
+            info["cuda"]["device_count"] = 0
+            info["cuda"]["devices"] = []
 
     # MPS情報（Apple Silicon）
     if hasattr(torch.backends, "mps"):

@@ -71,15 +71,22 @@ class TestTileDetector:
         detector = TileDetector(config_manager)
         assert detector.device.type == "cpu"
 
+    @patch("src.utils.device_utils.get_device_info")
     @patch("torch.cuda.is_available")
-    def test_setup_device_gpu(self, mock_cuda_available, config_manager):
+    def test_setup_device_gpu(self, mock_cuda_available, mock_get_device_info, config_manager):
         """GPUデバイス設定テスト"""
         mock_cuda_available.return_value = True
+        # get_device_infoのモックを設定
+        mock_get_device_info.return_value = {
+            "cuda": {"available": True, "device_count": 1, "devices": [{"name": "Test GPU"}]},
+            "mps": {"available": False},
+            "cpu": {"available": True, "threads": 4},
+        }
         config_manager.get_config.return_value["system"]["gpu_enabled"] = True
 
         detector = TileDetector(config_manager)
-        # 実際のGPUが利用可能でない場合はCPUになる
-        assert detector.device.type in ["cpu", "cuda"]
+        # GPUが利用可能な場合
+        assert detector.device.type == "cuda"
 
     def test_load_model_cnn(self, detector):
         """CNNモデル読み込みテスト"""
