@@ -71,22 +71,22 @@ class TestVideoProcessor:
         """フレーム有効性チェックのテスト"""
         # 有効なフレーム
         valid_frame = np.random.randint(50, 200, (100, 100, 3), dtype=np.uint8)
-        assert self.processor._is_valid_frame(valid_frame) is True
+        assert self.processor._is_valid_frame(valid_frame)
 
         # 無効なフレーム（None）
-        assert self.processor._is_valid_frame(None) is False
+        assert not self.processor._is_valid_frame(None)
 
         # 無効なフレーム（空配列）
         empty_frame = np.array([])
-        assert self.processor._is_valid_frame(empty_frame) is False
+        assert not self.processor._is_valid_frame(empty_frame)
 
         # 無効なフレーム（極端に暗い）
         dark_frame = np.full((100, 100, 3), 10, dtype=np.uint8)
-        assert self.processor._is_valid_frame(dark_frame) is False
+        assert not self.processor._is_valid_frame(dark_frame)
 
         # 無効なフレーム（極端に明るい）
         bright_frame = np.full((100, 100, 3), 250, dtype=np.uint8)
-        assert self.processor._is_valid_frame(bright_frame) is False
+        assert not self.processor._is_valid_frame(bright_frame)
 
     @patch("cv2.VideoCapture")
     def test_get_video_info(self, mock_video_capture):

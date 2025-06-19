@@ -101,6 +101,8 @@ class TestSceneLabelingAPI(unittest.TestCase):
             ],
             # 2回目の呼び出し: ラベル情報（空）
             [],
+            # 3回目の呼び出し: _load_existing_labels内でのラベル取得（空）
+            [],
         ]
 
         # セッション作成リクエスト
