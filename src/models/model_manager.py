@@ -165,9 +165,13 @@ class ModelManager:
                 self.logger.error(f"Model file not found: {model_path}")
                 return False
 
-            # デバイス設定
+            # デバイス設定（MPS対応）
             if device is None:
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                from ..utils.device_utils import get_available_device
+
+                device = get_available_device(preferred_device="auto")
+                if device is None:
+                    device = torch.device("cpu")
 
             # モデル読み込み
             checkpoint = torch.load(model_path, map_location=device)

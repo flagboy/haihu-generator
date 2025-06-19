@@ -77,7 +77,9 @@
       "Bash(ping:*)",
       "Bash(./run_web_server.sh:*)",
       "Bash(screen:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(sw_vers)",
+      "Bash(sysctl:*)"
     ],
     "deny": []
   }

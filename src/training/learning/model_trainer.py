@@ -30,9 +30,13 @@ except ImportError:
     Dataset = object
 
 from ...utils.config import ConfigManager
+from ...utils.device_utils import get_available_device
 from ...utils.logger import LoggerMixin
 from ..annotation_data import AnnotationData
+from .batch_size_optimizer import BatchSizeOptimizer, GradientAccumulator
+from .early_stopping import AdaptiveEarlyStopping, EarlyStoppingConfig, MetricMode
 from .learning_scheduler import LearningScheduler
+from .training_visualizer import TrainingVisualizer
 
 
 class TileDataset(Dataset):
@@ -239,9 +243,15 @@ class ModelTrainer(LoggerMixin):
         self.training_sessions: dict[str, dict[str, Any]] = {}
         self.stop_flags: dict[str, bool] = {}
 
-        # デバイス設定
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.logger.info(f"使用デバイス: {self.device}")
+        # デバイス設定（MPS対応）
+        device_config = self.config.get("ai", {}).get("training", {}).get("device", "auto")
+        self.device = get_available_device(preferred_device=device_config)
+        if self.device is None:
+            self.device = torch.device("cpu")
+            self.logger.warning("PyTorchが利用できないため、CPUモードで動作します")
+
+        # 可視化ツール
+        self.visualizer = TrainingVisualizer()
 
     def train_model(
         self,
@@ -281,9 +291,52 @@ class ModelTrainer(LoggerMixin):
             # モデルをデバイスに移動
             model = model.to(self.device)
 
-            # データローダーを作成
-            train_loader = self._create_dataloader(train_data, config, is_training=True)
-            val_loader = self._create_dataloader(val_data, config, is_training=False)
+            # バッチサイズ最適化
+            optimal_batch_size = config.batch_size
+            if hasattr(config, "optimize_batch_size") and config.optimize_batch_size:
+                self.logger.info("バッチサイズ最適化を実行中...")
+                optimizer = BatchSizeOptimizer(
+                    model=model,
+                    device=self.device,
+                    initial_batch_size=config.batch_size,
+                    max_batch_size=config.get("max_batch_size", 256),
+                    memory_fraction=config.get("gpu_memory_fraction", 0.9),
+                )
+
+                # データローダーファクトリーを作成
+                def dataloader_factory(batch_size: int) -> DataLoader:
+                    return self._create_dataloader(
+                        train_data, config, is_training=True, batch_size=batch_size
+                    )
+
+                # 損失関数を作成
+                criterion = self._create_criterion(config)
+
+                # 最適なバッチサイズを見つける
+                optimal_batch_size = optimizer.find_optimal_batch_size(
+                    dataloader_factory=dataloader_factory,
+                    loss_fn=criterion,
+                    mixed_precision=config.get("mixed_precision", True),
+                )
+
+                self.logger.info(f"最適バッチサイズ: {optimal_batch_size}")
+                self.training_sessions[session_id]["optimal_batch_size"] = optimal_batch_size
+
+            # データローダーを作成（最適化されたバッチサイズを使用）
+            train_loader = self._create_dataloader(
+                train_data, config, is_training=True, batch_size=optimal_batch_size
+            )
+            val_loader = self._create_dataloader(
+                val_data, config, is_training=False, batch_size=optimal_batch_size
+            )
+
+            # 勾配累積の設定
+            accumulation_steps = config.get("gradient_accumulation_steps", 1)
+            effective_batch_size = optimal_batch_size * accumulation_steps
+            self.logger.info(
+                f"実効バッチサイズ: {effective_batch_size} "
+                f"(バッチサイズ: {optimal_batch_size} × 累積ステップ: {accumulation_steps})"
+            )
 
             # 最適化器とスケジューラーを設定
             optimizer = self._create_optimizer(model, config)
@@ -292,9 +345,64 @@ class ModelTrainer(LoggerMixin):
             # 損失関数を設定
             criterion = self._create_criterion(config)
 
+            # 勾配累積器を作成
+            gradient_accumulator = None
+            if accumulation_steps > 1:
+                gradient_accumulator = GradientAccumulator(
+                    model=model,
+                    optimizer=optimizer,
+                    accumulation_steps=accumulation_steps,
+                    max_grad_norm=config.get("max_grad_norm", 1.0),
+                )
+                self.logger.info(f"勾配累積を使用: {accumulation_steps}ステップ")
+
+            # 混合精度訓練の準備（CUDA/MPS対応）
+            scaler = None
+            use_autocast = False
+            if config.get("mixed_precision", False):
+                if self.device.type == "cuda":
+                    scaler = torch.cuda.amp.GradScaler()
+                    use_autocast = True
+                    self.logger.info("CUDA混合精度訓練を有効化")
+                elif self.device.type == "mps":
+                    # MPSはGradScalerを使用しない
+                    use_autocast = True
+                    self.logger.info("MPS混合精度訓練を有効化（自動キャスト）")
+
+            # 早期停止の設定
+            early_stopping = None
+            if config.get("use_early_stopping", True):
+                # メトリクスモードの決定
+                metric_mode = (
+                    MetricMode.MAX if config.model_type == "classification" else MetricMode.MIN
+                )
+                monitor_metric = "accuracy" if config.model_type == "classification" else "loss"
+
+                early_stopping_config = EarlyStoppingConfig(
+                    patience=config.get("early_stopping_patience", 10),
+                    min_delta=config.get("early_stopping_min_delta", 0.0001),
+                    mode=metric_mode,
+                    restore_best_weights=True,
+                    warmup_epochs=config.get("warmup_epochs", 0),
+                )
+
+                # 適応的早期停止を使用
+                initial_lr = optimizer.param_groups[0]["lr"]
+                early_stopping = AdaptiveEarlyStopping(
+                    config=early_stopping_config,
+                    initial_lr=initial_lr,
+                    lr_patience_factor=config.get("lr_patience_factor", 2.0),
+                )
+
+                self.logger.info(
+                    f"早期停止を有効化: モニター={monitor_metric}, "
+                    f"忍耐度={early_stopping_config.patience}, "
+                    f"モード={metric_mode.value}"
+                )
+
             # 訓練ループ
             best_model_path = None
-            early_stopping_counter = 0
+            early_stopping_counter = 0  # 従来の互換性のため残す
 
             for epoch in range(config.epochs):
                 if self.stop_flags.get(session_id, False):
@@ -305,7 +413,15 @@ class ModelTrainer(LoggerMixin):
 
                 # 訓練フェーズ
                 train_metrics = self._train_epoch(
-                    model, train_loader, optimizer, criterion, epoch, session_id
+                    model,
+                    train_loader,
+                    optimizer,
+                    criterion,
+                    epoch,
+                    session_id,
+                    gradient_accumulator=gradient_accumulator,
+                    scaler=scaler,
+                    use_autocast=use_autocast,
                 )
 
                 # 検証フェーズ
@@ -362,7 +478,26 @@ class ModelTrainer(LoggerMixin):
                     )
 
                 # 早期停止チェック
-                if early_stopping_counter >= config.early_stopping_patience:
+                if early_stopping is not None:
+                    # 学習率の更新を早期停止に通知
+                    current_lr = optimizer.param_groups[0]["lr"]
+                    early_stopping.update_learning_rate(current_lr)
+
+                    # モニター対象のメトリクスを取得
+                    monitor_value = (
+                        val_metrics.get("accuracy", 0.0)
+                        if config.model_type == "classification"
+                        else val_metrics["loss"]
+                    )
+
+                    # 早期停止の判定
+                    if early_stopping(monitor_value, model):
+                        self.logger.info(f"早期停止条件を満たしました (エポック {epoch})")
+                        # ベストウェイトを復元
+                        early_stopping.restore_best_weights(model)
+                        break
+                elif early_stopping_counter >= config.early_stopping_patience:
+                    # 従来の早期停止（互換性のため）
                     self.logger.info(f"早期停止: {config.early_stopping_patience}エポック改善なし")
                     break
 
@@ -385,6 +520,35 @@ class ModelTrainer(LoggerMixin):
                 ).total_seconds(),
             }
 
+            # 早期停止の状態を追加
+            if early_stopping is not None:
+                final_metrics["early_stopping"] = early_stopping.get_status()
+
+            # 可視化とレポート生成
+            if config.get("generate_plots", True):
+                try:
+                    # 学習履歴をプロット
+                    self.visualizer.plot_training_history(
+                        history=self.training_sessions[session_id]["training_history"],
+                        session_id=session_id,
+                        save=True,
+                    )
+
+                    # 学習レポートを保存
+                    self.visualizer.save_training_report(
+                        session_id=session_id,
+                        config=config,
+                        final_metrics=final_metrics,
+                        history=self.training_sessions[session_id]["training_history"],
+                        optimal_batch_size=self.training_sessions[session_id].get(
+                            "optimal_batch_size"
+                        ),
+                    )
+
+                    self.logger.info("学習可視化とレポート生成が完了しました")
+                except Exception as e:
+                    self.logger.warning(f"可視化中にエラーが発生しました: {e}")
+
             return {
                 "best_model_path": best_model_path,
                 "final_metrics": final_metrics,
@@ -402,7 +566,11 @@ class ModelTrainer(LoggerMixin):
                 del self.stop_flags[session_id]
 
     def _create_dataloader(
-        self, annotation_data: AnnotationData, config: Any, is_training: bool
+        self,
+        annotation_data: AnnotationData,
+        config: Any,
+        is_training: bool,
+        batch_size: int | None = None,
     ) -> DataLoader:
         """データローダーを作成"""
         # 画像変換を定義
@@ -429,10 +597,13 @@ class ModelTrainer(LoggerMixin):
             augment=is_training and config.use_data_augmentation,
         )
 
+        # バッチサイズの決定（引数で指定されていれば優先）
+        actual_batch_size = batch_size if batch_size is not None else config.batch_size
+
         # データローダーを作成
         return DataLoader(
             dataset,
-            batch_size=config.batch_size,
+            batch_size=actual_batch_size,
             shuffle=is_training,
             num_workers=config.num_workers,
             pin_memory=self.device.type == "cuda",
@@ -487,6 +658,9 @@ class ModelTrainer(LoggerMixin):
         criterion: nn.Module,
         epoch: int,
         session_id: str,
+        gradient_accumulator: GradientAccumulator | None = None,
+        scaler: torch.cuda.amp.GradScaler | None = None,
+        use_autocast: bool = False,
     ) -> dict[str, float]:
         """1エポックの訓練"""
         model.train()
@@ -494,36 +668,57 @@ class ModelTrainer(LoggerMixin):
         correct = 0
         total = 0
 
-        for _batch_idx, (data, target) in enumerate(dataloader):
+        # 勾配累積を使用しない場合の初期化
+        if gradient_accumulator is None:
+            optimizer.zero_grad()
+
+        for batch_idx, (data, target) in enumerate(dataloader):
             if self.stop_flags.get(session_id, False):
                 break
 
             data, target = data.to(self.device), target.to(self.device)
 
-            optimizer.zero_grad()
+            # 勾配累積を使用する場合、必要なタイミングでゼロクリア
+            if gradient_accumulator is None and batch_idx > 0:
+                optimizer.zero_grad()
 
-            if hasattr(model, "forward") and "SimpleCNN" in str(type(model)):
-                # 検出モデルの場合
-                bbox_pred, conf_pred, class_pred = model(data)
+            # 混合精度訓練の文脈（CUDA/MPS対応）
+            autocast_device_type = "cuda" if self.device.type == "cuda" else "cpu"
+            with torch.amp.autocast(device_type=autocast_device_type, enabled=use_autocast):
+                if hasattr(model, "forward") and "SimpleCNN" in str(type(model)):
+                    # 検出モデルの場合
+                    bbox_pred, conf_pred, class_pred = model(data)
 
-                # 簡易損失計算
-                bbox_loss = criterion(bbox_pred, target[:, :4])
-                conf_loss = nn.BCELoss()(conf_pred.squeeze(), (target[:, 4] > 0).float())
-                class_loss = nn.CrossEntropyLoss()(class_pred, target[:, 4].long())
+                    # 簡易損失計算
+                    bbox_loss = criterion(bbox_pred, target[:, :4])
+                    conf_loss = nn.BCELoss()(conf_pred.squeeze(), (target[:, 4] > 0).float())
+                    class_loss = nn.CrossEntropyLoss()(class_pred, target[:, 4].long())
 
-                loss = bbox_loss + conf_loss + class_loss
+                    loss = bbox_loss + conf_loss + class_loss
+                else:
+                    # 分類モデルの場合
+                    output = model(data)
+                    loss = criterion(output, target)
+
+                    # 精度計算
+                    _, predicted = torch.max(output.data, 1)
+                    total += target.size(0)
+                    correct += (predicted == target).sum().item()
+
+            # 勾配累積を使用する場合
+            if gradient_accumulator is not None:
+                gradient_accumulator.step(loss, scaler)
             else:
-                # 分類モデルの場合
-                output = model(data)
-                loss = criterion(output, target)
-
-                # 精度計算
-                _, predicted = torch.max(output.data, 1)
-                total += target.size(0)
-                correct += (predicted == target).sum().item()
-
-            loss.backward()
-            optimizer.step()
+                # 通常のバックプロパゲーション
+                if scaler is not None:
+                    # CUDA用のGradScaler処理
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    # MPSまたはCPUの場合の通常処理
+                    loss.backward()
+                    optimizer.step()
 
             total_loss += loss.item()
 

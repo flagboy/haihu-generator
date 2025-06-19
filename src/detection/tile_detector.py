@@ -134,19 +134,29 @@ class TileDetector:
         self.logger.info(f"TileDetector initialized with model_type: {self.model_type}")
 
     def _setup_device(self) -> Any:
-        """デバイス設定"""
+        """デバイス設定（MPS対応）"""
         if not TORCH_AVAILABLE:
             self.logger.warning("PyTorch not available, detection features disabled")
             return None
 
-        gpu_enabled = self.config.get_config().get("system", {}).get("gpu_enabled", False)
+        # device_utilsのimportを追加
+        from ..utils.device_utils import get_available_device
 
-        if gpu_enabled and torch.cuda.is_available():
-            device = torch.device("cuda")
-            self.logger.info("Using GPU for detection")
-        else:
+        # 設定からデバイスを取得
+        ai_config = self.config.get_config().get("ai", {})
+        device_preference = ai_config.get("training", {}).get("device", "auto")
+
+        # 旧設定との互換性維持
+        if device_preference == "auto":
+            gpu_enabled = self.config.get_config().get("system", {}).get("gpu_enabled", False)
+            if not gpu_enabled:
+                device_preference = "cpu"
+
+        device = get_available_device(preferred_device=device_preference)
+
+        if device is None:
             device = torch.device("cpu")
-            self.logger.info("Using CPU for detection")
+            self.logger.warning("デバイスの自動検出に失敗しました。CPUを使用します。")
 
         return device
 
