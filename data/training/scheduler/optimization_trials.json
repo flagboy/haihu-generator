@@ -1,21 +1,21 @@
 {
   "trials": [
     {
-      "trial_id": "c3500031-43ba-41a8-b6d3-dabe818e9fd0",
+      "trial_id": "5eb43d19-33af-49d4-9f2a-57ecef2d9292",
       "parameters": {
-        "learning_rate": 4.162432716056872e-05,
-        "batch_size": "64",
-        "epochs": 73,
+        "learning_rate": 0.00014474230857207856,
+        "batch_size": "16",
+        "epochs": 191,
         "optimizer_type": "adamw",
-        "lr_scheduler_type": "cosine",
-        "dropout_rate": 0.06545063981518018,
-        "weight_decay": 0.00514957017021116,
-        "early_stopping_patience": 32
+        "lr_scheduler_type": "plateau",
+        "dropout_rate": 0.44467414783030607,
+        "weight_decay": 2.9355864458941595e-06,
+        "early_stopping_patience": 27
       },
       "score": 0.85,
       "status": "completed",
       "start_time": null,
-      "end_time": "2025-06-03T00:16:08.269027",
+      "end_time": "2025-06-19T18:29:27.367446",
       "metrics": {
         "accuracy": 0.85,
         "loss": 0.5
@@ -23,16 +23,16 @@
       "notes": ""
     },
     {
-      "trial_id": "cd40f360-18f7-41fe-bfbd-22ff346432db",
+      "trial_id": "4dd852c1-63ef-44bf-ac86-7da06a8ebd8a",
       "parameters": {
-        "learning_rate": 0.09634857491481741,
-        "batch_size": "32",
-        "epochs": 109,
-        "optimizer_type": "sgd",
-        "lr_scheduler_type": "cosine",
-        "dropout_rate": 0.16143402178920746,
-        "weight_decay": 0.00045299446196674596,
-        "early_stopping_patience": 26
+        "learning_rate": 0.08007592393455827,
+        "batch_size": "8",
+        "epochs": 149,
+        "optimizer_type": "adam",
+        "lr_scheduler_type": "plateau",
+        "dropout_rate": 0.4374349692526255,
+        "weight_decay": 0.00039215048430618377,
+        "early_stopping_patience": 15
       },
       "score": null,
       "status": "pending",
@@ -42,16 +42,16 @@
       "notes": ""
     },
     {
-      "trial_id": "f769fa2f-be2e-4ab6-bb0f-2d6c9cc7ea98",
+      "trial_id": "2c9f7588-3164-47e1-9f0c-99687bfa89b2",
       "parameters": {
-        "learning_rate": 1.2571370899128935e-05,
+        "learning_rate": 0.025080456087959054,
         "batch_size": "32",
-        "epochs": 155,
-        "optimizer_type": "sgd",
-        "lr_scheduler_type": "cosine",
-        "dropout_rate": 0.6247697075514353,
-        "weight_decay": 1.2205841402606887e-06,
-        "early_stopping_patience": 9
+        "epochs": 146,
+        "optimizer_type": "adamw",
+        "lr_scheduler_type": "none",
+        "dropout_rate": 0.6970212430759315,
+        "weight_decay": 0.0001878777717738211,
+        "early_stopping_patience": 26
       },
       "score": null,
       "status": "pending",
@@ -61,5 +61,5 @@
       "notes": ""
     }
   ],
-  "last_updated": "2025-06-03T00:16:08.269522"
+  "last_updated": "2025-06-19T18:29:27.367953"
 }

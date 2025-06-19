@@ -30,6 +30,7 @@ except ImportError:
     Dataset = object
 
 from ...utils.config import ConfigManager
+from ...utils.device_utils import get_available_device
 from ...utils.logger import LoggerMixin
 from ..annotation_data import AnnotationData
 from .batch_size_optimizer import BatchSizeOptimizer, GradientAccumulator
@@ -242,9 +243,12 @@ class ModelTrainer(LoggerMixin):
         self.training_sessions: dict[str, dict[str, Any]] = {}
         self.stop_flags: dict[str, bool] = {}
 
-        # デバイス設定
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.logger.info(f"使用デバイス: {self.device}")
+        # デバイス設定（MPS対応）
+        device_config = self.config.get("ai", {}).get("training", {}).get("device", "auto")
+        self.device = get_available_device(preferred_device=device_config)
+        if self.device is None:
+            self.device = torch.device("cpu")
+            self.logger.warning("PyTorchが利用できないため、CPUモードで動作します")
 
         # 可視化ツール
         self.visualizer = TrainingVisualizer()
@@ -352,11 +356,18 @@ class ModelTrainer(LoggerMixin):
                 )
                 self.logger.info(f"勾配累積を使用: {accumulation_steps}ステップ")
 
-            # 混合精度訓練の準備
+            # 混合精度訓練の準備（CUDA/MPS対応）
             scaler = None
-            if config.get("mixed_precision", False) and self.device.type == "cuda":
-                scaler = torch.cuda.amp.GradScaler()
-                self.logger.info("混合精度訓練を有効化")
+            use_autocast = False
+            if config.get("mixed_precision", False):
+                if self.device.type == "cuda":
+                    scaler = torch.cuda.amp.GradScaler()
+                    use_autocast = True
+                    self.logger.info("CUDA混合精度訓練を有効化")
+                elif self.device.type == "mps":
+                    # MPSはGradScalerを使用しない
+                    use_autocast = True
+                    self.logger.info("MPS混合精度訓練を有効化（自動キャスト）")
 
             # 早期停止の設定
             early_stopping = None
@@ -410,6 +421,7 @@ class ModelTrainer(LoggerMixin):
                     session_id,
                     gradient_accumulator=gradient_accumulator,
                     scaler=scaler,
+                    use_autocast=use_autocast,
                 )
 
                 # 検証フェーズ
@@ -648,6 +660,7 @@ class ModelTrainer(LoggerMixin):
         session_id: str,
         gradient_accumulator: GradientAccumulator | None = None,
         scaler: torch.cuda.amp.GradScaler | None = None,
+        use_autocast: bool = False,
     ) -> dict[str, float]:
         """1エポックの訓練"""
         model.train()
@@ -669,8 +682,9 @@ class ModelTrainer(LoggerMixin):
             if gradient_accumulator is None and batch_idx > 0:
                 optimizer.zero_grad()
 
-            # 混合精度訓練の文脈
-            with torch.cuda.amp.autocast(enabled=scaler is not None):
+            # 混合精度訓練の文脈（CUDA/MPS対応）
+            autocast_device_type = "cuda" if self.device.type == "cuda" else "cpu"
+            with torch.amp.autocast(device_type=autocast_device_type, enabled=use_autocast):
                 if hasattr(model, "forward") and "SimpleCNN" in str(type(model)):
                     # 検出モデルの場合
                     bbox_pred, conf_pred, class_pred = model(data)
@@ -697,10 +711,12 @@ class ModelTrainer(LoggerMixin):
             else:
                 # 通常のバックプロパゲーション
                 if scaler is not None:
+                    # CUDA用のGradScaler処理
                     scaler.scale(loss).backward()
                     scaler.step(optimizer)
                     scaler.update()
                 else:
+                    # MPSまたはCPUの場合の通常処理
                     loss.backward()
                     optimizer.step()
 

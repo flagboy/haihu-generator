@@ -48,16 +48,20 @@ class BatchSizeOptimizer(LoggerMixin):
         self.memory_fraction = memory_fraction
         self.num_trials = num_trials
 
-        # GPU情報を取得
+        # デバイス情報を取得
         if device.type == "cuda":
             self.gpu_properties = torch.cuda.get_device_properties(device)
             self.total_memory = self.gpu_properties.total_memory
             self.logger.info(
-                f"GPU検出: {self.gpu_properties.name} (メモリ: {self.total_memory / 1024**3:.1f}GB)"
+                f"CUDA GPU検出: {self.gpu_properties.name} (メモリ: {self.total_memory / 1024**3:.1f}GB)"
             )
+        elif device.type == "mps":
+            # MPSの場合、メモリ情報の取得は現在サポートされていない
+            self.total_memory = 0
+            self.logger.info("Apple Silicon MPS検出: メモリ最適化は制限されます")
         else:
             self.total_memory = 0
-            self.logger.warning("GPUが利用できません。CPU使用のため最適化をスキップします")
+            self.logger.info("CPU使用: バッチサイズ最適化は制限されます")
 
     def find_optimal_batch_size(
         self,
@@ -76,9 +80,14 @@ class BatchSizeOptimizer(LoggerMixin):
         Returns:
             最適なバッチサイズ
         """
-        if self.device.type != "cuda":
+        if self.device.type not in ["cuda", "mps"]:
             self.logger.info("CPU使用のため、デフォルトバッチサイズを返します")
             return min(self.initial_batch_size, 8)
+
+        if self.device.type == "mps":
+            # MPSの場合は控えめなバッチサイズから開始
+            self.logger.info("MPS使用のため、制限されたバッチサイズ最適化を実行します")
+            return min(self.initial_batch_size, 16)
 
         optimal_batch_size = self.initial_batch_size
         max_throughput = 0
