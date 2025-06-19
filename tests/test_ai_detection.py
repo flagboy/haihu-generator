@@ -82,7 +82,16 @@ class TestTileDetector:
                 "available": True,
                 "device_count": 1,
                 "current_device": 0,
-                "devices": [{"name": "Test GPU"}],
+                "devices": [
+                    {
+                        "name": "Test GPU",
+                        "total_memory": 8589934592,  # 8GB
+                        "index": 0,
+                        "major": 8,
+                        "minor": 0,
+                        "multi_processor_count": 30,
+                    }
+                ],
             },
             "mps": {"available": False},
             "cpu": {"available": True, "threads": 4},
