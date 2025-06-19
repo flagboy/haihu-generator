@@ -78,7 +78,12 @@ class TestTileDetector:
         mock_cuda_available.return_value = True
         # get_device_infoのモックを設定
         mock_get_device_info.return_value = {
-            "cuda": {"available": True, "device_count": 1, "devices": [{"name": "Test GPU"}]},
+            "cuda": {
+                "available": True,
+                "device_count": 1,
+                "current_device": 0,
+                "devices": [{"name": "Test GPU"}],
+            },
             "mps": {"available": False},
             "cpu": {"available": True, "threads": 4},
         }
