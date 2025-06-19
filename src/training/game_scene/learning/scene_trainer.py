@@ -44,7 +44,21 @@ class SceneTrainer(LoggerMixin):
         else:
             self.device = torch.device(device)
 
+        # 進捗コールバック
+        self.progress_callback = None
+
         self.logger.info(f"SceneTrainer初期化完了 (device: {self.device})")
+
+    def set_progress_callback(self, callback):
+        """進捗コールバックを設定"""
+        self.progress_callback = callback
+
+    def _notify_progress(
+        self, message, current_epoch=0, total_epochs=0, train_loss=0.0, val_acc=0.0
+    ):
+        """進捗を通知"""
+        if self.progress_callback:
+            self.progress_callback(message, current_epoch, total_epochs, train_loss, val_acc)
 
     def train(
         self,
@@ -127,8 +141,14 @@ class SceneTrainer(LoggerMixin):
             f"学習開始: {epochs}エポック, バッチサイズ={batch_size}, 学習率={learning_rate}"
         )
 
+        # 開始通知
+        self._notify_progress("学習を開始します", 0, epochs)
+
         # 学習ループ
         for epoch in range(epochs):
+            # エポック開始通知
+            self._notify_progress(f"エポック {epoch + 1}/{epochs} を開始", epoch + 1, epochs)
+
             # 学習
             train_loss, train_acc = self._train_epoch(model, train_loader, criterion, optimizer)
 
@@ -141,6 +161,15 @@ class SceneTrainer(LoggerMixin):
             history["val_loss"].append(val_loss)
             history["val_acc"].append(val_acc)
             history["learning_rate"].append(optimizer.param_groups[0]["lr"])
+
+            # 進捗通知
+            self._notify_progress(
+                f"エポック {epoch + 1}/{epochs} 完了 - 精度: {val_acc:.3f}",
+                epoch + 1,
+                epochs,
+                train_loss,
+                val_acc,
+            )
 
             # ログ出力
             self.logger.info(
@@ -175,11 +204,22 @@ class SceneTrainer(LoggerMixin):
             # 早期終了
             if patience_counter >= early_stopping_patience:
                 self.logger.info(f"早期終了: {epoch + 1}エポック")
+                self._notify_progress("早期終了しました", epoch + 1, epochs, train_loss, val_acc)
                 break
 
         # 最終モデルを保存
         final_model_path = session_dir / "final_model.pth"
         torch.save(model.state_dict(), final_model_path)
+
+        # 完了通知
+        final_val_acc = history["val_acc"][-1] if history["val_acc"] else 0
+        self._notify_progress(
+            f"学習が完了しました - 最終精度: {final_val_acc:.3f}",
+            len(history["train_loss"]),
+            epochs,
+            history["train_loss"][-1] if history["train_loss"] else 0,
+            final_val_acc,
+        )
 
         # 学習結果を保存
         results = {

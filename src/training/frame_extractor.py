@@ -216,7 +216,17 @@ class FrameExtractor(LoggerMixin):
             while True:
                 ret, frame = cap.read()
                 if not ret:
+                    if frame_count == 0:
+                        self.logger.error(
+                            "最初のフレームも読み込めません。動画ファイルが破損している可能性があります。"
+                        )
                     break
+
+                # フレームの妥当性チェック
+                if frame is None or frame.size == 0:
+                    self.logger.warning(f"フレーム {frame_count} が無効です。スキップします。")
+                    frame_count += 1
+                    continue
 
                 # 指定間隔でフレームを処理
                 if frame_count % frame_interval == 0:

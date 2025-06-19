@@ -626,3 +626,150 @@ class DatasetManager(LoggerMixin):
         except Exception as e:
             self.logger.error(f"バージョンクリーンアップに失敗: {e}")
             return False
+
+    def list_videos(self) -> list[dict]:
+        """動画一覧を取得"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, name, path, upload_date FROM videos ORDER BY upload_date DESC"
+            )
+            rows = cursor.fetchall()
+
+            videos = []
+            for row in rows:
+                videos.append({"id": row[0], "name": row[1], "path": row[2], "upload_date": row[3]})
+
+            return videos
+
+    def get_video_info(self, video_id: int) -> dict | None:
+        """動画情報を取得"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM videos WHERE id = ?", (video_id,))
+            row = cursor.fetchone()
+
+            if row:
+                return {
+                    "id": row[0],
+                    "name": row[1],
+                    "path": row[2],
+                    "upload_date": row[3],
+                    "fps": row[4] if len(row) > 4 else 30,
+                    "width": row[5] if len(row) > 5 else 1920,
+                    "height": row[6] if len(row) > 6 else 1080,
+                    "duration": row[7] if len(row) > 7 else 0,
+                }
+
+            return None
+
+    def get_frame_count(self, video_id: int) -> int:
+        """動画のフレーム数を取得"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM frames WHERE video_id = ?", (video_id,))
+            return cursor.fetchone()[0]
+
+    def get_annotation_count(self, video_id: int | None = None, frame_id: int | None = None) -> int:
+        """アノテーション数を取得"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            if video_id is not None:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM tile_annotations ta "
+                    "JOIN frames f ON ta.frame_id = f.id "
+                    "WHERE f.video_id = ?",
+                    (video_id,),
+                )
+            elif frame_id is not None:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM tile_annotations WHERE frame_id = ?", (frame_id,)
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM tile_annotations")
+
+            return cursor.fetchone()[0]
+
+    def list_frames(self, video_id: int | None = None) -> list[dict]:
+        """フレーム一覧を取得"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            if video_id is not None:
+                cursor.execute(
+                    "SELECT id, video_id, frame_number, timestamp, path "
+                    "FROM frames WHERE video_id = ? ORDER BY frame_number",
+                    (video_id,),
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, video_id, frame_number, timestamp, path "
+                    "FROM frames ORDER BY video_id, frame_number"
+                )
+
+            rows = cursor.fetchall()
+
+            frames = []
+            for row in rows:
+                frames.append(
+                    {
+                        "id": row[0],
+                        "video_id": row[1],
+                        "frame_number": row[2],
+                        "timestamp": row[3],
+                        "path": row[4],
+                    }
+                )
+
+            return frames
+
+    def get_frame_annotations(self, frame_id: int) -> list[dict]:
+        """フレームのアノテーションを取得"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, frame_id, tile_id, x1, y1, x2, y2, confidence "
+                "FROM tile_annotations WHERE frame_id = ?",
+                (frame_id,),
+            )
+            rows = cursor.fetchall()
+
+            annotations = []
+            for row in rows:
+                annotations.append(
+                    {
+                        "id": row[0],
+                        "frame_id": row[1],
+                        "class_id": row[2],
+                        "x": row[3],
+                        "y": row[4],
+                        "width": row[5] - row[3],
+                        "height": row[6] - row[4],
+                        "confidence": row[7] or 1.0,
+                    }
+                )
+
+            return annotations
+
+    def delete_video(self, video_id: int):
+        """動画と関連データを削除"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # アノテーションを削除
+            cursor.execute(
+                "DELETE FROM tile_annotations WHERE frame_id IN "
+                "(SELECT id FROM frames WHERE video_id = ?)",
+                (video_id,),
+            )
+
+            # フレームを削除
+            cursor.execute("DELETE FROM frames WHERE video_id = ?", (video_id,))
+
+            # 動画を削除
+            cursor.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+
+            conn.commit()
+
+        self.logger.info(f"動画を削除: video_id={video_id}")

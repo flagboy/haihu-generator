@@ -95,19 +95,6 @@
     {% block scripts %}{% endblock %}
 
     <script>
-        // WebSocket接続
-        const socket = io();
-
-        socket.on('connect', function() {
-            console.log('WebSocket接続しました');
-            showNotification('システムに接続しました', 'success');
-        });
-
-        socket.on('disconnect', function() {
-            console.log('WebSocket切断されました');
-            showNotification('システムから切断されました', 'warning');
-        });
-
         // 共通関数
         function showSystemStatus() {
             // システム状態表示の実装

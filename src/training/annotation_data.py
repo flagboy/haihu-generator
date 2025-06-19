@@ -268,16 +268,70 @@ class AnnotationData(LoggerMixin):
 
         return video_id
 
-    def add_frame_annotation(self, video_id: str, frame_annotation: FrameAnnotation) -> bool:
-        """フレームアノテーションを追加"""
-        if video_id not in self.video_annotations:
-            self.logger.error(f"動画ID {video_id} が見つかりません")
+    def add_frame_annotation(
+        self,
+        video_id: str,
+        frame_annotation: FrameAnnotation | int | None = None,
+        tiles: list[dict] | None = None,
+    ) -> bool:
+        """フレームアノテーションを追加
+
+        Args:
+            video_id: 動画IDまたは動画名
+            frame_annotation: FrameAnnotationオブジェクトまたはフレーム番号
+            tiles: 牠情報のリスト（frame_annotationが数値の場合）
+        """
+        # 動画名から動画IDを取得
+        target_video_id = None
+        for vid, annotation in self.video_annotations.items():
+            if annotation.video_name == video_id or vid == video_id:
+                target_video_id = vid
+                break
+
+        # 動画が存在しない場合は新規作成
+        if target_video_id is None:
+            video_info = {"duration": 0, "fps": 30, "width": 1920, "height": 1080}
+            target_video_id = self.create_video_annotation(video_id, video_info)
+
+        # FrameAnnotationオブジェクトの場合
+        if isinstance(frame_annotation, FrameAnnotation):
+            self.video_annotations[target_video_id].frames.append(frame_annotation)
+            self.video_annotations[target_video_id].updated_at = datetime.now()
+            return True
+
+        # フレーム番号と牠情報が指定された場合
+        elif isinstance(frame_annotation, int) and tiles is not None:
+            # TileAnnotationリストを作成
+            tile_annotations = []
+            for tile_info in tiles:
+                bbox = BoundingBox(
+                    x1=tile_info["bbox"]["x"],
+                    y1=tile_info["bbox"]["y"],
+                    x2=tile_info["bbox"]["x"] + tile_info["bbox"]["width"],
+                    y2=tile_info["bbox"]["y"] + tile_info["bbox"]["height"],
+                )
+                tile_ann = TileAnnotation(
+                    tile_id=tile_info["class_id"],
+                    bbox=bbox,
+                    confidence=tile_info.get("confidence", 1.0),
+                )
+                tile_annotations.append(tile_ann)
+
+            # FrameAnnotationを作成
+            frame_ann = FrameAnnotation(
+                frame_id=frame_annotation,
+                image_path=f"frame_{frame_annotation}.jpg",
+                tiles=tile_annotations,
+                timestamp=frame_annotation / 30.0,  # デフォルト30fps
+            )
+
+            self.video_annotations[target_video_id].frames.append(frame_ann)
+            self.video_annotations[target_video_id].updated_at = datetime.now()
+            return True
+
+        else:
+            self.logger.error(f"不正な引数: frame_annotation={frame_annotation}, tiles={tiles}")
             return False
-
-        self.video_annotations[video_id].frames.append(frame_annotation)
-        self.video_annotations[video_id].updated_at = datetime.now()
-
-        return True
 
     def get_video_annotation(self, video_id: str) -> VideoAnnotation | None:
         """動画アノテーションを取得"""
@@ -404,7 +458,7 @@ class AnnotationData(LoggerMixin):
 
             # クラスマッピングを保存
             with open(output_dir / "classes.txt", "w", encoding="utf-8") as f:
-                for tile_name, _class_id in sorted(class_mapping.items(), key=lambda x: x[1]):
+                for tile_name, _ in sorted(class_mapping.items(), key=lambda x: x[1]):
                     f.write(f"{tile_name}\n")
 
             self.logger.info(f"YOLO形式でエクスポート完了: {output_dir}")

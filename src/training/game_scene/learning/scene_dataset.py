@@ -5,6 +5,7 @@
 """
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -22,8 +23,8 @@ class SceneDataset(Dataset, LoggerMixin):
 
     def __init__(
         self,
-        db_path: str = "data/training/game_scene_labels.db",
-        cache_dir: str = "data/training/game_scene_cache",
+        db_path: str = "web_interface/data/training/game_scene_labels.db",
+        cache_dir: str = "web_interface/data/training/game_scene_cache",
         transform: transforms.Compose | None = None,
         split: str = "train",  # train, val, test
         split_ratio: tuple[float, float, float] = (0.7, 0.15, 0.15),
@@ -39,8 +40,21 @@ class SceneDataset(Dataset, LoggerMixin):
             split_ratio: 分割比率（train, val, test）
         """
         super().__init__()
-        self.db_path = db_path
-        self.cache_dir = Path(cache_dir)
+
+        # データベースパスを絶対パスに変換
+        if not os.path.isabs(db_path):
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            self.db_path = str(project_root / db_path)
+        else:
+            self.db_path = db_path
+
+        # キャッシュディレクトリパスを絶対パスに変換
+        if not os.path.isabs(cache_dir):
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            self.cache_dir = project_root / cache_dir
+        else:
+            self.cache_dir = Path(cache_dir)
+
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.split = split
         self.split_ratio = split_ratio
@@ -61,6 +75,14 @@ class SceneDataset(Dataset, LoggerMixin):
         # データを読み込み
         self._load_data()
 
+        # キャッシュ作成の並列化オプション
+        self.use_cache_preload = True  # キャッシュ事前作成を有効化
+
+        # VideoCapture の再利用（パフォーマンス最適化）
+        self._video_cache = {}  # video_path -> VideoCapture のキャッシュ
+        self._last_access_time = {}  # アクセス時間記録
+        self._cache_max_size = 2  # 最大2つのVideoCapture を保持
+
         self.logger.info(f"SceneDataset初期化完了: {self.split} ({len(self.data)}サンプル)")
 
     def _load_data(self):
@@ -73,23 +95,86 @@ class SceneDataset(Dataset, LoggerMixin):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        # ラベル付きデータを取得
+        # まず、すべてのvideo_idと最新のvideo_pathを取得
         cursor.execute("""
-            SELECT DISTINCT
-                l.video_id,
-                l.frame_number,
-                l.is_game_scene,
-                l.confidence,
-                l.annotator,
-                s.video_path
+            SELECT DISTINCT l.video_id,
+                   (SELECT video_path FROM labeling_sessions
+                    WHERE video_id = l.video_id
+                    ORDER BY created_at DESC LIMIT 1) as video_path
             FROM game_scene_labels l
-            JOIN labeling_sessions s ON l.video_id = s.video_id
-            ORDER BY l.video_id, l.frame_number
+        """)
+        raw_video_info = cursor.fetchall()
+        video_info = {}
+
+        for row in raw_video_info:
+            video_id = row[0]
+            video_path = row[1]
+
+            # パスが存在するかチェックし、存在しない場合は代替パスを探す
+            if video_path and Path(video_path).exists():
+                video_info[video_id] = video_path
+                self.logger.info(f"動画パス確認済み: {video_id} -> {video_path}")
+            else:
+                # 代替パスを検索
+                alternative_paths = [
+                    f"web_interface/uploads/{video_id}.mp4",
+                    f"uploads/{video_id}.mp4",
+                    f"{video_id}.mp4",
+                ]
+
+                found_path = None
+                project_root = Path(__file__).parent.parent.parent.parent.parent
+
+                for alt_path in alternative_paths:
+                    full_path = project_root / alt_path
+                    if full_path.exists():
+                        found_path = str(full_path)
+                        break
+
+                if found_path:
+                    video_info[video_id] = found_path
+                    self.logger.info(f"代替パス見つかりました: {video_id} -> {found_path}")
+                else:
+                    self.logger.warning(
+                        f"動画ファイルが見つかりません: {video_id}, 元パス: {video_path}"
+                    )
+                    video_info[video_id] = video_path  # 元のパスを保持
+
+        self.logger.info(f"動画情報: {video_info}")
+
+        # ラベル付きデータを取得（シンプルなクエリ）
+        cursor.execute("""
+            SELECT video_id, frame_number, is_game_scene, confidence, annotator
+            FROM game_scene_labels
+            ORDER BY video_id, frame_number
         """)
 
         all_data = []
-        for row in cursor.fetchall():
-            video_id, frame_number, is_game_scene, confidence, annotator, video_path = row
+        rows = cursor.fetchall()
+        self.logger.info(f"SQLクエリ結果: {len(rows)}行")
+
+        for idx, row in enumerate(rows):
+            # タプルから値を取得（インデックスでアクセス）
+            video_id = row[0]
+            frame_number = row[1]
+            is_game_scene = row[2]
+            confidence = row[3]
+            annotator = row[4]
+
+            # video_infoから動画パスを取得
+            video_path = video_info.get(video_id)
+
+            # デバッグ：最初の数行を出力
+            if idx < 5:
+                self.logger.debug(
+                    f"Row {idx}: video_id={video_id}, frame={frame_number}, is_game={is_game_scene}, path={video_path}"
+                )
+
+            # video_pathがNoneの場合の処理
+            if video_path is None:
+                self.logger.warning(f"video_pathがNULL: video_id={video_id}, frame={frame_number}")
+                continue
+
             all_data.append(
                 {
                     "video_id": video_id,
@@ -103,8 +188,81 @@ class SceneDataset(Dataset, LoggerMixin):
 
         conn.close()
 
+        # デバッグ：読み込みデータの統計
+        total_game_scenes = sum(1 for item in all_data if item["label"] == 1)
+        total_non_game_scenes = len(all_data) - total_game_scenes
+        self.logger.info(
+            f"データベースから読み込み: 総数={len(all_data)}, "
+            f"対局画面={total_game_scenes}, 非対局画面={total_non_game_scenes}"
+        )
+
         # データを分割
         self._split_data(all_data)
+
+    def _get_video_capture(self, video_path: str) -> cv2.VideoCapture:
+        """
+        VideoCapture を取得（キャッシュ優先）
+
+        Args:
+            video_path: 動画ファイルパス
+
+        Returns:
+            VideoCapture オブジェクト
+        """
+        import time
+
+        # キャッシュから取得
+        if video_path in self._video_cache:
+            cap = self._video_cache[video_path]
+            if cap.isOpened():
+                self._last_access_time[video_path] = time.time()
+                self.logger.debug(f"📹 VideoCapture キャッシュヒット: {video_path}")
+                return cap
+            else:
+                # 無効なCapture を削除
+                self.logger.debug(f"🗑️ 無効なVideoCapture削除: {video_path}")
+                del self._video_cache[video_path]
+                if video_path in self._last_access_time:
+                    del self._last_access_time[video_path]
+
+        # キャッシュサイズ制限
+        if len(self._video_cache) >= self._cache_max_size:
+            # 最も古いアクセスのものを削除
+            oldest_path = min(
+                self._last_access_time.keys(), key=lambda k: self._last_access_time[k]
+            )
+            old_cap = self._video_cache[oldest_path]
+            old_cap.release()
+            del self._video_cache[oldest_path]
+            del self._last_access_time[oldest_path]
+            self.logger.debug(f"🧹 古いVideoCapture削除: {oldest_path}")
+
+        # 新しいVideoCapture を作成
+        self.logger.debug(f"🆕 新しいVideoCapture作成: {video_path}")
+        cap = cv2.VideoCapture(video_path)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # バッファサイズを最小化
+
+        if cap.isOpened():
+            self._video_cache[video_path] = cap
+            self._last_access_time[video_path] = time.time()
+            return cap
+        else:
+            self.logger.error(f"❌ VideoCapture作成失敗: {video_path}")
+            cap.release()
+            return None
+
+    def _cleanup_video_cache(self):
+        """VideoCapture キャッシュをクリーンアップ"""
+        for _video_path, cap in self._video_cache.items():
+            cap.release()
+        self._video_cache.clear()
+        self._last_access_time.clear()
+        self.logger.debug("🧹 VideoCapture キャッシュをクリーンアップしました")
+
+    def __del__(self):
+        """デストラクタでVideoCapture を解放"""
+        if hasattr(self, "_video_cache"):
+            self._cleanup_video_cache()
 
     def _split_data(self, all_data: list[dict]):
         """データを train/val/test に分割"""
@@ -126,6 +284,36 @@ class SceneDataset(Dataset, LoggerMixin):
         np.random.shuffle(video_ids)
 
         n_videos = len(video_ids)
+
+        # 動画が少ない場合はフレームレベルで分割
+        if n_videos <= 3:
+            # 全フレームをシャッフルして分割
+            np.random.seed(42)
+            np.random.shuffle(all_data)
+
+            n_frames = len(all_data)
+            train_end = int(n_frames * self.split_ratio[0])
+            val_end = train_end + int(n_frames * self.split_ratio[1])
+
+            if self.split == "train":
+                self.data = all_data[:train_end]
+            elif self.split == "val":
+                self.data = all_data[train_end:val_end]
+            elif self.split == "test":
+                self.data = all_data[val_end:]
+            else:
+                raise ValueError(f"不明な分割: {self.split}")
+
+            # デバッグ情報を追加
+            game_scenes = sum(1 for item in self.data if item["label"] == 1)
+            non_game_scenes = len(self.data) - game_scenes
+            self.logger.info(
+                f"データ分割完了（フレームレベル）: {self.split} - {len(self.data)}フレーム "
+                f"(対局画面: {game_scenes}, 非対局画面: {non_game_scenes})"
+            )
+            return
+
+        # 動画が十分ある場合は動画レベルで分割
         train_end = int(n_videos * self.split_ratio[0])
         val_end = train_end + int(n_videos * self.split_ratio[1])
 
@@ -165,20 +353,69 @@ class SceneDataset(Dataset, LoggerMixin):
         Returns:
             (画像テンソル, ラベル)
         """
-        item = self.data[idx]
+        import time
 
-        # キャッシュから画像を読み込み
-        image = self._load_frame(item["video_path"], item["frame_number"], item["video_id"])
+        start_time = time.time()
 
-        if image is None:
-            # エラー時はダミーデータを返す
-            image = np.zeros((224, 224, 3), dtype=np.uint8)
+        try:
+            item = self.data[idx]
+            self.logger.info(
+                f"🔍 データ取得開始: idx={idx}, video={item['video_id']}, frame={item['frame_number']}"
+            )
 
-        # 変換を適用
-        if self.transform:
-            image = self.transform(image)
+            # キャッシュから画像を読み込み
+            load_start = time.time()
+            image = self._load_frame(item["video_path"], item["frame_number"], item["video_id"])
+            load_time = time.time() - load_start
 
-        return image, item["label"]
+            if image is None:
+                # エラー時はダミーデータを返す
+                self.logger.warning(
+                    f"⚠️ ダミーフレーム使用: idx={idx}, frame={item['frame_number']}, load_time={load_time:.3f}s"
+                )
+                image = self._create_dummy_frame()
+                if image is None:
+                    # ダミーフレーム作成も失敗した場合の最終手段
+                    self.logger.error(f"❌ ダミーフレーム作成失敗: idx={idx}")
+                    image = np.zeros((224, 224, 3), dtype=np.uint8)
+            else:
+                self.logger.info(
+                    f"✅ フレーム読み込み成功: idx={idx}, load_time={load_time:.3f}s, shape={image.shape}"
+                )
+
+            # 変換を適用
+            transform_start = time.time()
+            if self.transform:
+                try:
+                    image = self.transform(image)
+                    transform_time = time.time() - transform_start
+                    self.logger.debug(
+                        f"🔄 画像変換完了: idx={idx}, transform_time={transform_time:.3f}s"
+                    )
+                except Exception as e:
+                    transform_time = time.time() - transform_start
+                    self.logger.error(
+                        f"❌ 画像変換エラー: idx={idx}, transform_time={transform_time:.3f}s, error={e}"
+                    )
+                    # 変換エラー時は最小限の処理でテンソル化
+                    image = torch.zeros((3, 224, 224), dtype=torch.float32)
+
+            total_time = time.time() - start_time
+            self.logger.info(
+                f"⏱️ データ取得完了: idx={idx}, total_time={total_time:.3f}s (load: {load_time:.3f}s)"
+            )
+
+            return image, item["label"]
+
+        except Exception as e:
+            total_time = time.time() - start_time
+            self.logger.error(
+                f"❌ データ取得エラー: idx={idx}, total_time={total_time:.3f}s, error={e}"
+            )
+            # 完全なエラー時は安全なダミーデータを返す
+            dummy_image = torch.zeros((3, 224, 224), dtype=torch.float32)
+            dummy_label = 0  # デフォルトラベル
+            return dummy_image, dummy_label
 
     def _load_frame(self, video_path: str, frame_number: int, video_id: str) -> np.ndarray | None:
         """
@@ -192,40 +429,184 @@ class SceneDataset(Dataset, LoggerMixin):
         Returns:
             画像データ（BGR）
         """
+        import time
+
+        # load_start = time.time()  # 未使用のため削除
+
         # キャッシュパスを生成
         cache_path = self.cache_dir / video_id / f"frame_{frame_number:06d}.jpg"
+        self.logger.debug(f"📁 キャッシュパス確認: {cache_path}")
 
-        # キャッシュから読み込み
+        # キャッシュから読み込み（優先）
         if cache_path.exists():
-            image = cv2.imread(str(cache_path))
-            if image is not None:
-                return image
+            try:
+                cache_load_start = time.time()
+                image = cv2.imread(str(cache_path))
+                cache_load_time = time.time() - cache_load_start
+
+                if image is not None and image.size > 0:
+                    # キャッシュから正常に読み込めた場合
+                    self.logger.debug(
+                        f"💾 キャッシュ読み込み成功: frame={frame_number}, time={cache_load_time:.3f}s"
+                    )
+                    return image
+                else:
+                    # 破損したキャッシュファイルを削除
+                    self.logger.warning(
+                        f"💥 破損キャッシュファイル削除: {cache_path}, time={cache_load_time:.3f}s"
+                    )
+                    cache_path.unlink(missing_ok=True)
+            except Exception as e:
+                cache_load_time = time.time() - cache_load_start
+                self.logger.warning(
+                    f"❌ キャッシュ読み込みエラー: {cache_path}, time={cache_load_time:.3f}s, error={e}"
+                )
+                # エラーのあるキャッシュファイルを削除
+                cache_path.unlink(missing_ok=True)
+        else:
+            self.logger.debug(f"📭 キャッシュファイル未存在: {cache_path}")
 
         # 動画から読み込み
+        video_load_start = time.time()
+        self.logger.info(f"🎬 動画からフレーム読み込み開始: frame={frame_number}")
+
+        # パスの正規化と存在確認
+        if not os.path.isabs(video_path):
+            # プロジェクトルートを基準にした絶対パスに変換
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            video_path = str(project_root / video_path)
+
+        # 元のパスが存在しない場合、代替パスを試す
         if not Path(video_path).exists():
-            self.logger.warning(f"動画ファイルが見つかりません: {video_path}")
-            return None
+            self.logger.debug(f"🔍 代替パス検索中: {video_path}")
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            alternative_paths = [
+                project_root / "web_interface" / "uploads" / f"{video_id}.mp4",
+                project_root / "uploads" / f"{video_id}.mp4",
+                project_root / f"{video_id}.mp4",
+            ]
 
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            self.logger.error(f"動画を開けません: {video_path}")
-            return None
+            found_path = None
+            for alt_path in alternative_paths:
+                if alt_path.exists():
+                    found_path = str(alt_path)
+                    break
 
-        try:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-            ret, frame = cap.read()
-
-            if ret and frame is not None:
-                # キャッシュに保存
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-                cv2.imwrite(str(cache_path), frame)
-                return frame
+            if found_path:
+                video_path = found_path
+                self.logger.info(f"✅ 代替パスを使用: {video_id} -> {video_path}")
             else:
-                self.logger.error(f"フレーム読み込み失敗: {video_path} frame={frame_number}")
+                self.logger.error(
+                    f"❌ 動画ファイルが見つかりません: {video_path} (video_id: {video_id})"
+                )
                 return None
 
+        # VideoCapture を取得（キャッシュ経由で高速化）
+        opencv_start = time.time()
+        cap = self._get_video_capture(video_path)
+        opencv_init_time = time.time() - opencv_start
+
+        if cap is None:
+            self.logger.error(
+                f"❌ VideoCapture取得失敗: {video_path}, init_time={opencv_init_time:.3f}s"
+            )
+            return None
+
+        self.logger.debug(f"📹 VideoCapture取得完了: init_time={opencv_init_time:.3f}s")
+
+        try:
+            # フレーム位置設定
+            seek_start = time.time()
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+            seek_time = time.time() - seek_start
+            self.logger.debug(
+                f"⏩ フレーム位置設定: frame={frame_number}, seek_time={seek_time:.3f}s"
+            )
+
+            # 複数回読み込みを試行（デコードエラー対策）
+            max_retries = 3
+            for retry in range(max_retries):
+                read_start = time.time()
+                ret, frame = cap.read()
+                read_time = time.time() - read_start
+
+                self.logger.debug(
+                    f"🎞️ フレーム読み込み試行 {retry + 1}/{max_retries}: ret={ret}, read_time={read_time:.3f}s"
+                )
+
+                if ret and frame is not None and frame.size > 0:
+                    # フレームが正常に読み込めた場合
+                    self.logger.info(
+                        f"✅ フレーム読み込み成功: frame={frame_number}, shape={frame.shape}, read_time={read_time:.3f}s"
+                    )
+
+                    # キャッシュに保存
+                    cache_save_start = time.time()
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    success = cv2.imwrite(str(cache_path), frame)
+                    cache_save_time = time.time() - cache_save_start
+
+                    if success:
+                        self.logger.debug(
+                            f"💾 キャッシュ保存成功: {cache_path}, save_time={cache_save_time:.3f}s"
+                        )
+                        return frame
+                    else:
+                        self.logger.warning(
+                            f"⚠️ キャッシュ保存失敗: {cache_path}, save_time={cache_save_time:.3f}s"
+                        )
+                        return frame  # 保存は失敗したがフレームは有効
+                elif retry < max_retries - 1:
+                    # リトライする場合は少し位置をずらす
+                    self.logger.warning(
+                        f"🔄 フレーム読み込みリトライ {retry + 1}/{max_retries}: frame={frame_number}, read_time={read_time:.3f}s"
+                    )
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, frame_number - 1 + retry))
+                    continue
+                else:
+                    # 最終試行でも失敗
+                    total_video_time = time.time() - video_load_start
+                    self.logger.error(
+                        f"❌ フレーム読み込み失敗（全試行終了）: {video_path} frame={frame_number}, total_time={total_video_time:.3f}s"
+                    )
+
+                    # ダミーフレームを返す（学習を継続するため）
+                    dummy_frame = self._create_dummy_frame()
+                    if dummy_frame is not None:
+                        self.logger.warning(f"🔧 ダミーフレームを使用: frame={frame_number}")
+                        return dummy_frame
+
+                    return None
+
+        except Exception as e:
+            total_video_time = time.time() - video_load_start
+            self.logger.error(
+                f"❌ フレーム読み込み中にエラー: {video_path} frame={frame_number}, total_time={total_video_time:.3f}s, error={e}"
+            )
+            # エラー時もダミーフレームで継続
+            dummy_frame = self._create_dummy_frame()
+            if dummy_frame is not None:
+                return dummy_frame
+            return None
         finally:
-            cap.release()
+            # VideoCapture はキャッシュで管理されるため解放しない
+            total_video_time = time.time() - video_load_start
+            self.logger.debug(f"📹 動画読み込み完了: total_video_time={total_video_time:.3f}s")
+
+    def _create_dummy_frame(self) -> np.ndarray | None:
+        """
+        エラー時のダミーフレームを作成
+
+        Returns:
+            ダミーフレーム（224x224のグレー画像）
+        """
+        try:
+            # 224x224の灰色画像を作成
+            dummy_frame = np.full((224, 224, 3), 128, dtype=np.uint8)  # 灰色
+            return dummy_frame
+        except Exception as e:
+            self.logger.error(f"ダミーフレーム作成エラー: {e}")
+            return None
 
     def get_class_weights(self) -> torch.Tensor:
         """
