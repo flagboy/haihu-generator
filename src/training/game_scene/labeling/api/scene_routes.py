@@ -1,28 +1,54 @@
 """
-対局画面ラベリングAPIルート
+対局画面ラベリングAPI（レガシー実装）
+
+このファイルは後方互換性のために残されています。
+新しい実装は routes/ ディレクトリ内のモジュールに分割されています。
+
+非推奨警告:
+- このファイルのグローバル変数とルートは非推奨です
+- 新しいAPIエンドポイントを使用してください
+- 移行ガイドは docs/API_ROUTES_ANALYSIS.md を参照してください
 """
 
 import base64
 import sqlite3
 import uuid
+import warnings
 from pathlib import Path
 
 import cv2
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Flask, jsonify, request
 
 from .....utils.logger import LoggerMixin, get_logger
 from ...core.game_scene_classifier import GameSceneClassifier
 from ..scene_labeling_session import SceneLabelingSession
 
-# ブループリント定義
-scene_labeling_bp = Blueprint("scene_labeling", __name__, url_prefix="/api/scene_labeling")
+# レガシーブループリント定義（非推奨）
+scene_labeling_bp = Blueprint(
+    "scene_labeling_legacy", __name__, url_prefix="/api/scene_labeling/legacy"
+)
 
-# グローバル変数でセッションを管理
+# グローバル変数でセッションを管理（非推奨）
 _sessions: dict[str, SceneLabelingSession] = {}
 _classifier = None
 
 # モジュールレベルのロガー
 _logger = get_logger(__name__)
+
+# 非推奨警告を一度だけ表示
+_deprecation_warned = False
+
+
+def _warn_deprecated():
+    """非推奨警告を表示"""
+    global _deprecation_warned
+    if not _deprecation_warned:
+        warnings.warn(
+            "scene_routes.pyのレガシーAPIは非推奨です。新しいAPIを使用してください。",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        _deprecation_warned = True
 
 
 class SceneLabelingAPI(LoggerMixin):
@@ -709,3 +735,49 @@ def list_sessions():
     sessions_info.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
 
     return jsonify({"sessions": sessions_info, "total": len(sessions_info)})
+
+
+def setup_scene_labeling_api(app: Flask, classifier=None, use_legacy=False):
+    """
+    対局画面ラベリングAPIをセットアップ
+
+    Args:
+        app: Flaskアプリケーション
+        classifier: GameSceneClassifier インスタンス（オプション）
+        use_legacy: レガシーAPIを使用するか（デフォルト: False）
+    """
+    if use_legacy:
+        # レガシーAPIの警告
+        _logger.warning("レガシーAPIを使用しています。新しいAPIへの移行を推奨します。")
+        _warn_deprecated()
+
+        # レガシーブループリントを登録
+        app.register_blueprint(scene_labeling_bp)
+
+        # グローバル分類器の設定
+        global _classifier
+        if classifier:
+            _classifier = classifier
+    else:
+        # 新しいAPIを使用
+        from .middleware.error_handler import register_error_handlers
+        from .routes import create_scene_labeling_blueprint
+
+        # 新しいBlueprintを登録
+        bp = create_scene_labeling_blueprint()
+        app.register_blueprint(bp)
+
+        # エラーハンドラーを登録
+        register_error_handlers(app)
+
+        # 自動ラベリングサービスの初期化（分類器が提供された場合）
+        if classifier:
+            from .routes.auto_label_routes import init_auto_label_service
+
+            init_auto_label_service(classifier)
+
+        _logger.info("新しいAPIエンドポイントをセットアップしました")
+
+
+# 後方互換性のためのエクスポート
+__all__ = ["scene_labeling_bp", "setup_scene_labeling_api"]
