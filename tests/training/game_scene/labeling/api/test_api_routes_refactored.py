@@ -166,14 +166,14 @@ class TestFrameRoutes:
 
     def test_get_frame(self, client, mock_session):
         """フレーム取得のテスト"""
-        # セッションバリデーター用にモック
+        # SessionServiceのグローバルインスタンスを直接モック
         with patch(
-            "src.training.game_scene.labeling.api.services.session_service.SessionService.session_exists"
+            "src.training.game_scene.labeling.api.routes.session_routes._session_service.session_exists"
         ) as mock_exists:
             mock_exists.return_value = True
 
             with patch(
-                "src.training.game_scene.labeling.api.services.session_service.SessionService.get_session"
+                "src.training.game_scene.labeling.api.routes.session_routes._session_service.get_session"
             ) as mock_get_session:
                 mock_get_session.return_value = mock_session
 
@@ -200,37 +200,37 @@ class TestFrameRoutes:
 
     def test_get_next_unlabeled_frame(self, client, mock_session):
         """次の未ラベルフレーム取得のテスト"""
-        # セッションバリデーター用にモック
+        # SessionServiceのグローバルインスタンスを直接モック
         with patch(
-            "src.training.game_scene.labeling.api.services.session_service.SessionService.session_exists"
+            "src.training.game_scene.labeling.api.routes.session_routes._session_service.session_exists"
         ) as mock_exists:
             mock_exists.return_value = True
 
             with patch(
-                "src.training.game_scene.labeling.api.services.session_service.SessionService.get_session"
+                "src.training.game_scene.labeling.api.routes.session_routes._session_service.get_session"
             ) as mock_get_session:
                 mock_get_session.return_value = mock_session
 
-            with patch(
-                "src.training.game_scene.labeling.api.services.frame_service.FrameService.get_next_unlabeled_frame"
-            ) as mock_get_next:
-                mock_get_next.return_value = {
-                    "frame_number": 200,
-                    "timestamp": 6.67,
-                    "image": "base64_encoded_image",
-                    "label": None,
-                    "confidence": None,
-                    "is_labeled": False,
-                }
+                with patch(
+                    "src.training.game_scene.labeling.api.services.frame_service.FrameService.get_next_unlabeled_frame"
+                ) as mock_get_next:
+                    mock_get_next.return_value = {
+                        "frame_number": 200,
+                        "timestamp": 6.67,
+                        "image": "base64_encoded_image",
+                        "label": None,
+                        "confidence": None,
+                        "is_labeled": False,
+                    }
 
-                response = client.get(
-                    "/api/scene_labeling/sessions/test-session-123/frames/next_unlabeled"
-                )
+                    response = client.get(
+                        "/api/scene_labeling/sessions/test-session-123/frames/next_unlabeled"
+                    )
 
-                assert response.status_code == 200
-                data = json.loads(response.data)
-                assert data["frame_number"] == 200
-                assert data["is_labeled"] is False
+                    assert response.status_code == 200
+                    data = json.loads(response.data)
+                    assert data["frame_number"] == 200
+                    assert data["is_labeled"] is False
 
 
 class TestLabelingRoutes:
@@ -238,51 +238,61 @@ class TestLabelingRoutes:
 
     def test_label_frame(self, client, mock_session):
         """フレームラベル付けのテスト"""
-        # セッションバリデーター用にモック
+        # SessionServiceのグローバルインスタンスを直接モック
         with patch(
-            "src.training.game_scene.labeling.api.services.session_service.SessionService.get_session"
-        ) as mock_get_session:
-            mock_get_session.return_value = mock_session
+            "src.training.game_scene.labeling.api.routes.session_routes._session_service.session_exists"
+        ) as mock_exists:
+            mock_exists.return_value = True
 
             with patch(
-                "src.training.game_scene.labeling.api.services.labeling_service.LabelingService.label_frame"
-            ) as mock_label:
-                mock_label.return_value = {
-                    "success": True,
-                    "frame_number": 100,
-                    "label": "game",
-                    "confidence": 0.95,
-                }
+                "src.training.game_scene.labeling.api.routes.session_routes._session_service.get_session"
+            ) as mock_get_session:
+                mock_get_session.return_value = mock_session
 
-                response = client.post(
-                    "/api/scene_labeling/sessions/test-session-123/label",
-                    json={"frame_number": 100, "label": "game", "confidence": 0.95},
-                    content_type="application/json",
-                )
+                with patch(
+                    "src.training.game_scene.labeling.api.services.labeling_service.LabelingService.label_frame"
+                ) as mock_label:
+                    mock_label.return_value = {
+                        "success": True,
+                        "frame_number": 100,
+                        "label": "game",
+                        "confidence": 0.95,
+                    }
 
-                assert response.status_code == 200
-                data = json.loads(response.data)
-                assert data["success"] is True
+                    response = client.post(
+                        "/api/scene_labeling/sessions/test-session-123/label",
+                        json={"frame_number": 100, "label": "game", "confidence": 0.95},
+                        content_type="application/json",
+                    )
+
+                    assert response.status_code == 200
+                    data = json.loads(response.data)
+                    assert data["success"] is True
 
     def test_batch_label_frames(self, client, mock_session):
         """バッチラベル付けのテスト"""
-        # セッションバリデーター用にモック
+        # SessionServiceのグローバルインスタンスを直接モック
         with patch(
-            "src.training.game_scene.labeling.api.services.session_service.SessionService.get_session"
-        ) as mock_get_session:
-            mock_get_session.return_value = mock_session
+            "src.training.game_scene.labeling.api.routes.session_routes._session_service.session_exists"
+        ) as mock_exists:
+            mock_exists.return_value = True
 
             with patch(
-                "src.training.game_scene.labeling.api.services.labeling_service.LabelingService.batch_label_frames"
-            ) as mock_batch:
-                mock_batch.return_value = {
-                    "success": True,
-                    "results": [
-                        {"success": True, "frame_number": 100, "label": "game"},
-                        {"success": True, "frame_number": 101, "label": "menu"},
-                    ],
-                    "summary": {"total": 2, "success": 2, "error": 0},
-                }
+                "src.training.game_scene.labeling.api.routes.session_routes._session_service.get_session"
+            ) as mock_get_session:
+                mock_get_session.return_value = mock_session
+
+                with patch(
+                    "src.training.game_scene.labeling.api.services.labeling_service.LabelingService.batch_label_frames"
+                ) as mock_batch:
+                    mock_batch.return_value = {
+                        "success": True,
+                        "results": [
+                            {"success": True, "frame_number": 100, "label": "game"},
+                            {"success": True, "frame_number": 101, "label": "menu"},
+                        ],
+                        "summary": {"total": 2, "success": 2, "error": 0},
+                    }
 
                 response = client.post(
                     "/api/scene_labeling/sessions/test-session-123/batch_label",
@@ -308,65 +318,77 @@ class TestAutoLabelRoutes:
         # 分類器を初期化
         init_auto_label_service(mock_classifier)
 
-        # セッションバリデーター用にモック
+        # SessionServiceのグローバルインスタンスを直接モック
         with patch(
-            "src.training.game_scene.labeling.api.services.session_service.SessionService.get_session"
-        ) as mock_get_session:
-            mock_get_session.return_value = mock_session
+            "src.training.game_scene.labeling.api.routes.session_routes._session_service.session_exists"
+        ) as mock_exists:
+            mock_exists.return_value = True
 
             with patch(
-                "src.training.game_scene.labeling.api.services.auto_label_service.AutoLabelService.auto_label_frames"
-            ) as mock_auto_label:
-                mock_auto_label.return_value = {
-                    "success": True,
-                    "summary": {
-                        "processed": 10,
-                        "labeled": 8,
-                        "skipped": 1,
-                        "error": 1,
-                        "success_rate": 0.8,
-                    },
-                    "results": [],
-                }
+                "src.training.game_scene.labeling.api.routes.session_routes._session_service.get_session"
+            ) as mock_get_session:
+                mock_get_session.return_value = mock_session
 
-                response = client.post(
-                    "/api/scene_labeling/sessions/test-session-123/auto_label",
-                    json={"confidence_threshold": 0.8, "max_frames": 10},
-                    content_type="application/json",
-                )
+                with patch(
+                    "src.training.game_scene.labeling.api.services.auto_label_service.AutoLabelService.auto_label_frames"
+                ) as mock_auto_label:
+                    mock_auto_label.return_value = {
+                        "success": True,
+                        "summary": {
+                            "processed": 10,
+                            "labeled": 8,
+                            "skipped": 1,
+                            "error": 1,
+                            "success_rate": 0.8,
+                        },
+                        "results": [],
+                    }
 
-                assert response.status_code == 200
-                data = json.loads(response.data)
-                assert data["success"] is True
+                    response = client.post(
+                        "/api/scene_labeling/sessions/test-session-123/auto_label",
+                        json={"confidence_threshold": 0.8, "max_frames": 10},
+                        content_type="application/json",
+                    )
+
+                    assert response.status_code == 200
+                    data = json.loads(response.data)
+                    assert data["success"] is True
 
     def test_predict_frame(self, client, mock_session, mock_classifier):
         """フレーム予測のテスト"""
         init_auto_label_service(mock_classifier)
 
-        # セッションバリデーター用にモック
+        # SessionServiceのグローバルインスタンスを直接モック
         with patch(
-            "src.training.game_scene.labeling.api.services.session_service.SessionService.get_session"
-        ) as mock_get_session:
-            mock_get_session.return_value = mock_session
+            "src.training.game_scene.labeling.api.routes.session_routes._session_service.session_exists"
+        ) as mock_exists:
+            mock_exists.return_value = True
 
             with patch(
-                "src.training.game_scene.labeling.api.services.auto_label_service.AutoLabelService.predict_frame"
-            ) as mock_predict:
-                mock_predict.return_value = {
-                    "frame_number": 100,
-                    "prediction": {
-                        "label": "game",
-                        "confidence": 0.95,
-                        "probabilities": {"game": 0.95, "menu": 0.03, "loading": 0.02},
-                    },
-                }
+                "src.training.game_scene.labeling.api.routes.session_routes._session_service.get_session"
+            ) as mock_get_session:
+                mock_get_session.return_value = mock_session
 
-                response = client.get("/api/scene_labeling/sessions/test-session-123/predict/100")
+                with patch(
+                    "src.training.game_scene.labeling.api.services.auto_label_service.AutoLabelService.predict_frame"
+                ) as mock_predict:
+                    mock_predict.return_value = {
+                        "frame_number": 100,
+                        "prediction": {
+                            "label": "game",
+                            "confidence": 0.95,
+                            "probabilities": {"game": 0.95, "menu": 0.03, "loading": 0.02},
+                        },
+                    }
 
-                assert response.status_code == 200
-                data = json.loads(response.data)
-                assert data["frame_number"] == 100
-                assert data["prediction"]["label"] == "game"
+                    response = client.get(
+                        "/api/scene_labeling/sessions/test-session-123/predict/100"
+                    )
+
+                    assert response.status_code == 200
+                    data = json.loads(response.data)
+                    assert data["frame_number"] == 100
+                    assert data["prediction"]["label"] == "game"
 
 
 class TestErrorHandling:
