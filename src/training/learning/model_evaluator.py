@@ -52,6 +52,11 @@ class ModelEvaluator(BaseEvaluator):
         """
         super().__init__(config_manager or ConfigManager())
 
+        # 評価サブディレクトリを作成
+        (self.evaluation_dir / "metrics").mkdir(parents=True, exist_ok=True)
+        (self.evaluation_dir / "reports").mkdir(parents=True, exist_ok=True)
+        (self.evaluation_dir / "visualizations").mkdir(parents=True, exist_ok=True)
+
         # 分割されたコンポーネントを初期化
         self.metrics_calculator = MetricsCalculator()
         self.confusion_analyzer = ConfusionAnalyzer()
