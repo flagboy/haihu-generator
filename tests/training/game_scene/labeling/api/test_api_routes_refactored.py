@@ -402,7 +402,7 @@ class TestErrorHandling:
             content_type="application/json",
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422  # Flask-RESTXのバリデーションエラーは422
         data = json.loads(response.data)
         assert "error" in data
 

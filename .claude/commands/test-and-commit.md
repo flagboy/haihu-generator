@@ -1,0 +1,1 @@
+/Users/flagboy/claude-global-commands/test-and-commit.md

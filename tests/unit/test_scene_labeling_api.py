@@ -13,7 +13,6 @@ import numpy as np
 
 from src.training.game_scene.labeling.api.scene_routes import (
     _sessions,
-    scene_labeling_bp,
 )
 
 
@@ -46,8 +45,10 @@ class TestSceneLabelingAPI(unittest.TestCase):
         # Flaskアプリのテストクライアントを作成
         from flask import Flask
 
+        from src.training.game_scene.labeling.api.scene_routes import setup_scene_labeling_api
+
         self.app = Flask(__name__)
-        self.app.register_blueprint(scene_labeling_bp)
+        setup_scene_labeling_api(self.app, use_legacy=True)  # レガシーAPIを使用
         self.client = self.app.test_client()
 
     def tearDown(self):
@@ -64,7 +65,7 @@ class TestSceneLabelingAPI(unittest.TestCase):
         """新しいビデオのセッション作成テスト"""
         # セッション作成リクエスト
         response = self.client.post(
-            "/api/scene_labeling/sessions",
+            "/api/scene_labeling/legacy/sessions",
             data=json.dumps({"video_path": str(self.test_video_path)}),
             content_type="application/json",
         )
@@ -107,7 +108,7 @@ class TestSceneLabelingAPI(unittest.TestCase):
 
         # セッション作成リクエスト
         response = self.client.post(
-            "/api/scene_labeling/sessions",
+            "/api/scene_labeling/legacy/sessions",
             data=json.dumps({"video_path": str(self.test_video_path)}),
             content_type="application/json",
         )
@@ -128,7 +129,7 @@ class TestSceneLabelingAPI(unittest.TestCase):
         """メモリ上に既存セッションがある場合のテスト"""
         # 最初のセッション作成
         response1 = self.client.post(
-            "/api/scene_labeling/sessions",
+            "/api/scene_labeling/legacy/sessions",
             data=json.dumps({"video_path": str(self.test_video_path)}),
             content_type="application/json",
         )
@@ -137,7 +138,7 @@ class TestSceneLabelingAPI(unittest.TestCase):
 
         # 同じビデオで2回目のセッション作成
         response2 = self.client.post(
-            "/api/scene_labeling/sessions",
+            "/api/scene_labeling/legacy/sessions",
             data=json.dumps({"video_path": str(self.test_video_path)}),
             content_type="application/json",
         )
@@ -154,14 +155,14 @@ class TestSceneLabelingAPI(unittest.TestCase):
         """セッション削除のテスト"""
         # セッション作成
         response = self.client.post(
-            "/api/scene_labeling/sessions",
+            "/api/scene_labeling/legacy/sessions",
             data=json.dumps({"video_path": str(self.test_video_path)}),
             content_type="application/json",
         )
         session_id = json.loads(response.data)["session_id"]
 
         # セッション削除
-        response = self.client.delete(f"/api/scene_labeling/sessions/{session_id}")
+        response = self.client.delete(f"/api/scene_labeling/legacy/sessions/{session_id}")
         self.assertEqual(response.status_code, 200)
 
         # メモリから削除されていることを確認
