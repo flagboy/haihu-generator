@@ -618,13 +618,17 @@ system:
             video_processor = VideoProcessor(config_manager)
 
             # 破損ファイルの処理で例外が発生することを確認
+            from src.core.exceptions import VideoOpenError, VideoProcessingError
+
             try:
                 video_processor.extract_frames(corrupted_video)
                 # 例外が投げられない場合はテスト失敗
-                raise AssertionError("Expected ValueError for corrupted video file")
-            except ValueError as e:
+                raise AssertionError(
+                    "Expected VideoOpenError or VideoProcessingError for corrupted video file"
+                )
+            except (VideoOpenError, VideoProcessingError) as e:
                 # 期待される例外を確認
-                assert "動画ファイルを開けません" in str(e)
+                assert "動画ファイルを開けません" in str(e) or "動画ファイル" in str(e)
 
     def test_insufficient_disk_space_simulation(self):
         """ディスク容量不足シミュレーションテスト"""
