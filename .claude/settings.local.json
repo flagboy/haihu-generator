@@ -1,6 +1,17 @@
 {
   "permissions": {
     "allow": [
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr:*)",
+      "Bash(uv add:*)",
+      "Bash(git reset:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh api:*)",
+      "Bash(grep:*)",
       "Bash(uv run ruff check:*)"
     ],
     "deny": []

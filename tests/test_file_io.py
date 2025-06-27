@@ -148,6 +148,8 @@ class TestFileIOHelper:
 
     def test_safe_write_failure_cleanup(self, temp_dir, monkeypatch):
         """安全な書き込みの失敗時クリーンアップテスト"""
+        from src.core.exceptions import FileWriteError
+
         file_path = os.path.join(temp_dir, "fail_write.txt")
 
         # 書き込み時にエラーを発生させる
@@ -160,7 +162,7 @@ class TestFileIOHelper:
         monkeypatch.setattr("builtins.open", mock_write)
 
         # エラーが発生することを確認
-        with pytest.raises(IOError):
+        with pytest.raises(FileWriteError):
             FileIOHelper.safe_write(file_path, "content")
 
         # 一時ファイルが削除されていることを確認
@@ -182,16 +184,18 @@ class TestFileIOHelper:
 
     def test_load_nonexistent_file(self):
         """存在しないファイルの読み込みテスト"""
+        from src.core.exceptions import FileReadError
+
         # JSON
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileReadError):
             FileIOHelper.load_json("/nonexistent/file.json")
 
         # YAML
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileReadError):
             FileIOHelper.load_yaml("/nonexistent/file.yaml")
 
         # Pickle
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileReadError):
             FileIOHelper.load_pickle("/nonexistent/file.pkl")
 
     def test_pathlib_compatibility(self, temp_dir, sample_data):
