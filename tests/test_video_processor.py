@@ -122,7 +122,9 @@ class TestVideoProcessor:
 
     def test_get_video_info_file_not_found(self):
         """存在しない動画ファイルのテスト"""
-        with pytest.raises(FileNotFoundError):
+        from src.core.exceptions import VideoOpenError
+
+        with pytest.raises(VideoOpenError):
             self.processor.get_video_info("non_existent_video.mp4")
 
     @patch("cv2.VideoCapture")
@@ -138,7 +140,9 @@ class TestVideoProcessor:
             temp_path = temp_file.name
 
         try:
-            with pytest.raises(ValueError):
+            from src.core.exceptions import VideoOpenError
+
+            with pytest.raises(VideoOpenError):
                 self.processor.get_video_info(temp_path)
 
         finally:
