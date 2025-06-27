@@ -5,7 +5,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from ....utils.logger import LoggerMixin
 from ..database import DatabaseConnection
@@ -13,7 +13,7 @@ from ..database import DatabaseConnection
 T = TypeVar("T")
 
 
-class BaseRepository(ABC, Generic[T], LoggerMixin):
+class BaseRepository[T](ABC, LoggerMixin):
     """基底リポジトリクラス"""
 
     def __init__(self, connection: DatabaseConnection):
