@@ -120,11 +120,21 @@ class TestRedDoraAugmentor:
         # 指定した数のバリエーションが生成されることを確認
         assert len(variations) == 10
 
-        # 各バリエーションが赤みを帯びていることを確認
+        # 各バリエーションが元の画像よりも赤みを帯びていることを確認
+        # 元画像の赤色比率を計算（約0.333）
+        original_stats = augmentor._calculate_color_statistics(test_tile)
+        original_red_ratio = original_stats["red_ratio"]
+
+        # 少なくとも半数のバリエーションで赤色比率が増加していることを確認
+        red_increased_count = 0
         for var in variations:
             stats = var["color_stats"]
-            # 赤色の割合が増加していることを確認
-            assert stats["red_ratio"] > 0.1
+            # 赤色の割合が元画像より増加している、または明らかに赤い（0.35以上）
+            if stats["red_ratio"] > original_red_ratio or stats["red_ratio"] > 0.35:
+                red_increased_count += 1
+
+        # 少なくとも半数で赤色が強調されていることを確認
+        assert red_increased_count >= len(variations) // 2
 
     def test_detect_red_dora(self):
         """赤ドラ検出のテスト"""
