@@ -9,6 +9,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ..core import (
+    FrameExtractionError,
+    VideoCodecError,
+    VideoOpenError,
+    VideoProcessingError,
+)
 from ..utils.config import ConfigManager
 from ..utils.logger import LoggerMixin
 from ..utils.video_codec_validator import VideoCodecValidator
@@ -126,7 +132,10 @@ class VideoProcessor(LoggerMixin):
         """
         video_path = Path(video_path)
         if not video_path.exists():
-            raise FileNotFoundError(f"動画ファイルが見つかりません: {video_path}")
+            raise VideoOpenError(
+                f"動画ファイルが見つかりません: {video_path}",
+                details={"path": str(video_path), "exists": False},
+            )
 
         # 動画ファイルのコーデックを検証
         self.logger.info("動画ファイルのコーデックを検証中...")
@@ -138,9 +147,13 @@ class VideoProcessor(LoggerMixin):
 
             # 自動変換を試みる（オプション）
             if validation_result["codec_info"] and not validation_result["opencv_test"]["can_open"]:
-                raise ValueError(
-                    f"動画ファイルを開けません。{validation_result['recommendation']}\n"
-                    f"検出されたコーデック: {validation_result.get('detected_codec', '不明')}"
+                raise VideoCodecError(
+                    f"動画ファイルを開けません。{validation_result['recommendation']}",
+                    details={
+                        "detected_codec": validation_result.get("detected_codec", "不明"),
+                        "validation_result": validation_result,
+                        "path": str(video_path),
+                    },
                 )
         else:
             self.logger.info(
@@ -160,7 +173,15 @@ class VideoProcessor(LoggerMixin):
         # OpenCVで動画を開く
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
-            raise ValueError(f"動画ファイルを開けません: {video_path}")
+            raise VideoOpenError(
+                f"動画ファイルを開けません: {video_path}",
+                details={
+                    "path": str(video_path),
+                    "codec_supported": validation_result.get("valid", False)
+                    if "validation_result" in locals()
+                    else "unknown",
+                },
+            )
 
         try:
             # 動画情報を取得
@@ -242,17 +263,37 @@ class VideoProcessor(LoggerMixin):
                     output_path = output_dir / filename
 
                     # フレームを保存
-                    if self.output_format.lower() in ["jpg", "jpeg"]:
-                        cv2.imwrite(
-                            str(output_path),
-                            processed_frame,
-                            [cv2.IMWRITE_JPEG_QUALITY, self.quality],
-                        )
-                    else:
-                        cv2.imwrite(str(output_path), processed_frame)
+                    try:
+                        if self.output_format.lower() in ["jpg", "jpeg"]:
+                            success = cv2.imwrite(
+                                str(output_path),
+                                processed_frame,
+                                [cv2.IMWRITE_JPEG_QUALITY, self.quality],
+                            )
+                        else:
+                            success = cv2.imwrite(str(output_path), processed_frame)
 
-                    extracted_files.append(str(output_path))
-                    extracted_count += 1
+                        if not success:
+                            raise FrameExtractionError(
+                                f"フレームの保存に失敗しました: {output_path}",
+                                details={
+                                    "output_path": str(output_path),
+                                    "frame_number": frame_count,
+                                    "format": self.output_format,
+                                },
+                            )
+
+                        extracted_files.append(str(output_path))
+                        extracted_count += 1
+                    except cv2.error as e:
+                        raise FrameExtractionError(
+                            f"フレームの保存中にOpenCVエラーが発生しました: {output_path}",
+                            details={
+                                "output_path": str(output_path),
+                                "frame_number": frame_count,
+                                "opencv_error": str(e),
+                            },
+                        ) from e
 
                 frame_count += 1
 
@@ -269,8 +310,25 @@ class VideoProcessor(LoggerMixin):
             )
             return extracted_files
 
+        except VideoProcessingError:
+            # すでに適切な例外が発生している場合はそのまま再発生
+            raise
+        except Exception as e:
+            # 予期しない例外をVideoProcessingErrorでラップ
+            raise VideoProcessingError(
+                f"フレーム抽出中に予期しないエラーが発生しました: {video_path}",
+                details={
+                    "path": str(video_path),
+                    "output_dir": str(output_dir),
+                    "extracted_count": extracted_count if "extracted_count" in locals() else 0,
+                    "frame_count": frame_count if "frame_count" in locals() else 0,
+                    "original_error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            ) from e
         finally:
-            cap.release()
+            if "cap" in locals():
+                cap.release()
 
     def preprocess_frame(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -373,13 +431,18 @@ class VideoProcessor(LoggerMixin):
         """
         video_path = Path(video_path)
         if not video_path.exists():
-            raise FileNotFoundError(f"動画ファイルが見つかりません: {video_path}")
+            raise VideoOpenError(
+                f"動画ファイルが見つかりません: {video_path}",
+                details={"path": str(video_path), "exists": False},
+            )
 
         self.logger.info(f"シーン変更検出開始: {video_path}")
 
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
-            raise ValueError(f"動画ファイルを開けません: {video_path}")
+            raise VideoOpenError(
+                f"動画ファイルを開けません: {video_path}", details={"path": str(video_path)}
+            )
 
         try:
             fps = cap.get(cv2.CAP_PROP_FPS)
@@ -414,8 +477,25 @@ class VideoProcessor(LoggerMixin):
             self.logger.info(f"シーン変更検出完了: {len(scene_changes)}箇所")
             return scene_changes
 
+        except VideoProcessingError:
+            # すでに適切な例外が発生している場合はそのまま再発生
+            raise
+        except Exception as e:
+            # 予期しない例外をVideoProcessingErrorでラップ
+            raise VideoProcessingError(
+                f"シーン変更検出中に予期しないエラーが発生しました: {video_path}",
+                details={
+                    "path": str(video_path),
+                    "threshold": threshold,
+                    "detected_changes": len(scene_changes) if "scene_changes" in locals() else 0,
+                    "frame_count": frame_count if "frame_count" in locals() else 0,
+                    "original_error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            ) from e
         finally:
-            cap.release()
+            if "cap" in locals():
+                cap.release()
 
     def filter_relevant_frames(self, frame_paths: list[str]) -> list[str]:
         """
@@ -435,13 +515,23 @@ class VideoProcessor(LoggerMixin):
         filtered_frames = []
 
         for frame_path in frame_paths:
-            frame = cv2.imread(frame_path)
-            if frame is None:
-                continue
+            try:
+                frame = cv2.imread(frame_path)
+                if frame is None:
+                    self.logger.warning(f"フレームを読み込めません: {frame_path}")
+                    continue
 
-            # 基本的な品質チェック
-            if self._is_valid_frame(frame):
-                filtered_frames.append(frame_path)
+                # 基本的な品質チェック
+                if self._is_valid_frame(frame):
+                    filtered_frames.append(frame_path)
+            except cv2.error as e:
+                self.logger.error(
+                    f"フレーム読み込み中にOpenCVエラーが発生しました: {frame_path} - {e}"
+                )
+                continue
+            except Exception as e:
+                self.logger.error(f"フレーム処理中にエラーが発生しました: {frame_path} - {e}")
+                continue
 
         self.logger.info(f"関連フレームフィルタリング完了: {len(filtered_frames)}フレーム")
         return filtered_frames
@@ -456,19 +546,26 @@ class VideoProcessor(LoggerMixin):
         Returns:
             有効かどうか
         """
-        # 基本的な品質チェック
-        if frame is None or frame.size == 0:
-            return False
+        try:
+            # 基本的な品質チェック
+            if frame is None or frame.size == 0:
+                return False
 
-        # 極端に暗い/明るいフレームを除外
-        mean_brightness = np.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
-        if mean_brightness < 20 or mean_brightness > 235:
-            return False
+            # 極端に暗い/明るいフレームを除外
+            mean_brightness = np.mean(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+            if mean_brightness < 20 or mean_brightness > 235:
+                return False
 
-        # ブラー検出（簡易版）
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        return laplacian_var >= 100  # 閾値は調整が必要
+            # ブラー検出（簡易版）
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+            return laplacian_var >= 100  # 閾値は調整が必要
+        except cv2.error as e:
+            self.logger.error(f"フレーム品質チェック中にOpenCVエラーが発生しました: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"フレーム品質チェック中にエラーが発生しました: {e}")
+            return False
 
     def get_video_info(self, video_path: str) -> dict:
         """
@@ -482,11 +579,16 @@ class VideoProcessor(LoggerMixin):
         """
         video_path = Path(video_path)
         if not video_path.exists():
-            raise FileNotFoundError(f"動画ファイルが見つかりません: {video_path}")
+            raise VideoOpenError(
+                f"動画ファイルが見つかりません: {video_path}",
+                details={"path": str(video_path), "exists": False},
+            )
 
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
-            raise ValueError(f"動画ファイルを開けません: {video_path}")
+            raise VideoOpenError(
+                f"動画ファイルを開けません: {video_path}", details={"path": str(video_path)}
+            )
 
         try:
             info = {
@@ -504,5 +606,19 @@ class VideoProcessor(LoggerMixin):
 
             return info
 
+        except VideoProcessingError:
+            # すでに適切な例外が発生している場合はそのまま再発生
+            raise
+        except Exception as e:
+            # 予期しない例外をVideoProcessingErrorでラップ
+            raise VideoProcessingError(
+                f"動画情報の取得中に予期しないエラーが発生しました: {video_path}",
+                details={
+                    "path": str(video_path),
+                    "original_error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            ) from e
         finally:
-            cap.release()
+            if "cap" in locals():
+                cap.release()

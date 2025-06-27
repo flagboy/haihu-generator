@@ -2,6 +2,7 @@
 ファイル入出力のための共通ユーティリティ
 """
 
+import contextlib
 import json
 import logging
 import pickle
@@ -9,6 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from ..core import (
+    FileFormatError,
+    FileReadError,
+    FileWriteError,
+    create_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +51,22 @@ class FileIOHelper:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, **json_kwargs)
             logger.debug(f"JSON saved to {path}")
-        except Exception as e:
-            logger.error(f"Failed to save JSON to {path}: {e}")
-            raise
+        except OSError as e:
+            error_context = create_context(
+                path=path, data_size=len(str(data)), pretty=pretty, ensure_ascii=ensure_ascii
+            )
+            raise FileWriteError(
+                f"JSONファイルの保存に失敗しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
+        except (TypeError, ValueError) as e:
+            error_context = create_context(
+                path=path, data_type=type(data).__name__, pretty=pretty, ensure_ascii=ensure_ascii
+            )
+            raise FileFormatError(
+                f"データをJSON形式に変換できません: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
 
     @staticmethod
     def load_json(path: str | Path) -> dict[str, Any]:
@@ -65,9 +86,23 @@ class FileIOHelper:
                 data = json.load(f)
             logger.debug(f"JSON loaded from {path}")
             return data
-        except Exception as e:
-            logger.error(f"Failed to load JSON from {path}: {e}")
-            raise
+        except FileNotFoundError as e:
+            raise FileReadError(
+                f"JSONファイルが見つかりません: {path}",
+                details={"path": str(path), "exists": path.exists()},
+            ) from e
+        except OSError as e:
+            error_context = create_context(path=path)
+            raise FileReadError(
+                f"JSONファイルの読み込みに失敗しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
+        except json.JSONDecodeError as e:
+            error_context = create_context(path=path, line=e.lineno, column=e.colno, position=e.pos)
+            raise FileFormatError(
+                f"無効なJSON形式です: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
 
     @staticmethod
     def save_yaml(data: dict[str, Any], path: str | Path, default_flow_style: bool = False) -> None:
@@ -92,9 +127,22 @@ class FileIOHelper:
                     sort_keys=False,
                 )
             logger.debug(f"YAML saved to {path}")
-        except Exception as e:
-            logger.error(f"Failed to save YAML to {path}: {e}")
-            raise
+        except OSError as e:
+            error_context = create_context(
+                path=path, data_size=len(str(data)), default_flow_style=default_flow_style
+            )
+            raise FileWriteError(
+                f"YAMLファイルの保存に失敗しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
+        except yaml.YAMLError as e:
+            error_context = create_context(
+                path=path, data_type=type(data).__name__, default_flow_style=default_flow_style
+            )
+            raise FileFormatError(
+                f"データをYAML形式に変換できません: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
 
     @staticmethod
     def load_yaml(path: str | Path) -> dict[str, Any]:
@@ -114,9 +162,23 @@ class FileIOHelper:
                 data = yaml.safe_load(f)
             logger.debug(f"YAML loaded from {path}")
             return data
-        except Exception as e:
-            logger.error(f"Failed to load YAML from {path}: {e}")
-            raise
+        except FileNotFoundError as e:
+            raise FileReadError(
+                f"YAMLファイルが見つかりません: {path}",
+                details={"path": str(path), "exists": path.exists()},
+            ) from e
+        except OSError as e:
+            error_context = create_context(path=path)
+            raise FileReadError(
+                f"YAMLファイルの読み込みに失敗しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
+        except yaml.YAMLError as e:
+            error_context = create_context(path=path)
+            raise FileFormatError(
+                f"無効なYAML形式です: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
 
     @staticmethod
     def save_pickle(data: Any, path: str | Path) -> None:
@@ -134,9 +196,18 @@ class FileIOHelper:
             with open(path, "wb") as f:
                 pickle.dump(data, f)
             logger.debug(f"Pickle saved to {path}")
-        except Exception as e:
-            logger.error(f"Failed to save pickle to {path}: {e}")
-            raise
+        except OSError as e:
+            error_context = create_context(path=path, data_type=type(data).__name__)
+            raise FileWriteError(
+                f"Pickleファイルの保存に失敗しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
+        except (pickle.PicklingError, TypeError) as e:
+            error_context = create_context(path=path, data_type=type(data).__name__)
+            raise FileFormatError(
+                f"データをPickle形式に変換できません: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
 
     @staticmethod
     def load_pickle(path: str | Path) -> Any:
@@ -156,9 +227,23 @@ class FileIOHelper:
                 data = pickle.load(f)
             logger.debug(f"Pickle loaded from {path}")
             return data
-        except Exception as e:
-            logger.error(f"Failed to load pickle from {path}: {e}")
-            raise
+        except FileNotFoundError as e:
+            raise FileReadError(
+                f"Pickleファイルが見つかりません: {path}",
+                details={"path": str(path), "exists": path.exists()},
+            ) from e
+        except OSError as e:
+            error_context = create_context(path=path)
+            raise FileReadError(
+                f"Pickleファイルの読み込みに失敗しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
+        except (pickle.UnpicklingError, ValueError, EOFError) as e:
+            error_context = create_context(path=path)
+            raise FileFormatError(
+                f"無効なPickle形式または破損したファイルです: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
 
     @staticmethod
     def ensure_directory(path: str | Path) -> Path:
@@ -204,9 +289,35 @@ class FileIOHelper:
             temp_path.replace(path)
             logger.debug(f"File safely written to {path}")
 
+        except OSError as e:
+            # エラー時は一時ファイルを削除
+            if temp_path.exists():
+                with contextlib.suppress(Exception):
+                    temp_path.unlink()  # 一時ファイルの削除に失敗しても無視
+
+            error_context = create_context(
+                path=path,
+                mode=mode,
+                encoding=encoding,
+                content_size=len(content) if isinstance(content, str | bytes) else "unknown",
+            )
+            raise FileWriteError(
+                f"ファイルの安全な書き込みに失敗しました: {path}",
+                details={
+                    "original_error": str(e),
+                    "error_type": type(e).__name__,
+                    "temp_path": str(temp_path),
+                    **error_context,
+                },
+            ) from e
         except Exception as e:
             # エラー時は一時ファイルを削除
             if temp_path.exists():
-                temp_path.unlink()
-            logger.error(f"Failed to write file to {path}: {e}")
-            raise
+                with contextlib.suppress(Exception):
+                    temp_path.unlink()
+
+            error_context = create_context(path=path, mode=mode, encoding=encoding)
+            raise FileWriteError(
+                f"予期しないエラーが発生しました: {path}",
+                details={"original_error": str(e), "error_type": type(e).__name__, **error_context},
+            ) from e
