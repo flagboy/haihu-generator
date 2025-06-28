@@ -15,7 +15,8 @@
       "Bash(uv run ruff check:*)",
       "Bash(source:*)",
       "Bash(brew install:*)",
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }
