@@ -40,6 +40,8 @@ dependencies = [
     "requests>=2.32.4",
     "urllib3>=2.5.0",
     "python-magic>=0.4.27",
+    "structlog>=25.4.0",
+    "python-json-logger>=3.3.0",
 ]
 
 [dependency-groups]
