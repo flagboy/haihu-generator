@@ -153,42 +153,60 @@ function createVideoListItem(video) {
     const item = document.createElement('div');
     item.className = 'list-group-item';
 
-    item.innerHTML = `
-        <div class="row align-items-center">
-            <div class="col-md-3">
-                <img src="${video.thumbnail_path || '/static/images/video-placeholder.png'}"
-                     class="video-thumbnail" alt="動画サムネイル">
-            </div>
-            <div class="col-md-6">
-                <h6 class="mb-1">${video.name}</h6>
-                <div class="file-info">
-                    <div>解像度: ${video.width}x${video.height}</div>
-                    <div>時間: ${formatDuration(video.duration)}</div>
-                    <div>FPS: ${video.fps.toFixed(1)}</div>
-                    <div>サイズ: ${formatFileSize(video.file_size || 0)}</div>
-                </div>
-                <small class="text-muted">
-                    アップロード: ${formatDateTime(video.upload_time)}
-                </small>
-            </div>
-            <div class="col-md-3">
-                <div class="mb-2">
-                    <small class="text-muted">フレーム数</small>
-                    <div class="fw-bold">${video.extracted_frames || 0}</div>
-                </div>
-                <div class="btn-group-vertical w-100">
-                    <button class="btn btn-sm btn-outline-primary"
-                            onclick="showVideoDetail('${video.id}')">
-                        <i class="fas fa-eye"></i> 詳細
-                    </button>
-                    <button class="btn btn-sm btn-outline-info"
-                            onclick="extractFrames('${video.id}')">
-                        <i class="fas fa-images"></i> フレーム抽出
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
+    // セキュアなDOM構築
+    const rowDiv = SecurityUtils.createElement('div', {className: 'row align-items-center'}, [
+        // サムネイル
+        SecurityUtils.createElement('div', {className: 'col-md-3'}, [
+            SecurityUtils.createElement('img', {
+                src: SecurityUtils.sanitizeUrl(video.thumbnail_path || '/static/images/video-placeholder.png'),
+                className: 'video-thumbnail',
+                alt: '動画サムネイル'
+            })
+        ]),
+        // 動画情報
+        SecurityUtils.createElement('div', {className: 'col-md-6'}, [
+            SecurityUtils.createElement('h6', {className: 'mb-1'}, SecurityUtils.escapeHtml(video.name)),
+            SecurityUtils.createElement('div', {className: 'file-info'}, [
+                SecurityUtils.createElement('div', {}, `解像度: ${video.width}x${video.height}`),
+                SecurityUtils.createElement('div', {}, `時間: ${formatDuration(video.duration)}`),
+                SecurityUtils.createElement('div', {}, `FPS: ${video.fps.toFixed(1)}`),
+                SecurityUtils.createElement('div', {}, `サイズ: ${formatFileSize(video.file_size || 0)}`)
+            ]),
+            SecurityUtils.createElement('small', {className: 'text-muted'}, `アップロード: ${formatDateTime(video.upload_time)}`)
+        ]),
+        // アクションボタン
+        SecurityUtils.createElement('div', {className: 'col-md-3'}, [
+            SecurityUtils.createElement('div', {className: 'mb-2'}, [
+                SecurityUtils.createElement('small', {className: 'text-muted'}, 'フレーム数'),
+                SecurityUtils.createElement('div', {className: 'fw-bold'}, String(video.extracted_frames || 0))
+            ]),
+            SecurityUtils.createElement('div', {className: 'btn-group-vertical w-100'}, [
+                SecurityUtils.createElement('button', {
+                    className: 'btn btn-sm btn-outline-primary',
+                    'data-video-id': video.id
+                }, [
+                    SecurityUtils.createElement('i', {className: 'fas fa-eye'}),
+                    ' 詳細'
+                ]),
+                SecurityUtils.createElement('button', {
+                    className: 'btn btn-sm btn-outline-info',
+                    'data-video-id': video.id
+                }, [
+                    SecurityUtils.createElement('i', {className: 'fas fa-images'}),
+                    ' フレーム抽出'
+                ])
+            ])
+        ])
+    ]);
+
+    item.appendChild(rowDiv);
+
+    // イベントリスナーを追加
+    const detailBtn = item.querySelector('[data-video-id].btn-outline-primary');
+    const extractBtn = item.querySelector('[data-video-id].btn-outline-info');
+
+    detailBtn.addEventListener('click', () => showVideoDetail(video.id));
+    extractBtn.addEventListener('click', () => extractFrames(video.id));
 
     return item;
 }
@@ -364,11 +382,26 @@ async function uploadFiles(files) {
  * 単一ファイルをアップロード
  */
 async function uploadSingleFile(file) {
+    // ファイルサイズチェック（クライアント側）
+    if (!SecurityUtils.validateFileSize(file, 2 * 1024 * 1024 * 1024)) {
+        showNotification('ファイルサイズが大きすぎます（最大2GB）', 'error');
+        return;
+    }
+
+    // ファイルタイプチェック（クライアント側）
+    const allowedTypes = ['video/mp4', 'video/x-msvideo', 'video/quicktime', 'video/x-matroska', 'video/webm'];
+    if (!SecurityUtils.validateFileType(file, allowedTypes)) {
+        showNotification('許可されていないファイル形式です', 'error');
+        return;
+    }
+
     const formData = new FormData();
     formData.append('video', file);
+    // CSRFトークンを追加
+    formData.append('csrf_token', SecurityUtils.getCsrfToken());
 
     // 進捗表示を開始
-    showUploadProgress(file.name);
+    showUploadProgress(SecurityUtils.escapeHtml(file.name));
 
     try {
         const xhr = new XMLHttpRequest();
@@ -377,7 +410,7 @@ async function uploadSingleFile(file) {
         xhr.upload.addEventListener('progress', (event) => {
             if (event.lengthComputable) {
                 const progress = (event.loaded / event.total) * 100;
-                updateUploadProgress(progress, `アップロード中: ${file.name}`);
+                updateUploadProgress(progress, `アップロード中: ${SecurityUtils.escapeHtml(file.name)}`);
             }
         });
 
@@ -386,8 +419,8 @@ async function uploadSingleFile(file) {
             if (xhr.status === 200) {
                 const response = JSON.parse(xhr.responseText);
                 if (response.success) {
-                    updateUploadProgress(100, `完了: ${file.name}`);
-                    showNotification(`${file.name} のアップロードが完了しました`, 'success');
+                    updateUploadProgress(100, `完了: ${SecurityUtils.escapeHtml(file.name)}`);
+                    showNotification(`${SecurityUtils.escapeHtml(file.name)} のアップロードが完了しました`, 'success');
 
                     // 自動フレーム抽出が有効な場合
                     const autoExtract = document.getElementById('auto-extract').checked;
@@ -405,6 +438,8 @@ async function uploadSingleFile(file) {
                 } else {
                     throw new Error(response.error || 'アップロードに失敗しました');
                 }
+            } else if (xhr.status === 413) {
+                throw new Error('ファイルサイズが大きすぎます（最大2GB）');
             } else {
                 throw new Error(`HTTP error! status: ${xhr.status}`);
             }
@@ -417,11 +452,13 @@ async function uploadSingleFile(file) {
 
         // リクエスト送信
         xhr.open('POST', '/api/upload_video');
+        // CSRFトークンをヘッダーに追加
+        xhr.setRequestHeader('X-CSRF-Token', SecurityUtils.getCsrfToken());
         xhr.send(formData);
 
     } catch (error) {
         console.error('アップロードエラー:', error);
-        showNotification(`${file.name} のアップロードに失敗しました: ${error.message}`, 'error');
+        showNotification(`${SecurityUtils.escapeHtml(file.name)} のアップロードに失敗しました: ${SecurityUtils.escapeHtml(error.message)}`, 'error');
         hideUploadProgress();
     }
 }
@@ -511,10 +548,11 @@ async function refreshVideoList() {
  */
 async function showVideoDetail(videoId) {
     try {
-        const response = await apiRequest(`/api/videos/${videoId}`);
-        const video = response.video;
+        const response = await SecurityUtils.secureAjax(`/api/videos/${videoId}`);
+        const data = await response.json();
+        const video = data.video;
 
-        // 動画情報を設定
+        // 動画情報を設定（XSS対策）
         document.getElementById('detail-filename').textContent = video.name;
         document.getElementById('detail-resolution').textContent = `${video.width}x${video.height}`;
         document.getElementById('detail-fps').textContent = `${video.fps.toFixed(1)} fps`;
@@ -522,9 +560,9 @@ async function showVideoDetail(videoId) {
         document.getElementById('detail-filesize').textContent = formatFileSize(video.file_size || 0);
         document.getElementById('detail-upload-time').textContent = formatDateTime(video.upload_time);
 
-        // 動画プレビューを設定
+        // 動画プレビューを設定（URLサニタイズ）
         const videoPreview = document.getElementById('video-preview');
-        videoPreview.src = video.path;
+        videoPreview.src = SecurityUtils.sanitizeUrl(video.path);
 
         // フレーム情報を読み込み
         await loadExtractedFramesInfo(videoId);

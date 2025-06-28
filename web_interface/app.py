@@ -15,10 +15,12 @@ from typing import Any
 import cv2
 from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 sys.path.append(str(Path(__file__).parent.parent))
 
+# セキュリティ機能のインポート
 from src.training.dataset_manager import DatasetManager
 from src.training.frame_extractor import FrameExtractor
 from src.training.game_scene.labeling.api.scene_routes import scene_labeling_bp
@@ -37,16 +39,28 @@ from src.training.learning.training_manager import TrainingConfig, TrainingManag
 from src.training.semi_auto_labeler import SemiAutoLabeler
 from src.utils.config import ConfigManager
 from src.utils.logger import LoggerMixin
+from src.web_interface.security import (
+    SecurityValidator,
+    add_security_headers,
+    escape_html,
+    rate_limit,
+    validate_json_input,
+)
 
 # Webアプリケーション設定
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "mahjong-tile-detection-system-2024"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mahjong-tile-detection-system-2024")
 app.config["UPLOAD_FOLDER"] = "web_interface/uploads"
-# app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB - 制限なしに変更
-app.config["MAX_CONTENT_LENGTH"] = None  # ファイルサイズ制限なし
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2GB制限
 
-# WebSocket設定
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+# セキュリティ設定
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") == "production"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# WebSocket設定（本番環境では特定のオリジンのみ許可すること）
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+socketio = SocketIO(app, cors_allowed_origins=allowed_origins, async_mode="threading")
 
 # アップロードディレクトリ作成
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -366,9 +380,15 @@ def list_uploaded_videos():
 
 
 @app.route("/api/upload_video", methods=["POST"])
+@rate_limit(max_requests=10, window=60)  # 1分間に10回まで
 def upload_video():
-    """動画アップロード"""
+    """動画アップロード（セキュリティ強化版）"""
     try:
+        # CSRFトークンの検証（本番環境では必須）
+        # csrf_token = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token")
+        # if not validate_csrf_token(csrf_token):
+        #     return jsonify({"error": "無効なCSRFトークンです"}), 403
+
         if "video" not in request.files:
             return jsonify({"error": "動画ファイルが選択されていません"}), 400
 
@@ -376,50 +396,85 @@ def upload_video():
         if file.filename == "":
             return jsonify({"error": "ファイル名が空です"}), 400
 
-        if file:
-            filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_{filename}"
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-            file.save(filepath)
+        # セキュリティバリデーター
+        security_validator = SecurityValidator()
 
-            # 動画情報を取得
-            cap = cv2.VideoCapture(filepath)
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            duration = frame_count / fps if fps > 0 else 0
-            cap.release()
+        # ファイルの検証
+        is_valid, error_message = security_validator.validate_file_upload(file, "video")
+        if not is_valid:
+            return jsonify({"error": error_message}), 400
 
-            video_info = {
-                "id": str(uuid.uuid4()),
-                "filename": filename,
-                "filepath": filepath,
-                "duration": duration,
-                "fps": fps,
-                "frame_count": frame_count,
-                "width": width,
-                "height": height,
-                "upload_time": datetime.now().isoformat(),
-            }
+        # ファイル名のサニタイズと保存
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"{timestamp}_{unique_id}_{filename}"
 
-            return jsonify({"success": True, "video_info": video_info})
+        # 保存パスの安全性確認
+        upload_dir = Path(app.config["UPLOAD_FOLDER"])
+        filepath = security_validator.sanitize_path(filename, upload_dir)
+        if not filepath:
+            return jsonify({"error": "無効なファイルパスです"}), 400
 
+        # ファイル保存
+        file.save(str(filepath))
+
+        # 保存後のファイルサイズ確認
+        if filepath.stat().st_size > 2 * 1024 * 1024 * 1024:  # 2GB
+            filepath.unlink()  # ファイル削除
+            return jsonify({"error": "ファイルサイズが大きすぎます"}), 413
+
+        # 動画情報を取得
+        cap = cv2.VideoCapture(str(filepath))
+        if not cap.isOpened():
+            filepath.unlink()  # ファイル削除
+            return jsonify({"error": "動画ファイルを開けません"}), 400
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        duration = frame_count / fps if fps > 0 else 0
+        cap.release()
+
+        video_info = {
+            "id": str(uuid.uuid4()),
+            "filename": escape_html(filename),  # XSS対策
+            "filepath": str(filepath),
+            "duration": duration,
+            "fps": fps,
+            "frame_count": frame_count,
+            "width": width,
+            "height": height,
+            "upload_time": datetime.now().isoformat(),
+        }
+
+        return jsonify({"success": True, "video_info": video_info})
+
+    except RequestEntityTooLarge:
+        return jsonify({"error": "ファイルサイズが制限を超えています（最大2GB）"}), 413
     except Exception as e:
         web_manager.logger.error(f"動画アップロードエラー: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "アップロード中にエラーが発生しました"}), 500
 
 
 @app.route("/api/extract_frames", methods=["POST"])
+@validate_json_input(required_fields=["video_path"])
 def extract_frames():
-    """フレーム抽出"""
+    """フレーム抽出（セキュリティ強化版）"""
     try:
         data = request.get_json()
         video_path = data.get("video_path")
         extract_config = data.get("config", {})
 
-        if not video_path or not os.path.exists(video_path):
+        # セキュリティバリデーター
+        security_validator = SecurityValidator()
+
+        # パスの安全性確認（アップロードディレクトリ内のみ許可）
+        upload_dir = Path(app.config["UPLOAD_FOLDER"])
+        safe_path = security_validator.sanitize_path(video_path, upload_dir)
+
+        if not safe_path or not safe_path.exists():
             return jsonify({"error": "動画ファイルが見つかりません"}), 400
 
         # フレーム抽出を非同期で実行
@@ -428,7 +483,7 @@ def extract_frames():
             "type": "frame_extraction",
             "status": "running",
             "start_time": datetime.now(),
-            "video_path": video_path,
+            "video_path": str(safe_path),
             "config": extract_config,
         }
 
@@ -436,7 +491,7 @@ def extract_frames():
         socketio.start_background_task(
             target=extract_frames_background,
             session_id=session_id,
-            video_path=video_path,
+            video_path=str(safe_path),
             config=extract_config,
         )
 
@@ -444,7 +499,7 @@ def extract_frames():
 
     except Exception as e:
         web_manager.logger.error(f"フレーム抽出エラー: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "フレーム抽出中にエラーが発生しました"}), 500
 
 
 @app.route("/api/dataset/statistics")
@@ -1298,6 +1353,35 @@ app.register_blueprint(scene_training_bp)
 # WebSocketを初期化
 labeling_websocket.init_socketio(app)
 
+
+# セキュリティヘッダーの適用
+@app.after_request
+def apply_security_headers(response):
+    """全レスポンスにセキュリティヘッダーを追加"""
+    return add_security_headers(response)
+
+
+# エラーハンドラー
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    """ファイルサイズ制限エラー"""
+    return jsonify({"error": "ファイルサイズが大きすぎます（最大2GB）"}), 413
+
+
+@app.errorhandler(400)
+def bad_request(e):
+    """不正なリクエスト"""
+    return jsonify({"error": "不正なリクエストです"}), 400
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    """内部サーバーエラー"""
+    web_manager.logger.error(f"内部サーバーエラー: {e}")
+    return jsonify({"error": "サーバー内部エラーが発生しました"}), 500
+
+
 if __name__ == "__main__":
     # 開発サーバー起動
+    # 本番環境では debug=False, allow_unsafe_werkzeug=False にすること
     socketio.run(app, debug=True, host="0.0.0.0", port=5001, allow_unsafe_werkzeug=True)
