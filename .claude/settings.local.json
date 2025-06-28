@@ -13,6 +13,7 @@
       "Bash(gh api:*)",
       "Bash(grep:*)",
       "Bash(uv run ruff check:*)",
+      "Bash(source:*)",
       "Bash(brew install:*)"
     ],
     "deny": []
