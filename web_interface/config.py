@@ -1,50 +1,46 @@
 """
-麻雀牌検出システム - Webインターフェース設定
+Webインターフェースの設定ファイル
 """
 
 import os
 from pathlib import Path
 
+# 基本設定
+BASE_DIR = Path(__file__).parent
+UPLOAD_FOLDER = BASE_DIR / "uploads"
+UPLOAD_FOLDER.mkdir(exist_ok=True)
 
+
+# Flaskアプリケーション設定
 class Config:
     """基本設定クラス"""
 
-    # Flask設定
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "mahjong-tile-detection-system-2024"
+    # セキュリティ設定
+    SECRET_KEY = os.environ.get("SECRET_KEY", "mahjong-tile-detection-system-2024")
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
 
-    # アップロード設定
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-    # MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB - 制限なしに変更
-    MAX_CONTENT_LENGTH = None  # ファイルサイズ制限なし
-    ALLOWED_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "wmv", "flv", "webm"}
+    # ファイルアップロード設定
+    UPLOAD_FOLDER = str(UPLOAD_FOLDER)
+    MAX_CONTENT_LENGTH = 2 * 1024 * 1024 * 1024  # 2GB
 
-    # データベース設定
-    DATABASE_URL = os.environ.get("DATABASE_URL") or "sqlite:///mahjong_tiles.db"
+    # 許可するファイル拡張子
+    ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+    ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp"}
+
+    # CORS設定
+    CORS_ALLOWED_ORIGINS = "*"  # 開発環境用
 
     # WebSocket設定
     SOCKETIO_ASYNC_MODE = "threading"
-    SOCKETIO_CORS_ALLOWED_ORIGINS = "*"
+
+    # データベース設定
+    DATABASE_PATH = BASE_DIR.parent / "data" / "training" / "dataset.db"
 
     # ログ設定
-    LOG_LEVEL = os.environ.get("LOG_LEVEL") or "INFO"
-    LOG_FILE = os.path.join(os.path.dirname(__file__), "logs", "web_interface.log")
-
-    # セッション設定
-    SESSION_TIMEOUT = 3600  # 1時間
-
-    # パフォーマンス設定
-    SEND_FILE_MAX_AGE_DEFAULT = 31536000  # 1年
-
-    @staticmethod
-    def init_app(app):
-        """アプリケーション初期化"""
-        # ログディレクトリを作成
-        log_dir = Path(Config.LOG_FILE).parent
-        log_dir.mkdir(exist_ok=True)
-
-        # アップロードディレクトリを作成
-        upload_dir = Path(Config.UPLOAD_FOLDER)
-        upload_dir.mkdir(exist_ok=True)
+    LOG_LEVEL = "INFO"
+    LOG_FILE = BASE_DIR / "logs" / "web_interface.log"
 
 
 class DevelopmentConfig(Config):
@@ -53,47 +49,39 @@ class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = False
 
-    # 開発用設定
-    TEMPLATES_AUTO_RELOAD = True
-    EXPLAIN_TEMPLATE_LOADING = False
-
 
 class ProductionConfig(Config):
     """本番環境設定"""
 
     DEBUG = False
     TESTING = False
-
-    # セキュリティ設定
     SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = "Lax"
 
-    # パフォーマンス設定
-    SEND_FILE_MAX_AGE_DEFAULT = 31536000
+    # 本番環境では必ず環境変数から取得
+    SECRET_KEY = os.environ.get("SECRET_KEY")
+    if not SECRET_KEY:
+        raise ValueError("SECRET_KEY環境変数が設定されていません")
+
+    # CORS設定（本番環境では特定のオリジンのみ許可）
+    CORS_ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "").split(",")
 
 
 class TestingConfig(Config):
     """テスト環境設定"""
 
-    DEBUG = True
     TESTING = True
-
-    # テスト用設定
     WTF_CSRF_ENABLED = False
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "test_uploads")
 
 
-# 設定マッピング
+# 環境に応じた設定を選択
 config = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
     "testing": TestingConfig,
-    "default": DevelopmentConfig,
 }
 
 
 def get_config():
-    """現在の設定を取得"""
+    """現在の環境に応じた設定を取得"""
     env = os.environ.get("FLASK_ENV", "development")
-    return config.get(env, config["default"])
+    return config.get(env, DevelopmentConfig)
