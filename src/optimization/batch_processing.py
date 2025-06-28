@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from src.utils.device import get_device, get_memory_info
+from src.utils.device_utils import get_available_device, get_device_memory_info
 from src.utils.logger import get_logger
 
 T = TypeVar("T")
@@ -39,7 +39,7 @@ class OptimizedBatchProcessor:
             num_workers: ワーカー数（Noneの場合は自動設定）
             device: 使用デバイス（Noneの場合は自動選択）
         """
-        self.device = device or get_device()
+        self.device = device or get_available_device()
         self.auto_optimize = auto_optimize
         self.memory_fraction = memory_fraction
 
@@ -67,12 +67,14 @@ class OptimizedBatchProcessor:
     def _calculate_optimal_batch_size(self) -> int:
         """最適なバッチサイズを計算"""
         try:
-            memory_info = get_memory_info(self.device)
-            if not memory_info or memory_info["free"] == 0:
+            memory_info = get_device_memory_info(self.device)
+            if not memory_info or memory_info.get("free", 0) == 0:
                 return 32  # デフォルト値
 
             # 利用可能なメモリから推定
-            available_memory = memory_info["free"] * self.memory_fraction
+            available_memory = (
+                memory_info["free"] * self.memory_fraction * 1024 * 1024 * 1024
+            )  # GBからバイトに変換
             # 1サンプルあたり約100MBと仮定（画像処理の場合）
             estimated_sample_size = 100 * 1024 * 1024  # 100MB
             optimal_size = int(available_memory / estimated_sample_size)
@@ -109,7 +111,10 @@ class OptimizedBatchProcessor:
     ) -> DataLoader:
         """最適化されたDataLoaderを作成"""
         # pin_memoryの設定（CUDAのみ有効）
-        pin_memory = torch.cuda.is_available() and self.device != "cpu"
+        pin_memory = (
+            torch.cuda.is_available()
+            and (self.device.type if hasattr(self.device, "type") else str(self.device)) != "cpu"
+        )
 
         # persistent_workersの設定（ワーカーが複数の場合のみ）
         persistent_workers = self.num_workers > 0
@@ -190,7 +195,7 @@ class OptimizedBatchProcessor:
 
     def get_memory_stats(self) -> dict[str, Any]:
         """メモリ使用状況を取得"""
-        return get_memory_info(self.device)
+        return get_device_memory_info(self.device)
 
 
 class ParallelBatchProcessor(OptimizedBatchProcessor):
@@ -273,8 +278,8 @@ class BatchSizeOptimizer:
         if memory_error:
             # メモリエラーの場合は大幅に削減
             self.current_batch_size = int(self.current_batch_size * self.reduction_factor)
-        elif success and len(self.history) >= 3:
-            # 直近3回成功したら増加を試みる
+        elif success and len(self.history) > 3:
+            # 直近3回成功したら増加を試みる（現在の結果を含めて4回分の履歴が必要）
             recent_success = all(h[1] for h in self.history[-3:])
             if recent_success:
                 self.current_batch_size = int(self.current_batch_size * self.growth_factor)
