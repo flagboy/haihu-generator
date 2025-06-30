@@ -15,7 +15,6 @@ from typing import Any
 import psutil
 
 from ..utils.device_utils import get_device_memory_info
-from .logger import get_structured_logger
 from .metrics import MetricsCollector
 
 
@@ -53,7 +52,8 @@ class SystemMonitor:
         """
         self.interval = interval
         self.metrics = metrics_collector or MetricsCollector("system")
-        self.logger = get_structured_logger("system_monitor")
+        # ロガーの遅延初期化
+        self._logger = None
 
         # デフォルトのアラート閾値
         self.alert_thresholds = alert_thresholds or {
@@ -67,23 +67,31 @@ class SystemMonitor:
         self._thread: threading.Thread | None = None
         self._last_status: SystemStatus | None = None
 
+    def _get_logger(self):
+        """ロガーの遅延初期化"""
+        if self._logger is None:
+            from .logger import get_structured_logger
+
+            self._logger = get_structured_logger("system_monitor")
+        return self._logger
+
     def start(self) -> None:
         """監視を開始"""
         if self._monitoring:
-            self.logger.warning("System monitoring is already running")
+            self._get_logger().warning("System monitoring is already running")
             return
 
         self._monitoring = True
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._thread.start()
-        self.logger.info("System monitoring started")
+        self._get_logger().info("System monitoring started")
 
     def stop(self) -> None:
         """監視を停止"""
         self._monitoring = False
         if self._thread:
             self._thread.join(timeout=5)
-        self.logger.info("System monitoring stopped")
+        self._get_logger().info("System monitoring stopped")
 
     def get_current_status(self) -> SystemStatus:
         """現在のシステムステータスを取得"""
@@ -232,7 +240,7 @@ class SystemMonitor:
 
         # アラートをログ出力
         for alert in alerts:
-            self.logger.warning(
+            self._get_logger().warning(
                 alert["message"],
                 alert_type=alert["type"],
                 value=alert["value"],
@@ -261,7 +269,7 @@ class SystemMonitor:
                 }
             )
 
-        self.logger.info("System status", **log_data)
+        self._get_logger().info("System status", **log_data)
 
     def get_health_check(self) -> dict[str, Any]:
         """ヘルスチェック結果を取得"""
@@ -332,5 +340,17 @@ class SystemMonitor:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-# グローバルインスタンス
-system_monitor = SystemMonitor()
+# グローバルインスタンス（遅延初期化）
+_system_monitor = None
+
+
+def get_system_monitor():
+    """グローバルシステムモニターを取得"""
+    global _system_monitor
+    if _system_monitor is None:
+        _system_monitor = SystemMonitor()
+    return _system_monitor
+
+
+# 互換性のためのエイリアス
+system_monitor = None

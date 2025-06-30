@@ -9,9 +9,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from .error_tracker import error_tracker
-from .logger import get_structured_logger
-from .metrics import performance_tracker
+from .metrics import get_performance_tracker
 
 
 def monitor_performance(
@@ -31,7 +29,8 @@ def monitor_performance(
 
     def decorator(func: Callable) -> Callable:
         name = operation_name or func.__name__
-        logger = get_structured_logger(func.__module__)
+        # ロガーの遅延初期化
+        logger = None
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
@@ -60,7 +59,9 @@ def monitor_performance(
 
                 if log_errors:
                     # エラーを追跡
-                    error_tracker.track_error(
+                    from .error_tracker import get_error_tracker
+
+                    get_error_tracker().track_error(
                         e,
                         operation=name,
                         context={
@@ -77,7 +78,7 @@ def monitor_performance(
                 duration = time.time() - start_time
 
                 # パフォーマンスを記録
-                performance_tracker.track_operation(
+                get_performance_tracker().track_operation(
                     operation=name,
                     duration=duration,
                     success=success,
@@ -85,6 +86,13 @@ def monitor_performance(
                 )
 
                 # ログ出力
+                # loggerがまだNoneの場合は初期化
+                nonlocal logger
+                if logger is None:
+                    from .logger import get_structured_logger
+
+                    logger = get_structured_logger(func.__module__)
+
                 if success:
                     logger.info(
                         f"Operation completed: {name}",
@@ -161,7 +169,7 @@ def monitor_batch_processing(func: Callable) -> Callable:
             processing_time = time.time() - start_time
 
             # バッチ処理メトリクスを記録
-            performance_tracker.track_batch_processing(
+            get_performance_tracker().track_batch_processing(
                 batch_size=batch_size,
                 processing_time=processing_time,
                 success_count=success_count,
@@ -201,11 +209,14 @@ def monitor_memory_usage(func: Callable) -> Callable:
             memory_diff = memory_after - memory_before
 
             # メトリクスを記録
-            performance_tracker.metrics.gauge(f"{func.__name__}_memory_mb", memory_after)
-            performance_tracker.metrics.record(f"{func.__name__}_memory_diff_mb", memory_diff)
+            tracker = get_performance_tracker()
+            tracker.metrics.gauge(f"{func.__name__}_memory_mb", memory_after)
+            tracker.metrics.record(f"{func.__name__}_memory_diff_mb", memory_diff)
 
             # 大きなメモリ増加があった場合は警告
             if memory_diff > 100:  # 100MB以上
+                from .logger import get_structured_logger
+
                 logger = get_structured_logger(func.__module__)
                 logger.warning(
                     f"Large memory increase in {func.__name__}",
@@ -233,8 +244,6 @@ def monitor_critical_section(section_name: str, timeout_seconds: float = 30.0) -
     """
 
     def decorator(func: Callable) -> Callable:
-        logger = get_structured_logger(func.__module__)
-
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
             start_time = time.time()
@@ -246,12 +255,15 @@ def monitor_critical_section(section_name: str, timeout_seconds: float = 30.0) -
                 duration = time.time() - start_time
 
                 # メトリクスを記録
-                performance_tracker.metrics.record(
+                get_performance_tracker().metrics.record(
                     f"critical_section_{section_name}_duration", duration
                 )
 
                 # タイムアウトチェック
                 if duration > timeout_seconds:
+                    from .logger import get_structured_logger
+
+                    logger = get_structured_logger(func.__module__)
                     logger.warning(
                         f"Critical section timeout: {section_name}",
                         section=section_name,

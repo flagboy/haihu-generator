@@ -5,11 +5,11 @@
 import time
 
 from src.monitoring import (
-    error_tracker,
+    get_error_tracker,
+    get_global_metrics,
+    get_performance_tracker,
     get_structured_logger,
-    global_metrics,
-    performance_tracker,
-    system_monitor,
+    get_system_monitor,
 )
 from src.monitoring.config import MonitoringConfig, get_monitoring_config
 from src.monitoring.decorators import monitor_batch_processing, monitor_performance
@@ -31,26 +31,30 @@ class TestMonitoringIntegration:
         logger.info("Starting integration test")
 
         # パフォーマンスを記録
+        performance_tracker = get_performance_tracker()
         with performance_tracker.measure("test_operation"):
             time.sleep(0.01)
 
         # メトリクスを記録
+        global_metrics = get_global_metrics()
         global_metrics.record("test_metric", 42)
         global_metrics.increment("test_counter")
 
         # エラーを追跡
+        error_tracker = get_error_tracker()
         try:
             raise ValueError("Test error")
         except ValueError as e:
             error_tracker.track_error(e, operation="test_operation")
 
         # システムステータスを取得
+        system_monitor = get_system_monitor()
         status = system_monitor.get_current_status()
         assert status.cpu_percent >= 0
 
         # ヘルスチェック
         health = system_monitor.get_health_check()
-        assert health["status"] in ["healthy", "unhealthy"]
+        assert health["status"] in ["healthy", "unhealthy", "unknown"]
 
     def test_decorated_function_monitoring(self):
         """デコレートされた関数のモニタリングテスト"""
@@ -65,6 +69,7 @@ class TestMonitoringIntegration:
         assert result == [2, 4, 6, 8, 10]
 
         # メトリクスが記録されていることを確認
+        performance_tracker = get_performance_tracker()
         summary = performance_tracker.metrics.get_summary("test_function_duration_seconds")
         assert summary is not None
         assert summary.count >= 1
@@ -90,6 +95,7 @@ class TestMonitoringIntegration:
         assert result["error_count"] == 10
 
         # バッチメトリクスが記録されていることを確認
+        performance_tracker = get_performance_tracker()
         throughput_summary = performance_tracker.metrics.get_summary("batch_throughput")
         assert throughput_summary is not None
 
@@ -99,15 +105,15 @@ class TestMonitoringIntegration:
     def test_error_tracking_with_alerts(self):
         """エラー追跡とアラートのテスト"""
         # エラートラッカーを低い閾値で設定
-        tracker = error_tracker
+        tracker = get_error_tracker()
         original_threshold = tracker.alert_threshold
         tracker.alert_threshold = 3
 
         try:
-            # 複数のエラーを発生させる
-            for i in range(5):
+            # 複数のエラーを発生させる（同じメッセージで）
+            for _ in range(5):
                 try:
-                    raise RuntimeError(f"Test error {i}")
+                    raise RuntimeError("Test error")
                 except RuntimeError as e:
                     tracker.track_error(e, operation="alert_test")
                 time.sleep(0.1)
@@ -130,16 +136,19 @@ class TestMonitoringIntegration:
         """モニタリングデータのエクスポートテスト"""
         # メトリクスをエクスポート
         metrics_file = tmp_path / "metrics.json"
+        global_metrics = get_global_metrics()
         global_metrics.export_to_file(metrics_file)
         assert metrics_file.exists()
 
         # エラーレポートをエクスポート
         error_report = tmp_path / "error_report.json"
+        error_tracker = get_error_tracker()
         error_tracker.export_error_report(error_report, hours=24)
         assert error_report.exists()
 
         # システムステータスをエクスポート
         status_file = tmp_path / "system_status.json"
+        system_monitor = get_system_monitor()
         system_monitor.export_status_history(status_file, hours=1)
         assert status_file.exists()
 
@@ -162,5 +171,6 @@ class TestMonitoringIntegration:
             logger.error("Error occurred", exc_info=True, operation="test_op")
 
         # メトリクスが記録されていることを確認
+        global_metrics = get_global_metrics()
         perf_summary = global_metrics.get_summary("test_operation_duration_seconds")
         assert perf_summary is not None

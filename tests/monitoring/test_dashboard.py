@@ -3,7 +3,7 @@
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from flask import Flask
@@ -109,7 +109,7 @@ class TestDashboard:
         from src.monitoring.system_monitor import SystemStatus
 
         # システムモニターをモック
-        with patch("src.monitoring.dashboard.system_monitor") as mock_monitor:
+        with patch("src.monitoring.dashboard.get_system_monitor") as mock_get_monitor:
             # 高いCPU使用率を返すように設定
             mock_status = SystemStatus(
                 timestamp=datetime.now(),
@@ -121,6 +121,8 @@ class TestDashboard:
                 process_count=100,
                 thread_count=200,
             )
+            mock_monitor = Mock()
+            mock_get_monitor.return_value = mock_monitor
             mock_monitor.get_current_status.return_value = mock_status
             mock_monitor.get_health_check.return_value = {
                 "status": "unhealthy",
@@ -141,11 +143,12 @@ class TestDashboard:
         assert response.status_code == 404
 
         # テスト用メトリクスを追加
-        from src.monitoring.metrics import global_metrics
+        from src.monitoring.metrics import get_global_metrics
 
-        global_metrics.record("test_metric", 10)
-        global_metrics.record("test_metric", 20)
-        global_metrics.record("test_metric", 30)
+        metrics = get_global_metrics()
+        metrics.record("test_metric", 10)
+        metrics.record("test_metric", 20)
+        metrics.record("test_metric", 30)
 
         # メトリクス詳細を取得
         response = client.get("/monitoring/api/metrics/test_metric")

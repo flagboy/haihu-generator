@@ -9,9 +9,9 @@ from typing import Any
 
 from flask import Blueprint, jsonify, render_template_string, request
 
-from .error_tracker import error_tracker
-from .metrics import global_metrics
-from .system_monitor import system_monitor
+from .error_tracker import get_error_tracker
+from .metrics import get_global_metrics
+from .system_monitor import get_system_monitor
 
 # ダッシュボードのBlueprint
 dashboard_bp = Blueprint("monitoring_dashboard", __name__, url_prefix="/monitoring")
@@ -454,7 +454,7 @@ def api_status():
 @dashboard_bp.route("/api/metrics/<metric_name>")
 def api_metric(metric_name: str):
     """特定のメトリクスの詳細を返す"""
-    summary = global_metrics.get_summary(metric_name)
+    summary = get_global_metrics().get_summary(metric_name)
 
     if not summary:
         return jsonify({"error": "Metric not found"}), 404
@@ -478,7 +478,7 @@ def api_metric(metric_name: str):
 def api_errors():
     """エラー情報を返す"""
     hours = int(request.args.get("hours", 24))
-    summaries = error_tracker.get_error_summary(hours=hours)
+    summaries = get_error_tracker().get_error_summary(hours=hours)
 
     return jsonify(
         {
@@ -501,27 +501,29 @@ def api_errors():
 @dashboard_bp.route("/api/health")
 def api_health():
     """ヘルスチェック結果を返す"""
-    return jsonify(system_monitor.get_health_check())
+    return jsonify(get_system_monitor().get_health_check())
 
 
 def get_monitoring_data() -> dict[str, Any]:
     """モニタリングデータを取得"""
     # システム状態
-    system_status = system_monitor.get_current_status()
+    system_status = get_system_monitor().get_current_status()
 
     # パフォーマンスメトリクス
-    fps_summary = global_metrics.get_summary("processing_fps", window_seconds=300)
-    success_rate_summary = global_metrics.get_summary("batch_success_rate", window_seconds=300)
-    processing_time_summary = global_metrics.get_summary("processing_time_ms", window_seconds=300)
-    throughput_summary = global_metrics.get_summary("batch_throughput", window_seconds=300)
+    metrics = get_global_metrics()
+    fps_summary = metrics.get_summary("processing_fps", window_seconds=300)
+    success_rate_summary = metrics.get_summary("batch_success_rate", window_seconds=300)
+    processing_time_summary = metrics.get_summary("processing_time_ms", window_seconds=300)
+    throughput_summary = metrics.get_summary("batch_throughput", window_seconds=300)
 
     # エラー情報
-    error_summaries = error_tracker.get_error_summary(hours=1)
-    error_rates = error_tracker.get_error_rate(window_minutes=60)
+    tracker = get_error_tracker()
+    error_summaries = tracker.get_error_summary(hours=1)
+    error_rates = tracker.get_error_rate(window_minutes=60)
 
     # アラート
     alerts = []
-    health_check = system_monitor.get_health_check()
+    health_check = get_system_monitor().get_health_check()
     if health_check["status"] == "unhealthy":
         for issue in health_check["message"].split("; "):
             alerts.append({"type": "system", "level": "warning", "message": issue})

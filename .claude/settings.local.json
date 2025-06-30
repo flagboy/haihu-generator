@@ -16,7 +16,9 @@
       "Bash(source:*)",
       "Bash(brew install:*)",
       "Bash(ruff check:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(.venv/bin/python -m pytest tests/monitoring/test_error_tracker.py::TestErrorTracker::test_track_error -v)",
+      "Bash(.venv/bin/python:*)"
     ],
     "deny": []
   }

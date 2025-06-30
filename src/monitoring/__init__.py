@@ -11,6 +11,10 @@ __all__ = [
     "MetricsCollector",
     "PerformanceTracker",
     "SystemMonitor",
+    "get_global_metrics",
+    "get_performance_tracker",
+    "get_error_tracker",
+    "get_system_monitor",
     "global_metrics",
     "performance_tracker",
     "error_tracker",
@@ -36,24 +40,40 @@ def __getattr__(name):
         from .metrics import PerformanceTracker
 
         return PerformanceTracker
+    elif name == "get_global_metrics":
+        from .metrics import get_global_metrics
+
+        return get_global_metrics
+    elif name == "get_performance_tracker":
+        from .metrics import get_performance_tracker
+
+        return get_performance_tracker
+    elif name == "get_error_tracker":
+        from .error_tracker import get_error_tracker
+
+        return get_error_tracker
+    elif name == "get_system_monitor":
+        from .system_monitor import get_system_monitor
+
+        return get_system_monitor
     elif name == "global_metrics":
-        from .metrics import global_metrics
+        from .metrics import get_global_metrics
 
-        return global_metrics
+        return get_global_metrics()
     elif name == "performance_tracker":
-        from .metrics import performance_tracker
+        from .metrics import get_performance_tracker
 
-        return performance_tracker
+        return get_performance_tracker()
     elif name == "error_tracker":
-        from .error_tracker import error_tracker
+        from .error_tracker import get_error_tracker
 
-        return error_tracker
+        return get_error_tracker()
     elif name == "SystemMonitor":
         from .system_monitor import SystemMonitor
 
         return SystemMonitor
     elif name == "system_monitor":
-        from .system_monitor import system_monitor
+        from .system_monitor import get_system_monitor
 
-        return system_monitor
+        return get_system_monitor()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

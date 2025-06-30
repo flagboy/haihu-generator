@@ -102,10 +102,21 @@ class MonitoredLogger:
         """
         self.name = name
         self.loguru_logger = get_logger(name)
-        # 遅延インポート
-        from ..monitoring import get_structured_logger
+        # 構造化ロガーは遅延初期化
+        self._structured_logger = None
 
-        self.structured_logger = get_structured_logger(name)
+    def _get_structured_logger(self):
+        """構造化ロガーの遅延初期化"""
+        if self._structured_logger is None:
+            from ..monitoring import get_structured_logger
+
+            self._structured_logger = get_structured_logger(self.name)
+        return self._structured_logger
+
+    @property
+    def structured_logger(self):
+        """構造化ロガープロパティ"""
+        return self._get_structured_logger()
 
     def debug(self, message: str, **kwargs: Any) -> None:
         """デバッグログ"""
@@ -128,14 +139,18 @@ class MonitoredLogger:
             self.loguru_logger.exception(message, **kwargs)
             self.structured_logger.error(message, exc_info=True, **kwargs)
 
-            # エラートラッカーに記録
-            import sys
+            # エラートラッカーに記録（循環参照を避けるため条件付き）
+            if not kwargs.get("_from_error_tracker", False):
+                import sys
 
-            exc_type, exc_value, _ = sys.exc_info()
-            if exc_value:
-                _get_error_tracker().track_error(
-                    exc_value, operation=kwargs.get("operation", "unknown"), context=kwargs
-                )
+                exc_type, exc_value, _ = sys.exc_info()
+                if exc_value:
+                    import contextlib
+
+                    with contextlib.suppress(Exception):
+                        _get_error_tracker().track_error(
+                            exc_value, operation=kwargs.get("operation", "unknown"), context=kwargs
+                        )
         else:
             self.loguru_logger.error(message, **kwargs)
             self.structured_logger.error(message, **kwargs)
@@ -155,6 +170,11 @@ class MonitoredLogger:
         self.info(message, operation=operation, duration=duration, **kwargs)
         self.structured_logger.log_performance(operation, duration, **kwargs)
 
+        # グローバルメトリクスに記録
+        from ..monitoring import get_global_metrics
+
+        get_global_metrics().record(f"{operation}_duration_seconds", duration)
+
     def bind(self, **kwargs: Any) -> "MonitoredLogger":
         """コンテキスト情報をバインド"""
         new_logger = MonitoredLogger.__new__(MonitoredLogger)
@@ -173,9 +193,9 @@ def get_monitored_logger(name: str) -> MonitoredLogger:
 # 遅延インポートでエラートラッカーを取得
 def _get_error_tracker():
     """エラートラッカーを遅延インポート"""
-    from ..monitoring import error_tracker
+    from ..monitoring import get_error_tracker
 
-    return error_tracker
+    return get_error_tracker()
 
 
 class MonitoredLoggerMixin:

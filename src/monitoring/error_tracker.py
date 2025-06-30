@@ -13,7 +13,6 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from .logger import get_structured_logger
 from .metrics import MetricsCollector
 
 
@@ -72,7 +71,8 @@ class ErrorTracker:
         self.alert_threshold = alert_threshold
         self.alert_window = alert_window
 
-        self.logger = get_structured_logger(f"{name}_errors")
+        # ロガーの遅延初期化（循環参照を避けるため）
+        self._logger = None
         self.metrics = MetricsCollector(f"{name}_error_metrics")
 
         # エラー履歴
@@ -83,6 +83,14 @@ class ErrorTracker:
         self.lock = Lock()
         self._last_alert_time: dict[str, float] = {}
 
+    def _get_logger(self):
+        """ロガーの遅延初期化"""
+        if self._logger is None:
+            from .logger import get_structured_logger
+
+            self._logger = get_structured_logger(f"{self.name}_errors")
+        return self._logger
+
     def track_error(
         self,
         error: Exception,
@@ -92,42 +100,58 @@ class ErrorTracker:
         """エラーを追跡"""
         import traceback
 
-        error_record = ErrorRecord(
-            timestamp=datetime.now(),
-            error_type=type(error).__name__,
-            error_message=str(error),
-            operation=operation,
-            traceback=traceback.format_exc(),
-            context=context or {},
-        )
+        # 再帰呼び出しを防ぐためのフラグ
+        if hasattr(self, "_tracking_error") and self._tracking_error:
+            return
 
-        with self.lock:
-            # エラー履歴に追加
-            self.errors.append(error_record)
+        self._tracking_error = True
 
-            # カウントを更新
-            self.error_counts[error_record.fingerprint] += 1
+        try:
+            error_record = ErrorRecord(
+                timestamp=datetime.now(),
+                error_type=type(error).__name__,
+                error_message=str(error),
+                operation=operation,
+                traceback=traceback.format_exc(),
+                context=context or {},
+            )
 
-            # エラーレートを更新
-            self.error_rate[error_record.error_type].append(time.time())
+            with self.lock:
+                # エラー履歴に追加
+                self.errors.append(error_record)
 
-        # メトリクスを記録
-        self.metrics.increment(f"error_{error_record.error_type}")
-        self.metrics.increment(f"operation_{operation}_errors")
+                # カウントを更新
+                self.error_counts[error_record.fingerprint] += 1
 
-        # エラーをログ
-        self.logger.error(
-            f"Error tracked: {error_record.error_type} in {operation}",
-            error_type=error_record.error_type,
-            error_message=error_record.error_message,
-            operation=operation,
-            fingerprint=error_record.fingerprint,
-            context=context,
-            exc_info=True,
-        )
+                # エラーレートを更新
+                self.error_rate[error_record.error_type].append(time.time())
 
-        # アラートをチェック
-        self._check_alerts(error_record)
+            # メトリクスを記録
+            try:
+                self.metrics.increment(f"error_{error_record.error_type}")
+                self.metrics.increment(f"operation_{operation}_errors")
+            except Exception:
+                pass  # メトリクス記録エラーは無視
+
+            # エラーをログ（ログエラーは無視）
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._get_logger().error(
+                    f"Error tracked: {error_record.error_type} in {operation}",
+                    error_type=error_record.error_type,
+                    error_message=error_record.error_message,
+                    operation=operation,
+                    fingerprint=error_record.fingerprint,
+                    context=context,
+                    exc_info=True,
+                )
+
+            # アラートをチェック
+            self._check_alerts(error_record)
+
+        finally:
+            self._tracking_error = False
 
     def _check_alerts(self, error_record: ErrorRecord) -> None:
         """アラートをチェック"""
@@ -151,7 +175,7 @@ class ErrorTracker:
 
     def _send_alert(self, error_record: ErrorRecord, error_rate: int) -> None:
         """アラートを送信"""
-        self.logger.critical(
+        self._get_logger().critical(
             f"High error rate alert: {error_record.error_type}",
             error_type=error_record.error_type,
             error_rate=error_rate,
@@ -253,7 +277,7 @@ class ErrorTracker:
             removed_count = original_count - len(self.errors)
 
         if removed_count > 0:
-            self.logger.info(
+            self._get_logger().info(
                 f"Cleared {removed_count} old errors", removed_count=removed_count, days=days
             )
 
@@ -290,7 +314,7 @@ class ErrorTracker:
         with open(output_path, "w") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
 
-        self.logger.info(
+        self._get_logger().info(
             "Error report exported",
             output_path=str(output_path),
             total_errors=report["total_errors"],
@@ -298,5 +322,17 @@ class ErrorTracker:
         )
 
 
-# グローバルインスタンス
-error_tracker = ErrorTracker()
+# グローバルインスタンス（遅延初期化）
+_error_tracker = None
+
+
+def get_error_tracker():
+    """グローバルエラートラッカーを取得"""
+    global _error_tracker
+    if _error_tracker is None:
+        _error_tracker = ErrorTracker()
+    return _error_tracker
+
+
+# 互換性のためのエイリアス
+error_tracker = None
