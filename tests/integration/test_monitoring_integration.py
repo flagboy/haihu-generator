@@ -12,9 +12,9 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from src.integration.orchestrator import VideoProcessingOrchestrator
 from src.integration.system_integrator import SystemIntegrator
 from src.monitoring import get_error_tracker, get_global_metrics, get_performance_tracker
-from src.orchestrator import VideoProcessingOrchestrator
 from src.pipeline.ai_pipeline import AIPipeline
 from src.utils.config import ConfigManager
 from src.video.video_processor import VideoProcessor
@@ -45,19 +45,19 @@ class TestMonitoringSystemIntegration:
         get_error_tracker()
 
         # VideoProcessorをモック
-        with patch("src.orchestrator.VideoProcessor") as MockVideoProcessor:
+        with patch("src.integration.orchestrator.VideoProcessor") as MockVideoProcessor:
             mock_processor = Mock()
             mock_processor.extract_frames.return_value = []
             MockVideoProcessor.return_value = mock_processor
 
             # AIPipelineをモック
-            with patch("src.orchestrator.AIPipeline") as MockAIPipeline:
+            with patch("src.integration.orchestrator.AIPipeline") as MockAIPipeline:
                 mock_ai = Mock()
                 mock_ai.process_frames.return_value = []
                 MockAIPipeline.return_value = mock_ai
 
                 # GamePipelineをモック
-                with patch("src.orchestrator.GamePipeline") as MockGamePipeline:
+                with patch("src.integration.orchestrator.GamePipeline") as MockGamePipeline:
                     mock_game = Mock()
                     mock_game.export_game_record.return_value = {"game": "data"}
                     MockGamePipeline.return_value = mock_game
@@ -81,12 +81,12 @@ class TestMonitoringSystemIntegration:
         get_performance_tracker()
 
         # モックの設定
-        with patch("src.ai_pipeline.TileDetector") as MockDetector:
+        with patch("src.pipeline.ai_pipeline.TileDetector") as MockDetector:
             mock_detector = Mock()
             mock_detector.detect_tiles.return_value = []
             MockDetector.return_value = mock_detector
 
-            with patch("src.ai_pipeline.TileClassifier") as MockClassifier:
+            with patch("src.pipeline.ai_pipeline.TileClassifier") as MockClassifier:
                 mock_classifier = Mock()
                 MockClassifier.return_value = mock_classifier
 
