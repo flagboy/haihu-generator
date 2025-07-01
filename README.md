@@ -250,6 +250,29 @@ uv run mypy src
 uv run pre-commit run --all-files
 ```
 
+### Claude Code Hooks
+
+このプロジェクトでは、Claude Code用のpre-commitフックが設定されており、コミット前に自動的にテストとLintを実行します。
+
+#### セットアップ
+
+```bash
+# Claude Codeのhooksディレクトリにシンボリックリンクを作成
+ln -sf $(pwd)/.claude/hooks/pre-commit ~/.claude/hooks/$(basename $(pwd))-pre-commit
+
+# または、Claude Codeの設定でプロジェクトごとのフックを有効化
+# (Claude Codeの設定に依存)
+```
+
+#### 機能
+
+- **自動フォーマット**: Ruffによるコード整形
+- **Lintチェック**: コード品質の問題を検出・修正
+- **型チェック**: mypyによる型チェック（警告のみ）
+- **関連テスト実行**: 変更ファイルに関連するテストを自動実行
+
+フックは`.claude/hooks/pre-commit`に配置されています。
+
 ## アーキテクチャ
 
 ### システム構成
