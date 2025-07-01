@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # GitHub Actions の依存関係を自動更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "flagboy"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Python 依存関係の自動更新
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "flagboy"
+    labels:
+      - "dependencies"
+      - "python"
+    allow:
+      - dependency-type: "all"
+    ignore:
+      # 特定のパッケージは手動で更新
+      - dependency-name: "torch"
+      - dependency-name: "torchvision"
