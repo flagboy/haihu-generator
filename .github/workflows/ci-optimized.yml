@@ -247,7 +247,7 @@ jobs:
   coverage:
     name: Coverage Report
     runs-on: ubuntu-latest
-    needs: test
+    needs: [prepare-cache, test]
     if: always() && github.event_name == 'pull_request'
     steps:
       - name: Checkout code
