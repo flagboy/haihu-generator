@@ -88,7 +88,7 @@ class VersionService(LoggerMixin):
             FileIOHelper.save_json(stats, stats_path, pretty=True)
 
             # チェックサムを計算
-            checksum = self.export_service.calculate_checksum(version_dir)
+            checksum = self._calculate_checksum(version_dir)
 
             # バージョンエンティティを作成
             version = DatasetVersion(
@@ -146,15 +146,9 @@ class VersionService(LoggerMixin):
             annotation_data = AnnotationData()
             annotation_data.load_from_json(str(annotation_path))
 
-            # エクスポート
-            export_path = self.export_service.export_dataset(
-                annotation_data=annotation_data,
-                export_format=export_format,
-                output_dir=output_dir,
-                version_name=version.version,
-            )
-
-            return export_path
+            # エクスポート機能は削除されました
+            self.logger.error("エクスポート機能は利用できません")
+            return None
 
         except Exception as e:
             self.logger.error(f"バージョンエクスポートに失敗: {e}")
@@ -257,3 +251,27 @@ class VersionService(LoggerMixin):
             if file_path.is_file():
                 total_size += file_path.stat().st_size
         return total_size
+
+    def _calculate_checksum(self, directory: Path) -> str:
+        """
+        ディレクトリのチェックサムを計算
+
+        Args:
+            directory: ディレクトリパス
+
+        Returns:
+            チェックサム文字列
+        """
+        import hashlib
+
+        hasher = hashlib.sha256()
+
+        # ファイルをソートして一貫性を保つ
+        for file_path in sorted(directory.rglob("*")):
+            if file_path.is_file():
+                # ファイル名を含める
+                hasher.update(str(file_path.relative_to(directory)).encode())
+                # ファイルサイズを含める
+                hasher.update(str(file_path.stat().st_size).encode())
+
+        return hasher.hexdigest()

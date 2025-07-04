@@ -11,7 +11,7 @@ from typing import Any
 from ..utils.config import ConfigManager
 from ..utils.logger import LoggerMixin
 from .annotation_data import AnnotationData
-from .data.services import DatasetService, ExportService, VersionService
+from .data.services import DatasetService, VersionService
 
 
 class RefactoredDatasetManager(LoggerMixin):
@@ -29,7 +29,6 @@ class RefactoredDatasetManager(LoggerMixin):
 
         # サービスの初期化
         self.dataset_service = DatasetService(config_manager)
-        self.export_service = ExportService()
         self.version_service = VersionService(config_manager)
 
         # 互換性のためのプロパティ

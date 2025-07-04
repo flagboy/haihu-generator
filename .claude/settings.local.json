@@ -24,7 +24,8 @@
       "Bash(git rm:*)",
       "Bash(uv run ruff format:*)",
       "Bash(sed:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(uv run:*)"
     ],
     "deny": []
   }
