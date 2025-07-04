@@ -1,12 +1,12 @@
 # Webインターフェース用の依存関係
 
 # Flask関連
-Flask==2.3.3
+Flask==3.1.1
 Flask-SocketIO==5.3.6
 
 # WebSocket
 python-socketio==5.8.0
-python-engineio==4.7.1
+python-engineio==4.12.2
 
 # ファイル処理
 Werkzeug==2.3.7
@@ -24,7 +24,7 @@ torchvision==0.15.2
 sqlite3
 
 # ユーティリティ
-python-dotenv==1.0.0
+python-dotenv==1.1.1
 pathlib
 uuid
 datetime

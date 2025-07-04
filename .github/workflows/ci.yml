@@ -63,7 +63,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false  # カスタムキャッシュを使用
 
@@ -98,7 +98,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
@@ -152,7 +152,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
@@ -201,7 +201,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
@@ -268,7 +268,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
@@ -295,7 +295,7 @@ jobs:
           uv run pytest --cov=src --cov-report=xml:.pytest_cache/coverage.xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./.pytest_cache/coverage.xml
           flags: unittests
@@ -321,7 +321,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
