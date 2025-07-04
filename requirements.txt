@@ -26,4 +26,4 @@ pytest-cov==4.1.0
 
 # 開発ツール
 black==23.7.0
-flake8==6.0.0
+flake8==7.3.0
