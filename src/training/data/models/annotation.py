@@ -5,6 +5,7 @@
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -99,7 +100,7 @@ class TileAnnotation:
         """
         return self.confidence >= threshold and not self.is_occluded
 
-    def to_dict(self) -> dict[str, any]:
+    def to_dict(self) -> dict[str, Any]:
         """辞書形式に変換"""
         return {
             "annotation_id": self.annotation_id,
@@ -119,7 +120,7 @@ class TileAnnotation:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, any]) -> "TileAnnotation":
+    def from_dict(cls, data: dict[str, Any]) -> "TileAnnotation":
         """
         辞書から生成
 

@@ -287,7 +287,7 @@ class ChangeAnalyzer:
 
     def _count_tiles(self, tiles: list[str]) -> dict[str, int]:
         """牌の枚数をカウント"""
-        counts = defaultdict(int)
+        counts: defaultdict[str, int] = defaultdict(int)
         for tile in tiles:
             if self.tile_definitions.is_valid_tile(tile):
                 counts[tile] += 1
@@ -358,9 +358,9 @@ class ChangeAnalyzer:
 
     def get_movement_patterns(self) -> dict[str, Any]:
         """移動パターンの統計を取得"""
-        patterns = defaultdict(int)
-        tile_movements = defaultdict(int)
-        player_movements = defaultdict(int)
+        patterns: defaultdict[str, int] = defaultdict(int)
+        tile_movements: defaultdict[str, int] = defaultdict(int)
+        player_movements: defaultdict[str, int] = defaultdict(int)
 
         for movement in self.movement_history:
             # 移動パターン
@@ -383,9 +383,9 @@ class ChangeAnalyzer:
 
     def get_change_statistics(self) -> dict[str, Any]:
         """変化統計を取得"""
-        change_types = defaultdict(int)
-        location_changes = defaultdict(int)
-        player_changes = defaultdict(int)
+        change_types: defaultdict[str, int] = defaultdict(int)
+        location_changes: defaultdict[str, int] = defaultdict(int)
+        player_changes: defaultdict[str, int] = defaultdict(int)
 
         for change in self.change_history:
             change_types[change.change_type.value] += 1

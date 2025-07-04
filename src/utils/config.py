@@ -3,15 +3,15 @@
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 
 class ConfigManager:
     """設定ファイルの読み込みと管理を行うクラス"""
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(self, config_path: str | Path | None = None):
         """
         設定管理クラスの初期化
 
@@ -21,9 +21,9 @@ class ConfigManager:
         if config_path is None:
             # プロジェクトルートのconfig.yamlを使用
             project_root = Path(__file__).parent.parent.parent
-            config_path = project_root / "config.yaml"
-
-        self.config_path = Path(config_path)
+            self.config_path = project_root / "config.yaml"
+        else:
+            self.config_path = Path(config_path)
         self._config = self._load_config()
         self._ensure_directories()
 
@@ -32,7 +32,7 @@ class ConfigManager:
         try:
             with open(self.config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-            return config
+            return cast(dict[str, Any], config)
         except FileNotFoundError as err:
             raise FileNotFoundError(f"設定ファイルが見つかりません: {self.config_path}") from err
         except yaml.YAMLError as e:
@@ -76,11 +76,11 @@ class ConfigManager:
 
     def get_image_config(self) -> dict[str, Any]:
         """画像処理設定を取得"""
-        return self.get("image", {})
+        return cast(dict[str, Any], self.get("image", {}))
 
     def get_system_config(self) -> dict[str, Any]:
         """システム設定を取得"""
-        return self.get("system", {})
+        return cast(dict[str, Any], self.get("system", {}))
 
     def update_config(self, key: str, value: Any):
         """
@@ -115,27 +115,27 @@ class ConfigManager:
 
     def get_tenhou_config(self) -> dict[str, Any]:
         """天鳳形式設定を取得"""
-        return self.get("tenhou", {})
+        return cast(dict[str, Any], self.get("tenhou", {}))
 
     def get_tenhou_output_config(self) -> dict[str, Any]:
         """天鳳出力設定を取得"""
-        return self.get("tenhou.output", {})
+        return cast(dict[str, Any], self.get("tenhou.output", {}))
 
     def get_tenhou_notation(self) -> dict[str, Any]:
         """天鳳牌表記を取得"""
-        return self.get("tenhou.specification.tile_notation", {})
+        return cast(dict[str, Any], self.get("tenhou.specification.tile_notation", {}))
 
     def get_ai_config(self) -> dict[str, Any]:
         """AI/ML設定を取得"""
-        return self.get("ai", {})
+        return cast(dict[str, Any], self.get("ai", {}))
 
     def get_pipeline_config(self) -> dict[str, Any]:
         """パイプライン設定を取得"""
-        return self.get("pipeline", {})
+        return cast(dict[str, Any], self.get("pipeline", {}))
 
     def get_optimization_config(self) -> dict[str, Any]:
         """最適化設定を取得"""
-        return self.get("optimization", {})
+        return cast(dict[str, Any], self.get("optimization", {}))
 
     # ====================
     # 後方互換性メソッド
@@ -155,25 +155,25 @@ class ConfigManager:
             }
 
         # 旧形式フォールバック
-        return self.get("directories", {})
+        return cast(dict[str, str], self.get("directories", {}))
 
     def get_video_config(self) -> dict[str, Any]:
         """動画処理設定を取得（新旧両形式対応）"""
         # 新形式チェック
         if "pipeline" in self._config and "video" in self._config["pipeline"]:
-            return self.get("pipeline.video", {})
+            return cast(dict[str, Any], self.get("pipeline.video", {}))
 
         # 旧形式フォールバック
-        return self.get("video", {})
+        return cast(dict[str, Any], self.get("video", {}))
 
     def get_logging_config(self) -> dict[str, Any]:
         """ログ設定を取得（新旧両形式対応）"""
         # 新形式チェック
         if "system" in self._config and "logging" in self._config["system"]:
-            return self.get("system.logging", {})
+            return cast(dict[str, Any], self.get("system.logging", {}))
 
         # 旧形式フォールバック
-        return self.get("logging", {})
+        return cast(dict[str, Any], self.get("logging", {}))
 
     def get_tile_definitions(self) -> dict[str, Any]:
         """麻雀牌定義を取得（新旧両形式対応）"""
@@ -181,7 +181,7 @@ class ConfigManager:
         if "tenhou" in self._config:
             notation = self.get("tenhou.specification.tile_notation", {})
             if notation:
-                return notation
+                return cast(dict[str, Any], notation)
 
         # 旧形式フォールバック
-        return self.get("tiles", {})
+        return cast(dict[str, Any], self.get("tiles", {}))

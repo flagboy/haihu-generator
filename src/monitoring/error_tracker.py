@@ -72,7 +72,7 @@ class ErrorTracker:
         self.alert_window = alert_window
 
         # ロガーの遅延初期化（循環参照を避けるため）
-        self._logger = None
+        self._logger: Any = None
         self.metrics = MetricsCollector(f"{name}_error_metrics")
 
         # エラー履歴
@@ -104,7 +104,7 @@ class ErrorTracker:
         if hasattr(self, "_tracking_error") and self._tracking_error:
             return
 
-        self._tracking_error = True
+        self._tracking_error: bool = True
 
         try:
             error_record = ErrorRecord(

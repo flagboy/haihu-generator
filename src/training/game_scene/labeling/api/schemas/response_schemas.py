@@ -86,7 +86,7 @@ class SuccessResponse:
 
     def to_dict(self) -> dict[str, Any]:
         """辞書形式に変換"""
-        result = {"success": self.success}
+        result: dict[str, Any] = {"success": self.success}
         if self.message:
             result["message"] = self.message
         if self.data:

@@ -307,9 +307,8 @@ class TenhouGameData:
 
         # アクションの妥当性チェック
         for i, action in enumerate(self.actions):
-            if not isinstance(action, TenhouAction):
-                errors.append(f"アクション{i}の型が不正です")
-            elif action.player < 0 or action.player >= 4:
+            # プレイヤーIDの妥当性チェック
+            if action.player < 0 or action.player >= 4:
                 errors.append(f"アクション{i}のプレイヤーIDが不正です: {action.player}")
 
         # タイトルチェック
@@ -320,7 +319,7 @@ class TenhouGameData:
 
     def get_statistics(self) -> dict[str, Any]:
         """ゲーム統計を取得"""
-        action_counts = {}
+        action_counts: dict[str, int] = {}
         for action in self.actions:
             action_type = action.action_type.value
             action_counts[action_type] = action_counts.get(action_type, 0) + 1
@@ -342,10 +341,10 @@ class TenhouGameDataBuilder:
     def reset(self) -> "TenhouGameDataBuilder":
         """ビルダーをリセット"""
         self._title = ""
-        self._players = []
+        self._players: list[TenhouPlayerState] = []
         self._rule = TenhouGameRule()
-        self._actions = []
-        self._result = None
+        self._actions: list[TenhouAction] = []
+        self._result: TenhouGameResult | None = None
         return self
 
     def set_title(self, title: str) -> "TenhouGameDataBuilder":
