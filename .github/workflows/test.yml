@@ -60,7 +60,7 @@ jobs:
       continue-on-error: true
 
     - name: カバレッジレポートのアップロード
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         file: ./.pytest_cache/coverage.xml
         flags: unittests
