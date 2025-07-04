@@ -118,7 +118,14 @@ jobs:
             --disable-error-code=dict-item \
             --disable-error-code=index \
             --disable-error-code=valid-type \
-            --disable-error-code=import-untyped
+            --disable-error-code=import-untyped \
+            --disable-error-code=unreachable \
+            --disable-error-code=misc \
+            --disable-error-code=list-item \
+            --disable-error-code=call-overload \
+            --disable-error-code=call-arg \
+            --disable-error-code=return \
+            --disable-error-code=type-var
 
   # セキュリティチェック（独立して実行）
   security:

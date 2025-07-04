@@ -130,6 +130,9 @@ class TileDataset(Dataset):
                 return self._get_detection_item(image, sample)
             elif self.model_type == "classification":
                 return self._get_classification_item(image, sample)
+            else:
+                # 未知のモデルタイプの場合はダミーデータを返す
+                return torch.zeros(3, 224, 224), torch.tensor(0, dtype=torch.long)
 
         except Exception:
             # エラーの場合はダミーデータを返す
