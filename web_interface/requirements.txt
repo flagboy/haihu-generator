@@ -24,7 +24,7 @@ torchvision==0.15.2
 sqlite3
 
 # ユーティリティ
-python-dotenv==1.0.0
+python-dotenv==1.1.1
 pathlib
 uuid
 datetime
