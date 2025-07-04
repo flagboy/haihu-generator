@@ -47,6 +47,14 @@ class SceneTrainer(LoggerMixin):
         # 進捗コールバック
         self.progress_callback = None
 
+        # 学習状態を追跡
+        self.current_epoch = 0
+        self.total_epochs = 0
+        self.train_loss = 0.0
+        self.val_accuracy = 0.0
+        self.is_training = False
+        self.session_id = None
+
         self.logger.info(f"SceneTrainer初期化完了 (device: {self.device})")
 
     def set_progress_callback(self, callback):
@@ -86,9 +94,16 @@ class SceneTrainer(LoggerMixin):
             学習結果
         """
         # セッションIDを生成
-        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        session_dir = self.output_dir / session_id
+        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_dir = self.output_dir / self.session_id
         session_dir.mkdir(exist_ok=True)
+
+        # 学習状態をリセット
+        self.current_epoch = 0
+        self.total_epochs = epochs
+        self.train_loss = 0.0
+        self.val_accuracy = 0.0
+        self.is_training = True
 
         # データローダーを作成
         train_loader = DataLoader(
@@ -146,14 +161,23 @@ class SceneTrainer(LoggerMixin):
 
         # 学習ループ
         for epoch in range(epochs):
+            if not self.is_training:
+                self.logger.info("学習が停止されました")
+                break
+
+            # 状態を更新
+            self.current_epoch = epoch + 1
+
             # エポック開始通知
             self._notify_progress(f"エポック {epoch + 1}/{epochs} を開始", epoch + 1, epochs)
 
             # 学習
             train_loss, train_acc = self._train_epoch(model, train_loader, criterion, optimizer)
+            self.train_loss = train_loss
 
             # 検証
             val_loss, val_acc = self._validate(model, val_loader, criterion)
+            self.val_accuracy = val_acc
 
             # 履歴を記録
             history["train_loss"].append(train_loss)
@@ -223,7 +247,7 @@ class SceneTrainer(LoggerMixin):
 
         # 学習結果を保存
         results = {
-            "session_id": session_id,
+            "session_id": self.session_id,
             "epochs_trained": len(history["train_loss"]),
             "best_val_loss": best_val_loss,
             "best_val_acc": max(history["val_acc"]),
@@ -249,7 +273,32 @@ class SceneTrainer(LoggerMixin):
 
         self.logger.info(f"学習完了: 結果を {session_dir} に保存")
 
+        # 学習状態をリセット
+        self.is_training = False
+
         return results
+
+    def get_training_status(self) -> dict[str, any]:
+        """
+        現在の学習状態を取得
+
+        Returns:
+            学習状態の辞書
+        """
+        return {
+            "session_id": self.session_id,
+            "is_training": self.is_training,
+            "current_epoch": self.current_epoch,
+            "total_epochs": self.total_epochs,
+            "train_loss": self.train_loss,
+            "val_accuracy": self.val_accuracy,
+            "progress": self.current_epoch / self.total_epochs if self.total_epochs > 0 else 0,
+        }
+
+    def stop_training(self):
+        """学習を停止"""
+        self.is_training = False
+        self.logger.info("学習停止が要求されました")
 
     def _train_epoch(
         self, model: nn.Module, loader: DataLoader, criterion: nn.Module, optimizer: optim.Optimizer
