@@ -426,48 +426,6 @@ class AnnotationData(LoggerMixin):
         data["frames"] = frames
         return VideoAnnotation(**data)
 
-    def export_yolo_format(self, output_dir: str, class_mapping: dict[str, int]) -> bool:
-        """YOLO形式でエクスポート"""
-        try:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            images_dir = output_dir / "images"
-            labels_dir = output_dir / "labels"
-            images_dir.mkdir(exist_ok=True)
-            labels_dir.mkdir(exist_ok=True)
-
-            for video_annotation in self.video_annotations.values():
-                for frame in video_annotation.frames:
-                    if not frame.tiles:
-                        continue
-
-                    # ラベルファイルを作成
-                    label_file = labels_dir / f"{frame.frame_id}.txt"
-                    with open(label_file, "w") as f:
-                        for tile in frame.tiles:
-                            if tile.tile_id in class_mapping:
-                                class_id = class_mapping[tile.tile_id]
-                                center_x, center_y, width, height = tile.bbox.to_yolo_format(
-                                    frame.image_width, frame.image_height
-                                )
-                                f.write(
-                                    f"{class_id} {center_x:.6f} {center_y:.6f} "
-                                    f"{width:.6f} {height:.6f}\n"
-                                )
-
-            # クラスマッピングを保存
-            with open(output_dir / "classes.txt", "w", encoding="utf-8") as f:
-                for tile_name, _ in sorted(class_mapping.items(), key=lambda x: x[1]):
-                    f.write(f"{tile_name}\n")
-
-            self.logger.info(f"YOLO形式でエクスポート完了: {output_dir}")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"YOLO形式エクスポートに失敗: {e}")
-            return False
-
     def get_all_statistics(self) -> dict[str, Any]:
         """全動画の統計情報を取得"""
         if not self.video_annotations:
