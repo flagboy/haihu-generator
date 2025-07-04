@@ -110,7 +110,7 @@ def set_monitoring_config(config: MonitoringConfig) -> None:
 
 def load_monitoring_config(config_path: Path) -> MonitoringConfig:
     """設定ファイルから読み込み"""
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     with open(config_path) as f:
         config_dict = yaml.safe_load(f)

@@ -9,7 +9,7 @@ import pickle
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from ..core import (
     FileFormatError,
@@ -49,7 +49,7 @@ class FileIOHelper:
 
         try:
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, **json_kwargs)
+                json.dump(data, f, **json_kwargs)  # type: ignore[arg-type]
             logger.debug(f"JSON saved to {path}")
         except OSError as e:
             error_context = create_context(
@@ -85,7 +85,7 @@ class FileIOHelper:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             logger.debug(f"JSON loaded from {path}")
-            return data
+            return data  # type: ignore[no-any-return]
         except FileNotFoundError as e:
             raise FileReadError(
                 f"JSONファイルが見つかりません: {path}",
