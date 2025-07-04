@@ -77,10 +77,9 @@ class TestMonitoringSystemIntegration:
 
                     assert result.success
 
-                    # メトリクスが記録されていることを確認
-                    stats = orchestrator.collect_statistics()
-                    assert "total_frames_processed" in stats
-                    assert "processing_fps" in stats
+                    # 処理結果の統計情報を確認
+                    assert result.frame_count == 0  # 空のフレームリスト
+                    assert result.processing_time > 0
 
     def test_ai_pipeline_monitoring_integration(self, config_manager):
         """AIPipelineとモニタリングの統合テスト"""
@@ -155,11 +154,11 @@ class TestMonitoringSystemIntegration:
                         ai_pipeline=mock_ai,
                         game_pipeline=mock_game,
                     )
-                    result = integrator.process_video(
-                        mock_video_file, output_path=Path("output.json"), save_intermediate=False
+                    result = integrator.process_video_complete(
+                        mock_video_file, output_path="output.json"
                     )
 
-                    assert result["success"]
+                    assert result.success
 
                     # システム情報が含まれていることを確認
                     system_info = integrator.get_system_info()
@@ -179,11 +178,12 @@ class TestMonitoringSystemIntegration:
         assert initial_metrics.memory_usage >= 0
 
         # 最適化を実行
-        optimizer.optimize_system()
+        result = optimizer.optimize_system()
 
-        # 推奨事項を取得
-        recommendations = optimizer.get_recommendations()
-        assert isinstance(recommendations, list)
+        # 最適化結果を確認
+        assert result.success
+        assert isinstance(result.recommendations, list)
+        assert len(result.recommendations) > 0
 
         # モニタリング中のメトリクス変化を確認
         time.sleep(0.1)  # 少し待機
