@@ -6,6 +6,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -38,7 +39,7 @@ class DatasetVersion:
         self.frame_count = frame_count
         self.tile_count = tile_count
 
-    def to_dict(self) -> dict[str, any]:
+    def to_dict(self) -> dict[str, Any]:
         """辞書形式に変換"""
         return {
             "version_id": self.version_id,
@@ -52,7 +53,7 @@ class DatasetVersion:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, any]) -> "DatasetVersion":
+    def from_dict(cls, data: dict[str, Any]) -> "DatasetVersion":
         """
         辞書から生成
 

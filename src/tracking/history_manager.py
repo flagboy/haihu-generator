@@ -9,6 +9,7 @@ from typing import Any
 
 from ..game.player import PlayerPosition
 from ..game.turn import Action, ActionType
+from ..utils.logger import get_logger
 from ..utils.tile_definitions import TileDefinitions
 
 
@@ -67,6 +68,7 @@ class HistoryManager:
 
     def __init__(self):
         """履歴管理クラスを初期化"""
+        self.logger = get_logger(__name__)
         self.tile_definitions = TileDefinitions()
 
         # 現在のゲーム記録
@@ -295,9 +297,11 @@ class HistoryManager:
         }
 
         # 各局のデータを天鳳形式に変換
+        rounds_list: list[dict[str, Any]] = []
         for round_data in game_record.rounds:
             tenhou_round = self._convert_round_to_tenhou_json(round_data)
-            tenhou_data["rounds"].append(tenhou_round)
+            rounds_list.append(tenhou_round)
+        tenhou_data["rounds"] = rounds_list
 
         # メタデータを追加
         tenhou_data["metadata"] = {
@@ -351,10 +355,12 @@ class HistoryManager:
         }
 
         # 行動データを天鳳JSON形式に変換
-        for action_data in round_data["actions"]:
-            tenhou_action = self._convert_action_to_tenhou_json(action_data)
-            if tenhou_action:
-                tenhou_round["actions"].append(tenhou_action)
+        actions = tenhou_round.get("actions")
+        if isinstance(actions, list):
+            for action_data in round_data["actions"]:
+                tenhou_action = self._convert_action_to_tenhou_json(action_data)
+                if tenhou_action:
+                    actions.append(tenhou_action)
 
         return tenhou_round
 
@@ -410,7 +416,7 @@ class HistoryManager:
 
     def get_action_statistics(self) -> dict[str, Any]:
         """行動統計を取得"""
-        action_counts = {}
+        action_counts: dict[str, int] = {}
         player_action_counts = dict.fromkeys(PlayerPosition, 0)
 
         for action in self.action_history:

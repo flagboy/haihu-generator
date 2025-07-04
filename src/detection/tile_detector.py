@@ -209,6 +209,10 @@ class TileDetector:
 
                 self.model.eval()
                 return True
+            else:
+                # 未知のモデルタイプ
+                self.logger.error(f"Unknown model type: {self.model_type}")
+                return False
 
         except Exception as e:
             self.logger.error(f"Failed to load model: {e}")

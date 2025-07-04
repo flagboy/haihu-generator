@@ -609,15 +609,15 @@ class LearningScheduler(LoggerMixin):
         if not completed_trials:
             return {"message": "完了した試行がありません"}
 
-        scores = [trial.score for trial in completed_trials]
+        scores = [trial.score for trial in completed_trials if trial.score is not None]
 
         summary = {
             "total_trials": len(self.optimization_trials),
             "completed_trials": len(completed_trials),
-            "best_score": max(scores),
-            "worst_score": min(scores),
-            "mean_score": np.mean(scores),
-            "std_score": np.std(scores),
+            "best_score": max(scores) if scores else None,
+            "worst_score": min(scores) if scores else None,
+            "mean_score": np.mean(scores) if scores else None,
+            "std_score": np.std(scores) if scores else None,
             "best_parameters": self.get_best_parameters(n_best=1)[0] if completed_trials else None,
         }
 

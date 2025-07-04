@@ -288,15 +288,17 @@ class ActionDetector:
         actions = []
 
         # プレイヤーごとに変化を整理
-        player_changes = {}
+        player_changes: dict[PlayerPosition, dict[str, Any]] = {}
         for change in tile_changes:
             if change.player not in player_changes:
-                player_changes[change.player] = []
-            player_changes[change.player].append(change)
+                player_changes[change.player] = {"changes": []}
+            player_changes[change.player]["changes"].append(change)
 
         # 各プレイヤーの行動を推定
-        for player, changes in player_changes.items():
-            actions.extend(self._infer_player_actions(player, changes, frame_number))
+        for player, player_data in player_changes.items():
+            changes_list = player_data.get("changes", [])
+            if changes_list:
+                actions.extend(self._infer_player_actions(player, changes_list, frame_number))
 
         return actions
 

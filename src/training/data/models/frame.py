@@ -6,6 +6,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -58,7 +59,7 @@ class Frame:
         if reason:
             self.notes = f"無効: {reason}"
 
-    def to_dict(self) -> dict[str, any]:
+    def to_dict(self) -> dict[str, Any]:
         """辞書形式に変換"""
         return {
             "frame_id": self.frame_id,
@@ -77,7 +78,7 @@ class Frame:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, any]) -> "Frame":
+    def from_dict(cls, data: dict[str, Any]) -> "Frame":
         """
         辞書から生成
 

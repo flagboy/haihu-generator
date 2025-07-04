@@ -593,6 +593,9 @@ class SceneDataset(Dataset, LoggerMixin):
             total_video_time = time.time() - video_load_start
             self.logger.debug(f"📹 動画読み込み完了: total_video_time={total_video_time:.3f}s")
 
+        # すべての試行が失敗した場合
+        return None
+
     def _create_dummy_frame(self) -> np.ndarray | None:
         """
         エラー時のダミーフレームを作成

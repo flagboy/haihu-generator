@@ -101,9 +101,9 @@ class TileDefinitions:
         elif tile_type == TileType.AKADORA:
             return self.AKADORA_TILES.copy()
         else:
-            return []
+            return []  # type: ignore[unreachable]
 
-    def get_tile_type(self, tile: str) -> TileType:
+    def get_tile_type(self, tile: str) -> TileType | None:
         """牌の種類を取得"""
         return self._tile_to_type.get(tile)
 

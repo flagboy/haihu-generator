@@ -44,8 +44,7 @@ class Action:
         """初期化後の処理"""
         if self.tiles is None:
             self.tiles = []
-        if self.metadata is None:
-            self.metadata = {}
+        # metadataはfield(default_factory=dict)で初期化されるため、Noneになることはない
 
 
 @dataclass
@@ -239,7 +238,7 @@ class Turn:
         if self.current_turn:
             total_turns += 1
 
-        action_counts = {}
+        action_counts: dict[str, int] = {}
         player_action_counts = dict.fromkeys(PlayerPosition, 0)
 
         all_actions = []

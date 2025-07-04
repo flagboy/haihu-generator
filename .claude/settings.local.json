@@ -15,7 +15,15 @@
       "Bash(uv run ruff check:*)",
       "Bash(source:*)",
       "Bash(brew install:*)",
-      "Bash(mkdir:*)"
+      "Bash(ruff check:*)",
+      "Bash(mkdir:*)",
+      "Bash(.venv/bin/python -m pytest tests/monitoring/test_error_tracker.py::TestErrorTracker::test_track_error -v)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(chmod:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(git rm:*)",
+      "Bash(uv run ruff format:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

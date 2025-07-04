@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 sys.path.append(str(Path(__file__).parent.parent))
 
 # セキュリティ機能のインポート
+from src.monitoring.dashboard import dashboard_bp, start_monitoring_updates
 from src.training.dataset_manager import DatasetManager
 from src.training.frame_extractor import FrameExtractor
 from src.training.game_scene.labeling.api.scene_routes import scene_labeling_bp
@@ -1349,9 +1350,13 @@ def get_scene_datasets():
 app.register_blueprint(labeling_bp)
 app.register_blueprint(scene_labeling_bp)
 app.register_blueprint(scene_training_bp)
+app.register_blueprint(dashboard_bp)
 
 # WebSocketを初期化
 labeling_websocket.init_socketio(app)
+
+# モニタリング更新を開始
+start_monitoring_updates(socketio, interval=5)
 
 
 # セキュリティヘッダーの適用
