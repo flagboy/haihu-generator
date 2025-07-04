@@ -21,9 +21,10 @@ except ImportError:
     torch = None
     nn = None
 
-from ....utils.logger import LoggerMixin
-from ...annotation_data import AnnotationData
-from ..dataset_manager import DatasetManager
+from src.training.annotation_data import AnnotationData
+from src.training.dataset_manager import DatasetManager
+from src.utils.logger import LoggerMixin
+
 from .components.checkpoint_manager import CheckpointManager
 from .training_manager import TrainingConfig, TrainingManager
 

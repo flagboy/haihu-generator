@@ -16,7 +16,8 @@ from ...annotation_data import AnnotationData
 from ..database import DatabaseConnection
 from ..models import DatasetVersion
 from ..repositories import VersionRepository
-from .export_service import ExportService
+
+# ExportService は削除されました
 
 
 class VersionService(LoggerMixin):
@@ -45,8 +46,7 @@ class VersionService(LoggerMixin):
         )
         self.versions_dir.mkdir(parents=True, exist_ok=True)
 
-        # エクスポートサービス
-        self.export_service = ExportService()
+        # エクスポートサービスは削除されました
 
         self.logger.info("VersionService初期化完了")
 

@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from ....utils.logger import LoggerMixin
+from src.utils.logger import LoggerMixin
 
 
 @dataclass

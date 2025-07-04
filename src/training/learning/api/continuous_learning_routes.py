@@ -6,10 +6,11 @@
 
 from flask import Blueprint, jsonify, request
 
-from ....utils.config import ConfigManager
-from ....utils.logger import get_logger
-from ...annotation_data import AnnotationData
-from ...dataset_manager import DatasetManager
+from src.training.annotation_data import AnnotationData
+from src.training.dataset_manager import DatasetManager
+from src.utils.config import ConfigManager
+from src.utils.logger import get_logger
+
 from ..components.checkpoint_manager import CheckpointManager
 from ..components.data_history_manager import DataHistoryManager
 from ..continuous_learning_controller import (

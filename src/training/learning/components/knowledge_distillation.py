@@ -16,7 +16,7 @@ except ImportError:
     nn = None
     F = None
 
-from ....utils.logger import LoggerMixin
+from src.utils.logger import LoggerMixin
 
 
 class KnowledgeDistillationLoss(nn.Module if nn else object):
