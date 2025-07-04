@@ -6,7 +6,7 @@ numpy==1.24.3
 Pillow==10.1.0
 SQLAlchemy==2.0.23
 click==8.1.7
-python-dotenv==1.0.0
+python-dotenv==1.1.1
 
 # Optional: AI assistance
 torch>=2.0.0
