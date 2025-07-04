@@ -842,6 +842,74 @@ def start_training():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/training/sessions/<session_id>")
+def get_training_session_status(session_id: str):
+    """特定の学習セッションのステータスを取得"""
+    try:
+        # WebSocketセッションIDから実際のトレーニングセッションIDを取得
+        training_session_id = web_manager.training_sessions.get(session_id)
+        if not training_session_id:
+            return jsonify({"error": "セッションが見つかりません"}), 404
+
+        # TrainingManagerからステータスを取得
+        status = web_manager.training_manager.get_session_status(training_session_id)
+        if not status:
+            return jsonify({"error": "トレーニングセッションが見つかりません"}), 404
+
+        return jsonify(status)
+    except Exception as e:
+        web_manager.logger.error(f"セッションステータス取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/training/sessions/<session_id>/stop", methods=["POST"])
+def stop_training_session(session_id: str):
+    """学習セッションを停止"""
+    try:
+        # WebSocketセッションIDから実際のトレーニングセッションIDを取得
+        training_session_id = web_manager.training_sessions.get(session_id)
+        if not training_session_id:
+            return jsonify({"error": "セッションが見つかりません"}), 404
+
+        # TrainingManagerで学習を停止
+        success = web_manager.training_manager.stop_training(training_session_id)
+        if not success:
+            return jsonify({"error": "学習の停止に失敗しました"}), 500
+
+        return jsonify({"success": True, "message": "学習を停止しました"})
+    except Exception as e:
+        web_manager.logger.error(f"学習停止エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/training/models/compare", methods=["POST"])
+def compare_training_models():
+    """複数のモデルを比較"""
+    try:
+        data = request.get_json()
+        session_ids = data.get("session_ids", [])
+
+        if not session_ids or len(session_ids) < 2:
+            return jsonify({"error": "比較には少なくとも2つのセッションIDが必要です"}), 400
+
+        # WebSocketセッションIDから実際のトレーニングセッションIDに変換
+        training_session_ids = []
+        for session_id in session_ids:
+            training_session_id = web_manager.training_sessions.get(session_id)
+            if training_session_id:
+                training_session_ids.append(training_session_id)
+
+        if len(training_session_ids) < 2:
+            return jsonify({"error": "有効なセッションが2つ以上見つかりません"}), 400
+
+        # TrainingManagerでモデルを比較
+        comparison_result = web_manager.training_manager.compare_models(training_session_ids)
+        return jsonify(comparison_result)
+    except Exception as e:
+        web_manager.logger.error(f"モデル比較エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # 手牌ラベリングAPI
 
 

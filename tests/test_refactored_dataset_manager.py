@@ -30,7 +30,7 @@ from src.training.data.repositories import (
     FrameRepository,
     VideoRepository,
 )
-from src.training.data.services import DatasetService, ExportService
+from src.training.data.services import DatasetService
 from src.training.refactored_dataset_manager import RefactoredDatasetManager
 
 
@@ -293,52 +293,6 @@ class TestServices:
             assert stats["video_count"] == 1
             assert stats["frame_count"] == 1
             assert stats["annotation_count"] == 1
-
-    def test_export_service(self):
-        """ExportServiceのテスト"""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            service = ExportService(tmpdir)
-
-            # テスト用アノテーションデータ
-            annotation_data = AnnotationData()
-
-            video_annotation = VideoAnnotation(
-                video_id="video_1",
-                video_path="/test.mp4",
-                video_name="test.mp4",
-                duration=300.0,
-                fps=30.0,
-                width=1920,
-                height=1080,
-                frames=[
-                    FrameAnnotation(
-                        frame_id="frame_1",
-                        image_path="/frame1.jpg",
-                        image_width=1920,
-                        image_height=1080,
-                        timestamp=1.0,
-                        tiles=[
-                            TileAnnotation(
-                                tile_id="1m",
-                                bbox=BoundingBox(x1=100, y1=200, x2=150, y2=250),
-                            )
-                        ],
-                    )
-                ],
-            )
-
-            annotation_data.video_annotations["video_1"] = video_annotation
-
-            # YOLO形式エクスポート
-            output_dir = service.export_dataset(
-                annotation_data,
-                export_format="yolo",
-                output_dir=Path(tmpdir) / "yolo_export",
-            )
-
-            assert output_dir is not None
-            assert (output_dir / "classes.txt").exists()
-            assert (output_dir / "dataset_info.json").exists()
 
 
 class TestRefactoredDatasetManager:

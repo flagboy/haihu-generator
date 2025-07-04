@@ -238,16 +238,47 @@ def get_training_status(session_id: str):
 
     try:
         # トレーナーから進捗情報を取得
+        status = _trainer.get_training_status()
+
+        # セッションIDが一致することを確認
+        if status.get("session_id") != _current_session:
+            return jsonify({"error": "Session mismatch"}), 500
+
+        # レスポンス形式を整形
         progress = {
-            "status": "training",
-            "current_epoch": 0,  # TODO: 実装
-            "total_epochs": 0,  # TODO: 実装
-            "train_loss": 0,  # TODO: 実装
-            "val_accuracy": 0,  # TODO: 実装
+            "session_id": session_id,
+            "status": "training" if status["is_training"] else "completed",
+            "current_epoch": status["current_epoch"],
+            "total_epochs": status["total_epochs"],
+            "train_loss": status["train_loss"],
+            "val_accuracy": status["val_accuracy"],
+            "progress": status["progress"],
         }
 
         return jsonify(progress)
 
     except Exception as e:
         _logger.error(f"状態取得エラー: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@scene_training_bp.route("/stop/<session_id>", methods=["POST"])
+def stop_training(session_id: str):
+    """学習を停止"""
+    global _trainer, _current_session
+
+    if _current_session != session_id:
+        return jsonify({"error": "Invalid session ID"}), 404
+
+    if _trainer is None:
+        return jsonify({"error": "No training in progress"}), 404
+
+    try:
+        # トレーナーに停止を要求
+        _trainer.stop_training()
+
+        return jsonify({"success": True, "message": "学習停止を要求しました"})
+
+    except Exception as e:
+        _logger.error(f"停止エラー: {e}")
         return jsonify({"error": str(e)}), 500

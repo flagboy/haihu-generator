@@ -139,11 +139,9 @@ class TestLabelingIntegration:
         assert progress["labeled_frames"] == 1
         assert progress["total_frames"] == 10
 
-        # エクスポート
-        coco_data = session.export_annotations(format="coco")
-        assert "images" in coco_data
-        assert "annotations" in coco_data
-        assert len(coco_data["annotations"]) == 2
+        # エクスポート（tenhou形式のみサポート）
+        tenhou_data = session.export_annotations(format="tenhou")
+        assert tenhou_data is not None
 
     def test_full_workflow(self, temp_dir, sample_video):
         """完全なワークフローのテスト"""

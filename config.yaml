@@ -115,6 +115,48 @@ ai:
     contrast_range: [0.8, 1.2]
     noise_factor: 0.1
 
+  # 継続学習設定
+  continuous_learning:
+    enabled: true
+    incremental_data_threshold: 100  # 新データが何件たまったら学習するか
+    strategy: "fine_tuning"  # fine_tuning, elastic_weight, rehearsal, ewc
+
+    # Fine-tuning設定
+    fine_tuning:
+      lr_factor: 0.1  # ベース学習率に対する倍率
+      freeze_layers: []  # 凍結するレイヤー
+
+    # リハーサル設定
+    rehearsal:
+      buffer_size: 1000  # 保持する過去データ数
+      sample_ratio: 0.3  # バッチ内の過去データの割合
+      selection_strategy: "importance_sampling"  # random, importance_sampling, diversity
+
+    # EWC設定
+    ewc:
+      lambda: 0.5  # EWCの重み
+      fisher_samples: 200  # Fisher情報行列計算用のサンプル数
+
+    # 知識蒸留設定
+    knowledge_distillation:
+      enabled: false
+      temperature: 3.0
+      alpha: 0.7
+      temperature_schedule: "linear"  # constant, linear, exponential, cosine
+      alpha_schedule: "constant"  # constant, linear, step
+
+    # 自動学習設定
+    auto_training:
+      enabled: true
+      check_interval_hours: 24
+      min_performance_threshold: 0.85
+
+    # データ管理
+    data_management:
+      versioning: true
+      max_versions: 5
+      history_retention_days: 90
+
 # 教師データ作成設定
 training:
   # データベース設定
