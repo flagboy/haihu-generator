@@ -6,7 +6,7 @@ Flask-SocketIO==5.3.6
 
 # WebSocket
 python-socketio==5.8.0
-python-engineio==4.7.1
+python-engineio==4.12.2
 
 # ファイル処理
 Werkzeug==2.3.7
