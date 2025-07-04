@@ -23,7 +23,8 @@
       "Bash(uv run mypy:*)",
       "Bash(git rm:*)",
       "Bash(uv run ruff format:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(git mv:*)"
     ],
     "deny": []
   }
