@@ -1,0 +1,24 @@
+{
+  "name": "haihu-generator",
+  "version": "1.0.0",
+  "description": "Mahjong game record creation system",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mahjong",
+    "tenhou",
+    "game-record"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tanstack/react-query": "^5.81.5",
+    "expo-linear-gradient": "*",
+    "expo-network": "*"
+  }
+}
