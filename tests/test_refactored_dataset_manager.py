@@ -294,12 +294,6 @@ class TestServices:
             assert stats["frame_count"] == 1
             assert stats["annotation_count"] == 1
 
-    @pytest.mark.skip(reason="ExportService has been removed")
-    def test_export_service(self):
-        """ExportServiceのテスト"""
-        # ExportService has been removed
-        pass
-
 
 class TestRefactoredDatasetManager:
     """RefactoredDatasetManagerのテスト"""
