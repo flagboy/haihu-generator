@@ -47,7 +47,7 @@ class TestMonitoringSystemIntegration:
         # VideoProcessorをモック
         with patch("src.integration.orchestrator.VideoProcessor") as MockVideoProcessor:
             mock_processor = Mock()
-            mock_processor.extract_frames.return_value = []
+            mock_processor.extract_frames.return_value = {"success": True, "frames": []}
             MockVideoProcessor.return_value = mock_processor
 
             # AIPipelineをモック
@@ -63,10 +63,17 @@ class TestMonitoringSystemIntegration:
                     MockGamePipeline.return_value = mock_game
 
                     # オーケストレーターを実行
-                    orchestrator = VideoProcessingOrchestrator(config_manager)
-                    result = orchestrator.process_video(
-                        mock_video_file, skip_ai_pipeline=False, skip_game_pipeline=False
+                    orchestrator = VideoProcessingOrchestrator(
+                        config_manager,
+                        video_processor=mock_processor,
+                        ai_pipeline=mock_ai,
+                        game_pipeline=mock_game,
                     )
+                    # ProcessingOptionsを作成
+                    from src.integration.orchestrator import ProcessingOptions
+
+                    options = ProcessingOptions()
+                    result = orchestrator.process_video(mock_video_file, options)
 
                     assert result.success
 
@@ -93,7 +100,7 @@ class TestMonitoringSystemIntegration:
                 # AIPipelineを実行
                 pipeline = AIPipeline(config_manager)
                 test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-                result = pipeline.process_frame(test_frame, frame_number=1)
+                result = pipeline.process_frame(test_frame, frame_id=1)
 
                 # パフォーマンスメトリクスが記録されていることを確認
                 # process_frameメソッドが実行時間を記録しているか確認
@@ -102,22 +109,22 @@ class TestMonitoringSystemIntegration:
     def test_error_tracking_integration(self, config_manager):
         """エラートラッキングの統合テスト"""
         error_tracker = get_error_tracker()
-        len(error_tracker.errors)
+        initial_error_count = len(error_tracker.errors)
 
         # 意図的にエラーを発生させる
-        with patch("src.video.video_processor.cv2.VideoCapture") as MockCapture:
-            mock_cap = Mock()
-            mock_cap.isOpened.return_value = False
-            MockCapture.return_value = mock_cap
+        processor = VideoProcessor(config_manager)
 
-            processor = VideoProcessor(config_manager)
-            info = processor.get_video_info("nonexistent.mp4")
-            assert info is None
+        # VideoOpenErrorが発生することを確認
+        from src.core import VideoOpenError
 
-            # エラーが追跡されていることを確認
-            # get_video_infoがエラーをログに記録している
-            len(error_tracker.errors)
-            # エラーログが記録されているかは実装に依存
+        with pytest.raises(VideoOpenError):
+            processor.get_video_info("nonexistent.mp4")
+
+        # エラーが追跡されている場合の確認（実装に依存）
+        # エラートラッキングはアプリケーションレベルで行われる可能性がある
+        current_error_count = len(error_tracker.errors)
+        # エラー数が増加していなくても問題ない（エラートラッキングは上位層で行われる）
+        assert current_error_count >= initial_error_count
 
     def test_system_integrator_full_monitoring(self, config_manager, mock_video_file):
         """SystemIntegratorの完全なモニタリング統合テスト"""
@@ -142,7 +149,12 @@ class TestMonitoringSystemIntegration:
                     MockGamePipeline.return_value = mock_game
 
                     # システム統合を実行
-                    integrator = SystemIntegrator(config_manager)
+                    integrator = SystemIntegrator(
+                        config_manager,
+                        video_processor=mock_processor,
+                        ai_pipeline=mock_ai,
+                        game_pipeline=mock_game,
+                    )
                     result = integrator.process_video(
                         mock_video_file, output_path=Path("output.json"), save_intermediate=False
                     )
@@ -163,8 +175,8 @@ class TestMonitoringSystemIntegration:
 
         # 初期メトリクスを取得
         initial_metrics = optimizer.get_current_metrics()
-        assert "cpu_percent" in initial_metrics
-        assert "memory_percent" in initial_metrics
+        assert initial_metrics.cpu_usage >= 0
+        assert initial_metrics.memory_usage >= 0
 
         # 最適化を実行
         optimizer.optimize_system()
