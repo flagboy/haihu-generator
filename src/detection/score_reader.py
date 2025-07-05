@@ -17,8 +17,8 @@ try:
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
-    pytesseract = None
-    Image = None
+    pytesseract = None  # type: ignore
+    Image = None  # type: ignore
 
 from ..utils.logger import LoggerMixin
 

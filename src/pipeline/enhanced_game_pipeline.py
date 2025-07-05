@@ -13,11 +13,13 @@ import numpy as np
 
 from ..detection import (
     PlayerDetector,
-    PlayerPosition,
     SceneDetector,
     SceneType,
     ScoreReader,
     TileDetector,
+)
+from ..detection import (
+    PlayerPosition as DetectorPlayerPosition,
 )
 from ..pipeline.game_pipeline import GamePipeline, ProcessingResult
 from ..tracking.action_detector import ActionDetector
@@ -74,7 +76,41 @@ class EnhancedGamePipeline(GamePipeline):
 
         self.logger.info("拡張ゲームパイプライン初期化完了")
 
-    def process_frame(
+    def process_frame(self, frame_data: dict[str, Any]) -> ProcessingResult:
+        """
+        フレームデータを処理（親クラスのインターフェース）
+
+        Args:
+            frame_data: フレーム検出データ
+
+        Returns:
+            ProcessingResult: 処理結果
+        """
+        # フレームデータから必要な情報を抽出
+        frame = frame_data.get("frame")
+        frame_number = frame_data.get("frame_number", self.total_frames_processed)
+        timestamp = frame_data.get("timestamp", frame_number / 30.0)
+
+        if frame is None:
+            # フレームがない場合は親クラスのメソッドを使用
+            return super().process_frame(frame_data)
+
+        # 拡張処理を実行
+        enhanced_result = self.process_frame_enhanced(frame, frame_number, timestamp)
+
+        # 拡張結果を通常の結果に変換
+        return ProcessingResult(
+            success=enhanced_result.success,
+            frame_number=enhanced_result.frame_number,
+            actions_detected=enhanced_result.actions_detected,
+            confidence=enhanced_result.confidence,
+            processing_time=enhanced_result.processing_time,
+            errors=enhanced_result.errors,
+            warnings=enhanced_result.warnings,
+            metadata=enhanced_result.__dict__,
+        )
+
+    def process_frame_enhanced(
         self,
         frame: np.ndarray,
         frame_number: int,
@@ -158,9 +194,13 @@ class EnhancedGamePipeline(GamePipeline):
 
             # 5. アクション検出
             if detection_result and detection_result.detections:
-                actions = self.action_detector.detect_actions(
-                    detection_result.detections, frame_number, timestamp
-                )
+                # 検出結果をフレームデータ形式に変換
+                frame_data = {
+                    "detections": detection_result.detections,
+                    "timestamp": timestamp,
+                }
+                action_result = self.action_detector.detect_actions(frame_data, frame_number)
+                actions = action_result.actions if action_result else []
 
                 # 6. ゲーム状態更新
                 for action in actions:
@@ -236,8 +276,37 @@ class EnhancedGamePipeline(GamePipeline):
                     end_frame = boundary.frame_number
                     self.logger.info(f"ゲーム終了を検出: frame {end_frame}")
 
-        # 基底クラスの処理を実行
-        return super().process_video(video_path, start_frame, end_frame, skip_frames)
+        # 動画処理の実装
+        import cv2
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            self.logger.error(f"動画を開けません: {video_path}")
+            return {"success": False, "error": "Failed to open video"}
+
+        try:
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            if end_frame is None:
+                end_frame = total_frames
+
+            frame_count = 0
+            while frame_count < end_frame:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                if frame_count >= start_frame and frame_count % (skip_frames + 1) == 0:
+                    timestamp = frame_count / fps
+                    self.process_frame_enhanced(frame, frame_count, timestamp)
+
+                frame_count += 1
+
+        finally:
+            cap.release()
+
+        return self.get_enhanced_statistics()
 
     def _validate_scores(self, scores: dict[str, int]) -> bool:
         """点数の妥当性をチェック"""
@@ -252,9 +321,21 @@ class EnhancedGamePipeline(GamePipeline):
         # 各プレイヤーの点数が妥当な範囲内か
         return all(-50000 <= score <= 150000 for score in scores.values())
 
-    def _position_to_player(self, position: PlayerPosition):
+    def _position_to_player(self, position: DetectorPlayerPosition):
         """プレイヤー位置からプレイヤーオブジェクトを取得"""
-        return self.game_state.players.get(position)
+        from ..game.player import PlayerPosition
+
+        # DetectorPlayerPositionをPlayerPositionに変換
+        position_map = {
+            DetectorPlayerPosition.EAST: PlayerPosition.EAST,
+            DetectorPlayerPosition.SOUTH: PlayerPosition.SOUTH,
+            DetectorPlayerPosition.WEST: PlayerPosition.WEST,
+            DetectorPlayerPosition.NORTH: PlayerPosition.NORTH,
+        }
+        game_position = position_map.get(position)
+        if game_position:
+            return self.game_state.players.get(game_position)
+        return None
 
     def _calculate_overall_confidence(
         self, scene_info, player_info, score_info, detection_result
@@ -286,7 +367,7 @@ class EnhancedGamePipeline(GamePipeline):
         self, frame_number: int, timestamp: float, scene_info, player_info, score_info
     ):
         """拡張履歴情報を記録"""
-        history_data = {
+        history_data: dict[str, Any] = {
             "frame_number": frame_number,
             "timestamp": timestamp,
         }

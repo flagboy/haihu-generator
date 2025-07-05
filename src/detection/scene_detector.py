@@ -101,7 +101,7 @@ class SceneDetector(LoggerMixin):
         # 各種シーン検出手法を実行
         scene_type = SceneType.UNKNOWN
         confidence = 0.0
-        metadata = {}
+        metadata: dict[str, Any] = {}
 
         # 1. 色ヒストグラムによる判定
         hist_result = self._detect_by_histogram(frame)
@@ -282,7 +282,7 @@ class SceneDetector(LoggerMixin):
         Returns:
             ゲーム境界の検出結果リスト
         """
-        boundaries = []
+        boundaries: list[SceneDetectionResult] = []
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():

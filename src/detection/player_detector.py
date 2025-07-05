@@ -238,7 +238,7 @@ class PlayerDetector(LoggerMixin):
             return True
 
         # テンプレートマッチングも試行
-        if self.dealer_mark_template is not None:
+        if self.dealer_mark_template is not None:  # type: ignore[unreachable]
             result = cv2.matchTemplate(region, self.dealer_mark_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, _ = cv2.minMaxLoc(result)
             if max_val > 0.7:
@@ -288,7 +288,7 @@ class PlayerDetector(LoggerMixin):
             ratio = np.sum(mask > 0) / mask.size
 
             if ratio > max_ratio:
-                max_ratio = ratio
+                max_ratio = float(ratio)
 
         # 閾値以上の色が含まれていればハイライトとみなす
         threshold = 0.1
