@@ -285,7 +285,7 @@ class GameState:
 
         if action.action_type == ActionType.DISCARD:
             # 打牌の場合、手牌にその牌があるかチェック
-            return action.tile and player.has_tile_in_hand(action.tile)
+            return bool(action.tile and player.has_tile_in_hand(action.tile))
 
         elif action.action_type == ActionType.DRAW:
             # ツモの場合、手牌枚数をチェック
@@ -308,10 +308,14 @@ class GameState:
 
         try:
             if action.action_type == ActionType.DISCARD:
-                return player.discard_tile(action.tile)
+                if action.tile is not None:
+                    return player.discard_tile(action.tile)
+                return False
 
             elif action.action_type == ActionType.DRAW:
-                return player.add_tile_to_hand(action.tile)
+                if action.tile is not None:
+                    return player.add_tile_to_hand(action.tile)
+                return False
 
             elif action.action_type == ActionType.RIICHI:
                 current_turn = self.turn_manager.get_current_turn()

@@ -63,7 +63,7 @@ class SecurityValidator:
             return False, "ファイルが選択されていません"
 
         # ファイル名の検証
-        filename = secure_filename(file.filename)
+        filename = secure_filename(file.filename) if file.filename else ""
         if not filename:
             return False, "無効なファイル名です"
 
@@ -213,9 +213,10 @@ def generate_csrf_token() -> str:
     CSRFトークンの生成
     """
     if "csrf_token" not in session:
-        session["csrf_token"] = hmac.new(
-            current_app.secret_key.encode(), os.urandom(64), hashlib.sha256
-        ).hexdigest()
+        secret_key = current_app.secret_key
+        if isinstance(secret_key, str):
+            secret_key = secret_key.encode()
+        session["csrf_token"] = hmac.new(secret_key, os.urandom(64), hashlib.sha256).hexdigest()
     return session["csrf_token"]
 
 

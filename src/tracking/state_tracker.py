@@ -201,7 +201,7 @@ class StateTracker:
             all_tiles.extend(tiles)
 
         # 各牌の枚数をチェック
-        tile_counts = {}
+        tile_counts: dict[str, int] = {}
         for tile in all_tiles:
             if self.tile_definitions.is_valid_tile(tile):
                 tile_counts[tile] = tile_counts.get(tile, 0) + 1
@@ -230,7 +230,7 @@ class StateTracker:
         inconsistencies = []
 
         # 同一フレームでの矛盾する行動をチェック
-        player_actions = {}
+        player_actions: dict[Any, list[Any]] = {}
         for action in detection_result.actions:
             if action.player not in player_actions:
                 player_actions[action.player] = []

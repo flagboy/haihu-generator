@@ -5,7 +5,7 @@ PyTorchでGPU、MPS（Apple Silicon）、CPUを自動検出し、最適なデバ
 """
 
 import platform
-from typing import Literal
+from typing import Any, Literal
 
 try:
     import torch
@@ -13,7 +13,7 @@ try:
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
-    torch = None
+    torch = None  # type: ignore[assignment]
 
 from .logger import get_logger
 
@@ -75,7 +75,7 @@ def get_available_device(
     return device
 
 
-def get_device_info() -> dict[str, dict[str, any]]:
+def get_device_info() -> dict[str, dict[str, Any]]:
     """
     システムのデバイス情報を取得
 
@@ -130,7 +130,7 @@ def get_device_info() -> dict[str, dict[str, any]]:
     return info
 
 
-def _log_device_details(device: torch.device, device_info: dict[str, dict[str, any]]) -> None:
+def _log_device_details(device: torch.device, device_info: dict[str, dict[str, Any]]) -> None:
     """デバイスの詳細情報をログに出力"""
     if device.type == "cuda":
         cuda_info = device_info["cuda"]
@@ -197,7 +197,7 @@ def get_device_memory_info(device: torch.device | None = None) -> dict[str, floa
         }
 
 
-def optimize_for_device(model: any, device: torch.device) -> any:
+def optimize_for_device(model: Any, device: torch.device) -> Any:
     """
     デバイスに応じてモデルを最適化
 

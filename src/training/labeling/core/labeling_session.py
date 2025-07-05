@@ -14,6 +14,8 @@ from loguru import logger
 class LabelingSession:
     """ラベリングセッションを管理するクラス"""
 
+    session_data: dict[str, Any]
+
     def __init__(self, session_id: str | None = None, data_dir: str = "data/training/sessions"):
         """
         初期化

@@ -28,7 +28,8 @@
       "Bash(uv run:*)",
       "WebFetch(domain:github.com)",
       "Bash(sqlite3:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(gh run list:*)"
     ],
     "deny": []
   }
