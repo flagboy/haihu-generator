@@ -5,12 +5,10 @@
 import numpy as np
 import pytest
 
+from src.detection import PlayerPosition as DetectorPlayerPosition
 from src.detection import SceneType
-from src.game.player import PlayerPosition
-from src.pipeline.enhanced_game_pipeline import (
-    EnhancedGamePipeline,
-    EnhancedProcessingResult,
-)
+from src.pipeline.enhanced_game_pipeline import EnhancedGamePipeline
+from src.pipeline.game_pipeline import ProcessingResult
 
 
 class TestEnhancedGamePipeline:
@@ -48,12 +46,14 @@ class TestEnhancedGamePipeline:
 
     def test_process_frame_basic(self, pipeline, sample_frame):
         """基本的なフレーム処理テスト"""
-        result = pipeline.process_frame(sample_frame, frame_number=100, timestamp=3.33)
+        frame_data = {"frame": sample_frame, "frame_number": 100, "timestamp": 3.33}
+        result = pipeline.process_frame(frame_data)
 
-        assert isinstance(result, EnhancedProcessingResult)
+        assert isinstance(result, ProcessingResult)
         assert result.frame_number == 100
         assert result.processing_time > 0
-        assert result.scene_type is not None
+        # メタデータからシーンタイプを確認
+        assert "scene_type" in result.metadata
 
     def test_process_frame_non_game_scene(self, pipeline):
         """ゲーム外シーンの処理テスト"""
@@ -61,10 +61,12 @@ class TestEnhancedGamePipeline:
         menu_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         menu_frame[:, :] = [20, 20, 20]  # 暗い色
 
-        result = pipeline.process_frame(menu_frame, 0, 0.0)
+        frame_data = {"frame": menu_frame, "frame_number": 0, "timestamp": 0.0}
+        result = pipeline.process_frame(frame_data)
 
         assert result.success is True
-        assert result.scene_type == SceneType.MENU
+        # メタデータからシーンタイプを確認
+        assert result.metadata.get("scene_type") == SceneType.MENU
         assert "ゲームプレイ中ではありません" in result.warnings
         assert result.actions_detected == 0
 
@@ -88,8 +90,10 @@ class TestEnhancedGamePipeline:
         pipeline.initialize_game()
 
         # 各位置のプレイヤーを取得
-        east_player = pipeline._position_to_player(PlayerPosition.EAST)
+        east_player = pipeline._position_to_player(DetectorPlayerPosition.EAST)
         assert east_player is not None
+        from src.game.player import PlayerPosition
+
         assert east_player.state.position == PlayerPosition.EAST
 
     def test_calculate_overall_confidence(self, pipeline):
@@ -124,7 +128,8 @@ class TestEnhancedGamePipeline:
         pipeline.initialize_game()
 
         # フレームを処理
-        result = pipeline.process_frame(sample_frame, 0, 0.0)
+        frame_data = {"frame": sample_frame, "frame_number": 0, "timestamp": 0.0}
+        result = pipeline.process_frame(frame_data)
 
         # 履歴が記録されていることを確認
         # フレーム処理でエラーが発生している可能性があるため、処理されたかどうかだけ確認
@@ -162,10 +167,11 @@ class TestEnhancedGamePipeline:
     def test_scene_boundary_detection(self, pipeline, sample_frame):
         """シーン境界検出のテスト"""
         # ゲーム開始シーンを模擬
-        result = pipeline.process_frame(sample_frame, 0, 0.0)
+        frame_data = {"frame": sample_frame, "frame_number": 0, "timestamp": 0.0}
+        result = pipeline.process_frame(frame_data)
 
         # シーン境界の検出
-        if result.scene_type and result.scene_type == SceneType.GAME_START:
+        if result.metadata.get("scene_type") == SceneType.GAME_START:
             assert len(pipeline.round_boundaries) == 1
             assert pipeline.round_boundaries[0][2] == SceneType.GAME_START
 
@@ -184,5 +190,6 @@ class TestEnhancedGamePipeline:
 
         # 機能なしでも処理可能
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        result = pipeline.process_frame(frame, 0, 0.0)
-        assert isinstance(result, EnhancedProcessingResult)
+        frame_data = {"frame": frame, "frame_number": 0, "timestamp": 0.0}
+        result = pipeline.process_frame(frame_data)
+        assert isinstance(result, ProcessingResult)
