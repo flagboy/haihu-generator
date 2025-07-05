@@ -5,6 +5,7 @@
 """
 
 import hashlib
+from typing import Any
 
 import numpy as np
 
@@ -29,7 +30,7 @@ class CachedSceneDetector(SceneDetector):
         self.cache_size = cache_config.get("size", 100)
 
         # フレームハッシュのキャッシュ
-        self._frame_hash_cache = {}
+        self._frame_hash_cache: dict[str, dict[str, Any]] = {}
 
         self.logger.info(f"CachedSceneDetector初期化完了 (cache_size: {self.cache_size})")
 

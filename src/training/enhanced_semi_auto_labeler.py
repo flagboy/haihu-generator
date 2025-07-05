@@ -21,12 +21,11 @@ from ..detection import (
     ScoreReadingResult,
 )
 from ..utils.config import ConfigManager
-from ..utils.logger import LoggerMixin
 from .annotation_data import FrameAnnotation
-from .semi_auto_labeler import PredictionResult, SemiAutoLabeler
+from .semi_auto_labeler import SemiAutoLabeler
 
 
-class EnhancedPredictionResult(PredictionResult):
+class EnhancedPredictionResult:
     """拡張予測結果クラス"""
 
     def __init__(
@@ -49,45 +48,55 @@ class EnhancedPredictionResult(PredictionResult):
             score_result: 点数読み取り結果
             player_result: プレイヤー検出結果
         """
-        super().__init__(frame_annotation, detection_results, classification_results)
+        self.frame_annotation = frame_annotation
+        self.detection_results = detection_results
+        self.classification_results = classification_results
         self.scene_result = scene_result
         self.score_result = score_result
         self.player_result = player_result
 
     def get_scene_context(self) -> dict[str, Any]:
         """シーンコンテキストを取得"""
-        context = {}
+        context: dict[str, Any] = {}
 
         if self.scene_result:
-            context["scene_type"] = self.scene_result.scene_type.value
-            context["scene_confidence"] = self.scene_result.confidence
-            context["scene_metadata"] = self.scene_result.metadata
+            scene_type_value: str = self.scene_result.scene_type.value
+            scene_confidence: float = self.scene_result.confidence
+            scene_metadata: dict[str, Any] = self.scene_result.metadata
+
+            context["scene_type"] = scene_type_value
+            context["scene_confidence"] = scene_confidence
+            context["scene_metadata"] = scene_metadata
 
         if self.player_result:
-            context["player_positions"] = {
-                player.position.value: {
+            player_positions: dict[str, dict[str, Any]] = {}
+            for player in self.player_result.players:
+                position_value = player.position.value
+                player_positions[position_value] = {
                     "name": player.name,
                     "is_dealer": player.is_dealer,
                     "is_active": player.is_active,
                 }
-                for player in self.player_result.players
-            }
-            context["active_player"] = (
-                self.player_result.active_position.value
-                if self.player_result.active_position
-                else None
-            )
-            context["dealer_position"] = self.player_result.dealer_position.value
+            context["player_positions"] = player_positions
+
+            active_player_value: str | None = None
+            if self.player_result.active_position:
+                active_player_value = self.player_result.active_position.value
+            context["active_player"] = active_player_value
+
+            dealer_position_value: str = self.player_result.dealer_position.value
+            context["dealer_position"] = dealer_position_value
 
         if self.score_result:
-            context["scores"] = {
-                score.player_position: score.score for score in self.score_result.scores
-            }
+            scores_dict: dict[str, int] = {}
+            for score in self.score_result.scores:
+                scores_dict[score.player_position] = score.score
+            context["scores"] = scores_dict
 
         return context
 
 
-class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
+class EnhancedSemiAutoLabeler(SemiAutoLabeler):
     """拡張半自動ラベリングクラス"""
 
     def __init__(self, config_manager: ConfigManager | None = None):
@@ -129,7 +138,7 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
 
     def predict_frame_annotations(
         self, frame_annotation: FrameAnnotation
-    ) -> EnhancedPredictionResult:
+    ) -> EnhancedPredictionResult:  # type: ignore[override]
         """
         拡張フレーム予測
 
@@ -153,8 +162,11 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
             raise ValueError(f"画像を読み込めません: {image_path}")
 
         # シーン検出
+        frame_number = (
+            int(frame_annotation.frame_id.split("_")[-1]) if "_" in frame_annotation.frame_id else 0
+        )
         scene_result = self.scene_detector.detect_scene(
-            image, frame_annotation.frame_id, frame_annotation.timestamp
+            image, frame_number, frame_annotation.timestamp
         )
         self.scene_stats[scene_result.scene_type] += 1
 
@@ -169,12 +181,12 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
 
         # プレイヤー検出
         player_result = self.player_detector.detect_players(
-            image, frame_annotation.frame_id, frame_annotation.timestamp
+            image, frame_number, frame_annotation.timestamp
         )
 
         # 点数読み取り
         score_result = self.score_reader.read_scores(
-            image, frame_annotation.frame_id, frame_annotation.timestamp
+            image, frame_number, frame_annotation.timestamp
         )
 
         # シーンコンテキストを作成
@@ -234,6 +246,16 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
                         predicted_tiles.append(tile_annotation)
 
         # フレームアノテーションを更新
+        quality_score = self._calculate_quality_score(
+            scene_result, score_result, player_result, len(predicted_tiles)
+        )
+        game_phase = self._determine_game_phase(scene_result)
+        notes = (
+            f"Scene: {scene_result.scene_type.value} ({scene_result.confidence:.3f}), "
+            f"Tiles: {len(predicted_tiles)}, "
+            f"Players detected: {len(player_result.players) if player_result else 0}"
+        )
+
         updated_frame = FrameAnnotation(
             frame_id=frame_annotation.frame_id,
             image_path=frame_annotation.image_path,
@@ -241,19 +263,13 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
             image_height=frame_annotation.image_height,
             timestamp=frame_annotation.timestamp,
             tiles=predicted_tiles,
-            quality_score=self._calculate_quality_score(
-                scene_result, score_result, player_result, len(predicted_tiles)
-            ),
+            quality_score=quality_score,
             is_valid=True,
             scene_type=scene_result.scene_type.value,
-            game_phase=self._determine_game_phase(scene_result),
+            game_phase=game_phase,
             annotated_at=datetime.now(),
             annotator="enhanced_semi_auto_labeler",
-            notes=(
-                f"Scene: {scene_result.scene_type.value} ({scene_result.confidence:.3f}), "
-                f"Tiles: {len(predicted_tiles)}, "
-                f"Players detected: {len(player_result.players) if player_result else 0}"
-            ),
+            notes=notes,
         )
 
         return EnhancedPredictionResult(
@@ -285,8 +301,9 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
                 if image is None:
                     continue
 
+                frame_number = int(frame.frame_id.split("_")[-1]) if "_" in frame.frame_id else 0
                 scene_result = self.scene_detector.detect_scene(
-                    image, frame.frame_id, frame.timestamp
+                    image, frame_number, frame.timestamp
                 )
 
                 if not self._should_filter_scene(scene_result):
@@ -324,19 +341,21 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
         }
 
         if player_result:
-            context["player_positions"] = {
-                player.position.value: {
+            player_positions_dict: dict[str, dict[str, Any]] = {}
+            for player in player_result.players:
+                position_val = player.position.value
+                player_positions_dict[position_val] = {
                     "bbox": player.bbox,
                     "is_dealer": player.is_dealer,
                     "is_active": player.is_active,
                 }
-                for player in player_result.players
-            }
+            context["player_positions"] = player_positions_dict
 
         if score_result:
-            context["scores"] = {
-                score.player_position: score.score for score in score_result.scores
-            }
+            scores_map: dict[str, int] = {}
+            for score in score_result.scores:
+                scores_map[score.player_position] = score.score
+            context["scores"] = scores_map
 
         return context
 
@@ -382,13 +401,13 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler, LoggerMixin):
         # プレイヤー検出の信頼度
         if player_result and player_result.players:
             player_confidences = [p.confidence for p in player_result.players]
-            scores.append(np.mean(player_confidences))
+            scores.append(float(np.mean(player_confidences)))
 
         # 牌検出数による調整
         tile_score = min(1.0, tile_count / 14.0)  # 14枚を基準
         scores.append(tile_score)
 
-        return float(np.mean(scores))
+        return float(np.mean(scores)) if scores else 0.0
 
     def _determine_game_phase(self, scene_result: SceneDetectionResult) -> str:
         """ゲームフェーズを判定"""

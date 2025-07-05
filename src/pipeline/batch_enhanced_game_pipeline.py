@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from ..detection.cached_scene_detector import CachedSceneDetector
-from .enhanced_game_pipeline import EnhancedGamePipeline, EnhancedProcessingResult
+from .enhanced_game_pipeline import EnhancedGamePipeline, EnhancedProcessingResult, ProcessingResult
 
 
 class BatchEnhancedGamePipeline(EnhancedGamePipeline):
@@ -55,11 +55,24 @@ class BatchEnhancedGamePipeline(EnhancedGamePipeline):
             f"(batch_size: {self.batch_size}, max_workers: {self.max_workers})"
         )
 
-    def process_frame(
+    def process_frame(self, frame_data: dict[str, Any]) -> ProcessingResult:
+        """
+        フレームデータを処理（親クラスのインターフェース）
+
+        Args:
+            frame_data: フレーム検出データ
+
+        Returns:
+            ProcessingResult: 処理結果
+        """
+        # 親クラスのメソッドを呼び出す
+        return super().process_frame(frame_data)
+
+    def process_frame_batch(
         self, frame: np.ndarray, frame_number: int, timestamp: float
     ) -> EnhancedProcessingResult:
         """
-        単一フレームを処理
+        単一フレームを処理（バッチ処理用）
 
         Args:
             frame: 入力フレーム
@@ -85,7 +98,9 @@ class BatchEnhancedGamePipeline(EnhancedGamePipeline):
         """
         if not self.enable_parallel or len(frames) <= 1:
             # 並列処理無効または単一フレームの場合は逐次処理
-            return [self.process_frame(frame, frame_num, ts) for frame, frame_num, ts in frames]
+            return [
+                self.process_frame_batch(frame, frame_num, ts) for frame, frame_num, ts in frames
+            ]
 
         results = []
 
@@ -107,27 +122,31 @@ class BatchEnhancedGamePipeline(EnhancedGamePipeline):
         self, batch: list[tuple[np.ndarray, int, float]]
     ) -> list[EnhancedProcessingResult]:
         """バッチを並列処理"""
-        results = [None] * len(batch)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # 非同期タスクを作成
             future_to_index = {
-                executor.submit(self.process_frame, frame, frame_num, ts): i
+                executor.submit(self.process_frame_batch, frame, frame_num, ts): i
                 for i, (frame, frame_num, ts) in enumerate(batch)
             }
 
-            # 結果を収集
+            # 結果を収集（インデックス順を保持）
+            indexed_results: list[tuple[int, EnhancedProcessingResult]] = []
             for future in concurrent.futures.as_completed(future_to_index):
                 index = future_to_index[future]
                 try:
-                    results[index] = future.result()
+                    result = future.result()
+                    indexed_results.append((index, result))
                 except Exception as e:
                     self.logger.error(f"フレーム処理エラー (index: {index}): {e}")
                     # エラーの場合は空の結果を作成
                     frame, frame_num, ts = batch[index]
-                    results[index] = self._create_error_result(frame_num, ts, str(e))
+                    error_result = self._create_error_result(frame_num, ts, str(e))
+                    indexed_results.append((index, error_result))
 
-        return results
+        # インデックス順にソートして結果を返す
+        indexed_results.sort(key=lambda x: x[0])
+        return [result for _, result in indexed_results]
 
     def optimize_for_video(self, video_path: str):
         """
@@ -139,7 +158,7 @@ class BatchEnhancedGamePipeline(EnhancedGamePipeline):
         self.logger.info(f"動画に対する最適化開始: {video_path}")
 
         # シーン境界を事前に検出してキャッシュ
-        if hasattr(self.scene_detector, "detect_game_boundaries"):
+        if self.scene_detector and hasattr(self.scene_detector, "detect_game_boundaries"):
             boundaries = self.scene_detector.detect_game_boundaries(video_path)
             self.logger.info(f"ゲーム境界を{len(boundaries)}個検出")
 
@@ -150,7 +169,7 @@ class BatchEnhancedGamePipeline(EnhancedGamePipeline):
 
     def clear_caches(self):
         """全てのキャッシュをクリア"""
-        if hasattr(self.scene_detector, "clear_cache"):
+        if self.scene_detector and hasattr(self.scene_detector, "clear_cache"):
             self.scene_detector.clear_cache()
 
         # その他のキャッシュもクリア
@@ -165,7 +184,7 @@ class BatchEnhancedGamePipeline(EnhancedGamePipeline):
         }
 
         # キャッシュ統計
-        if hasattr(self.scene_detector, "_frame_hash_cache"):
+        if self.scene_detector and hasattr(self.scene_detector, "_frame_hash_cache"):
             stats["scene_cache_size"] = len(self.scene_detector._frame_hash_cache)
 
         return stats
