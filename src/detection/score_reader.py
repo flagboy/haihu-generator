@@ -71,8 +71,9 @@ class ScoreReader(LoggerMixin):
         self.config = config or {}
 
         # OCR設定
-        self.ocr_lang = self.config.get("ocr_lang", "eng")  # 数字は英語でOK
+        self.ocr_lang = self.config.get("ocr_lang", "jpn+eng")  # 日本語と英語を併用
         self.preprocessing = self.config.get("preprocessing", True)
+        self.use_japanese_ocr = self.config.get("use_japanese_ocr", True)
 
         # 点数表示の想定位置（画面サイズに対する相対位置）
         self.score_regions = self.config.get(
@@ -179,22 +180,44 @@ class ScoreReader(LoggerMixin):
         processed = self._preprocess_for_ocr(region) if self.preprocessing else region
 
         try:
-            # OCR実行
-            custom_config = r"--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789,"
-            text = pytesseract.image_to_string(processed, config=custom_config)
+            # 日本語OCRと数字専用OCRの両方を試行
+            results = []
 
-            # データ付きで取得
-            data = pytesseract.image_to_data(
-                processed, output_type=pytesseract.Output.DICT, config=custom_config
-            )
+            # 数字専用OCR（高速）
+            try:
+                custom_config = r"--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789,"
+                text = pytesseract.image_to_string(processed, config=custom_config)
+                data = pytesseract.image_to_data(
+                    processed, output_type=pytesseract.Output.DICT, config=custom_config
+                )
+                score_value = self._extract_score_from_text(text)
+                confidence = self._calculate_confidence(data)
+                if score_value is not None and self._is_valid_score(score_value):
+                    results.append((score_value, confidence, "numeric"))
+            except Exception:
+                pass
 
-            # 数値を抽出
-            score_value = self._extract_score_from_text(text)
-            confidence = self._calculate_confidence(data)
+            # 日本語OCR（より正確だが低速）
+            if self.use_japanese_ocr:
+                try:
+                    # 日本語の点数表記（例：「２５０００点」）に対応
+                    jpn_config = f"--oem 3 --psm 7 -l {self.ocr_lang}"
+                    text_jpn = pytesseract.image_to_string(processed, config=jpn_config)
+                    data_jpn = pytesseract.image_to_data(
+                        processed, output_type=pytesseract.Output.DICT, config=jpn_config
+                    )
+                    score_value_jpn = self._extract_score_from_japanese_text(text_jpn)
+                    confidence_jpn = self._calculate_confidence(data_jpn)
+                    if score_value_jpn is not None and self._is_valid_score(score_value_jpn):
+                        results.append((score_value_jpn, confidence_jpn, "japanese"))
+                except Exception:
+                    pass
 
-            # 有効性チェック
-            if score_value is not None and self._is_valid_score(score_value):
-                return score_value, confidence
+            # 最も信頼度の高い結果を返す
+            if results:
+                best_result = max(results, key=lambda x: x[1])
+                self.logger.debug(f"OCR結果選択: {best_result[2]} mode, score={best_result[0]}")
+                return best_result[0], best_result[1]
 
         except Exception as e:
             self.logger.debug(f"OCRエラー: {e}")
@@ -248,6 +271,71 @@ class ScoreReader(LoggerMixin):
                 pass
 
         return None
+
+    def _extract_score_from_japanese_text(self, text: str) -> int | None:
+        """日本語テキストから点数を抽出"""
+        import re
+
+        # 全角数字を半角に変換
+        text = text.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+
+        # 「点」「てん」などの文字を除去
+        text = re.sub(r"[点てんテン]", "", text)
+
+        # カンマや空白を除去
+        text = text.replace(",", "").replace(" ", "").replace("、", "")
+
+        # 千の位の漢字表記に対応（例：二万五千）
+        number_map = {
+            "〇": "0",
+            "零": "0",
+            "一": "1",
+            "壱": "1",
+            "二": "2",
+            "弐": "2",
+            "三": "3",
+            "参": "3",
+            "四": "4",
+            "肆": "4",
+            "五": "5",
+            "伍": "5",
+            "六": "6",
+            "陸": "6",
+            "七": "7",
+            "柒": "7",
+            "八": "8",
+            "捌": "8",
+            "九": "9",
+            "玖": "9",
+        }
+
+        # 漢数字を変換
+        for kanji, num in number_map.items():
+            text = text.replace(kanji, num)
+
+        # 万、千の処理
+        wan_match = re.search(r"(\d+)万", text)
+        sen_match = re.search(r"(\d+)千", text)
+
+        score = 0
+        if wan_match:
+            score += int(wan_match.group(1)) * 10000
+            text = text.replace(wan_match.group(0), "")
+        if sen_match:
+            score += int(sen_match.group(1)) * 1000
+            text = text.replace(sen_match.group(0), "")
+
+        # 残りの数字を追加
+        remaining = re.search(r"(\d+)", text)
+        if remaining:
+            score += int(remaining.group(1))
+
+        # 有効な点数かチェック
+        if score > 0 and self._is_valid_score(score):
+            return score
+
+        # 単純な数字パターンも試す
+        return self._extract_score_from_text(text)
 
     def _calculate_confidence(self, ocr_data: dict) -> float:
         """OCR結果の信頼度を計算"""

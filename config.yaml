@@ -178,6 +178,12 @@ training:
     enable_occlusion_detection: true
     labeling_output_dir: "data/training/labeling"
 
+  # 拡張ラベリング設定
+  enhanced_labeling:
+    filter_non_game_scenes: true
+    min_scene_confidence: 0.7
+    use_context_for_classification: true
+
   # データセット管理設定
   dataset_management:
     max_versions: 10
@@ -218,6 +224,83 @@ system:
     min_tile_size: 10  # タイル画像の最小サイズ（ピクセル）
     estimated_fps: 2.0  # 推定処理速度（フレーム/秒）
     default_batch_size: 32  # デフォルトのバッチサイズ
+
+# シーン検出設定
+scene_detection:
+  scene_change_threshold: 0.3
+  text_detection_confidence: 0.8
+  enable_ocr: false
+
+  # キャッシュ設定
+  cache:
+    enabled: true
+    size: 100
+
+# 点数読み取り設定
+score_reading:
+  ocr_lang: "jpn+eng"
+  preprocessing: true
+  use_japanese_ocr: true
+  min_confidence: 0.6
+
+  # 点数表示位置（画面比率）
+  score_regions:
+    east:
+      x: 0.85
+      y: 0.5
+      w: 0.1
+      h: 0.05
+    south:
+      x: 0.45
+      y: 0.85
+      w: 0.1
+      h: 0.05
+    west:
+      x: 0.05
+      y: 0.5
+      w: 0.1
+      h: 0.05
+    north:
+      x: 0.45
+      y: 0.05
+      w: 0.1
+      h: 0.05
+
+# プレイヤー検出設定
+player_detection:
+  # 手番インジケーター
+  turn_indicators:
+    - "highlight"
+    - "timer"
+
+  # プレイヤー位置（画面比率）
+  player_regions:
+    east:
+      x: 0.8
+      y: 0.45
+      w: 0.15
+      h: 0.1
+    south:
+      x: 0.4
+      y: 0.8
+      w: 0.2
+      h: 0.1
+    west:
+      x: 0.05
+      y: 0.45
+      w: 0.15
+      h: 0.1
+    north:
+      x: 0.4
+      y: 0.05
+      w: 0.2
+      h: 0.1
+
+# バッチ処理設定
+batch_processing:
+  batch_size: 10
+  max_workers: 4
+  enable_parallel: true
 
 # 検証設定
 validation:

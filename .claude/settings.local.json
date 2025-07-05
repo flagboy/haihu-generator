@@ -25,7 +25,10 @@
       "Bash(uv run ruff format:*)",
       "Bash(sed:*)",
       "Bash(git mv:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(sqlite3:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

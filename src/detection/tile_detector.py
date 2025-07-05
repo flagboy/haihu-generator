@@ -303,7 +303,10 @@ class TileDetector:
         return detections
 
     def classify_tile_areas(
-        self, image: np.ndarray, detections: list[DetectionResult]
+        self,
+        image: np.ndarray,
+        detections: list[DetectionResult],
+        scene_context: dict[str, Any] | None = None,
     ) -> dict[str, list[DetectionResult]]:
         """
         検出された牌を手牌・捨て牌・鳴き牌に分類
@@ -311,6 +314,7 @@ class TileDetector:
         Args:
             image: 入力画像
             detections: 検出結果
+            scene_context: シーン情報（SceneDetectorからの情報）
 
         Returns:
             エリア別の検出結果
@@ -324,20 +328,100 @@ class TileDetector:
             "called_tiles": [],  # 鳴き牌
         }
 
+        # シーンコンテキストに基づいてエリア境界を調整
+        if scene_context:
+            scene_type = scene_context.get("scene_type")
+            if scene_type == "ROUND_START":
+                # 局開始時は手牌エリアを広く取る
+                hand_area_threshold = 0.6
+                discard_area_min = 0.6
+            else:
+                hand_area_threshold = 0.7
+                discard_area_min = 0.3
+        else:
+            hand_area_threshold = 0.7
+            discard_area_min = 0.3
+
         for detection in detections:
             x1, y1, x2, y2 = detection.bbox
             center_y = (y1 + y2) / 2
-            (x1 + x2) / 2
+            center_x = (x1 + x2) / 2
+
+            # プレイヤー位置情報を活用（scene_contextから）
+            if scene_context and "player_positions" in scene_context:
+                # プレイヤー位置に基づいた分類の精緻化
+                classification = self._classify_by_player_position(
+                    center_x, center_y, w, h, scene_context["player_positions"]
+                )
+                if classification:
+                    areas[classification].append(detection)
+                    continue
 
             # 画面下部を手牌エリアとする
-            if center_y > h * 0.7:
+            if center_y > h * hand_area_threshold:
                 areas["hand_tiles"].append(detection)
             # 画面中央を捨て牌エリアとする
-            elif center_y > h * 0.3:
+            elif center_y > h * discard_area_min:
                 areas["discarded_tiles"].append(detection)
             # 画面上部を鳴き牌エリアとする
             else:
                 areas["called_tiles"].append(detection)
+
+        # シーン情報に基づいた後処理
+        if scene_context:
+            areas = self._post_process_classification(areas, scene_context)
+
+        return areas
+
+    def _classify_by_player_position(
+        self, x: float, y: float, w: int, h: int, player_positions: dict
+    ) -> str | None:
+        """プレイヤー位置情報に基づいた分類"""
+        # 各プレイヤーの牌エリアを推定
+        for position, player_info in player_positions.items():
+            if self._is_in_player_area(x, y, w, h, position, player_info):
+                # プレイヤーごとのエリアタイプを返す
+                if position == "south":  # 下側のプレイヤー（通常は自分）
+                    return "hand_tiles"
+                else:
+                    # 他のプレイヤーの見える牌は通常、鳴き牌
+                    return "called_tiles"
+        return None
+
+    def _is_in_player_area(
+        self, x: float, y: float, w: int, h: int, position: str, player_info: dict
+    ) -> bool:
+        """指定座標がプレイヤーエリア内かどうか判定"""
+        # プレイヤー位置に基づいたエリア判定
+        # 実装は簡略化（実際にはより詳細な判定が必要）
+        return (
+            position == "south"
+            and y > h * 0.7
+            or position == "north"
+            and y < h * 0.3
+            or position == "east"
+            and x > w * 0.7
+            or position == "west"
+            and x < w * 0.3
+        )
+
+    def _post_process_classification(
+        self, areas: dict[str, list[DetectionResult]], scene_context: dict
+    ) -> dict[str, list[DetectionResult]]:
+        """シーン情報に基づいた分類の後処理"""
+        scene_type = scene_context.get("scene_type")
+
+        if scene_type == "ROUND_START":
+            # 局開始時は捨て牌がないはず
+            if areas["discarded_tiles"]:
+                # 誤分類の可能性があるため、手牌に移動
+                areas["hand_tiles"].extend(areas["discarded_tiles"])
+                areas["discarded_tiles"] = []
+
+        elif scene_type == "ROUND_END":
+            # 局終了時は全ての牌が見える状態
+            # 分類の信頼度を下げる（表示目的のみ）
+            pass
 
         return areas
 
