@@ -94,8 +94,10 @@ class TestEnhancedSemiAutoLabeler:
         assert mock_score_reader.called
         assert mock_player_detector.called
 
-    @patch("src.training.enhanced_semi_auto_labeler.cv2")
-    def test_filter_non_game_scenes(self, mock_cv2, mock_config_manager, sample_frame_annotation):
+    @patch("cv2.imread")
+    def test_filter_non_game_scenes(
+        self, mock_imread, mock_config_manager, sample_frame_annotation
+    ):
         """非ゲームシーンのフィルタリングテスト"""
         with patch(
             "src.training.enhanced_semi_auto_labeler.SceneDetector"
@@ -114,7 +116,7 @@ class TestEnhancedSemiAutoLabeler:
             )
 
             # 画像読み込みのモック
-            mock_cv2.imread.return_value = np.zeros((720, 1280, 3), dtype=np.uint8)
+            mock_imread.return_value = np.zeros((720, 1280, 3), dtype=np.uint8)
 
             with (
                 patch("src.detection.tile_detector.TileDetector"),
@@ -173,6 +175,8 @@ class TestEnhancedGamePipeline:
             )
 
             mock_player.return_value = PlayerDetectionResult(
+                frame_number=1,
+                timestamp=1.0,
                 players=[],
                 active_position=PlayerPosition.SOUTH,
                 dealer_position=PlayerPosition.EAST,
@@ -304,32 +308,31 @@ class TestCachedSceneDetector:
         # 同じフレームを2回処理
         frame = np.ones((100, 100, 3), dtype=np.uint8)
 
-        with patch.object(detector, "_detect_scene_core"):
-            # 基底クラスのdetect_sceneメソッドをモック
-            mock_result = SceneDetectionResult(
-                scene_type=SceneType.GAME_PLAY,
-                confidence=0.9,
-                frame_number=1,
-                timestamp=1.0,
-                metadata={},
-            )
+        # 基底クラスのdetect_sceneメソッドをモック
+        mock_result = SceneDetectionResult(
+            scene_type=SceneType.GAME_PLAY,
+            confidence=0.9,
+            frame_number=1,
+            timestamp=1.0,
+            metadata={},
+        )
 
-            # 親クラスのメソッドをモック
-            with patch(
-                "src.detection.cached_scene_detector.SceneDetector.detect_scene",
-                return_value=mock_result,
-            ):
-                # 1回目の呼び出し
-                result1 = detector.detect_scene(frame, 1, 1.0)
+        # 親クラスのメソッドをモック
+        with patch(
+            "src.detection.cached_scene_detector.SceneDetector.detect_scene",
+            return_value=mock_result,
+        ):
+            # 1回目の呼び出し
+            result1 = detector.detect_scene(frame, 1, 1.0)
 
-                # 2回目の呼び出し（キャッシュから取得）
-                result2 = detector.detect_scene(frame, 2, 2.0)
+            # 2回目の呼び出し（キャッシュから取得）
+            result2 = detector.detect_scene(frame, 2, 2.0)
 
-                # 結果を確認
-                assert result1.scene_type == SceneType.GAME_PLAY
-                assert result2.scene_type == SceneType.GAME_PLAY
-                assert result2.frame_number == 2  # フレーム番号は更新される
-                assert result2.timestamp == 2.0  # タイムスタンプも更新される
+            # 結果を確認
+            assert result1.scene_type == SceneType.GAME_PLAY
+            assert result2.scene_type == SceneType.GAME_PLAY
+            assert result2.frame_number == 2  # フレーム番号は更新される
+            assert result2.timestamp == 2.0  # タイムスタンプも更新される
 
     def test_cache_clear(self):
         """キャッシュクリアテスト"""
