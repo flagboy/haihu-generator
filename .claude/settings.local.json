@@ -32,7 +32,9 @@
       "Bash(gh run list:*)",
       "Bash(gh workflow view:*)",
       "Bash(gh run watch:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ],
     "deny": []
   }
