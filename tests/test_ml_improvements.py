@@ -107,7 +107,7 @@ class TestEnhancedSemiAutoLabeler:
         cv2.imwrite(str(image_path), dummy_image)
 
         frame_annotation = FrameAnnotation(
-            frame_id="test_frame",
+            frame_id="frame_0001",
             image_path=str(image_path),
             image_width=1920,
             image_height=1080,
