@@ -220,8 +220,11 @@ class TestAdvancedMemoryOptimizer:
         memory_optimizer.stop_memory_monitoring()
 
         assert memory_optimizer._monitoring is False
-        # スレッドが停止するまで待機
-        time.sleep(0.2)
+        # スレッドが停止するまで待機（joinのタイムアウトは5秒なのでそれ以上待つ）
+        time.sleep(0.5)
+        # それでもまだ生きている場合は、join()が完了するのを待つ
+        if memory_optimizer._monitor_thread.is_alive():
+            memory_optimizer._monitor_thread.join(timeout=1.0)
         assert not memory_optimizer._monitor_thread.is_alive()
 
     def test_memory_monitoring_auto_optimization(self, memory_optimizer):

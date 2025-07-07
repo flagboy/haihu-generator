@@ -52,7 +52,7 @@ class StructuredLogger:
                 structlog.processors.StackInfoRenderer(),
                 structlog.processors.format_exc_info,
                 structlog.processors.UnicodeDecoder(),
-                self._add_metadata,
+                self._add_metadata,  # type: ignore[list-item]
                 structlog.processors.JSONRenderer(),
             ],
             context_class=dict,

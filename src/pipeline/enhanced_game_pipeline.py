@@ -34,6 +34,10 @@ class EnhancedProcessingResult(ProcessingResult):
     active_player: str | None = None
     dealer_position: str | None = None
     round_info: dict[str, Any] | None = None
+    # 検出結果を保持
+    scene_result: Any = None
+    score_result: Any = None
+    player_result: Any = None
 
 
 class EnhancedGamePipeline(GamePipeline):

@@ -230,12 +230,63 @@ class SceneDetector(LoggerMixin):
 
     def _detect_by_tile_arrangement(self, frame: np.ndarray) -> tuple[SceneType, float, dict]:
         """牌の配置パターンによる検出"""
-        # TODO: TileDetectorと連携して牌の配置を分析
-        # - 14枚の手牌が整列 → ROUND_START
-        # - 牌が散らばっている → GAME_PLAY
-        # - 牌がない → MENU/RESULT
+        # TileDetectorのインスタンスが必要
+        if not hasattr(self, "_tile_detector"):
+            # 遅延インポートと初期化
+            try:
+                from ..utils.config import ConfigManager
+                from .tile_detector import TileDetector
 
-        return SceneType.UNKNOWN, 0.0, {}
+                config_manager = ConfigManager()
+                self._tile_detector = TileDetector(config_manager)
+                self._tile_detector.load_model()
+            except Exception as e:
+                self.logger.debug(f"TileDetector初期化エラー: {e}")
+                return SceneType.UNKNOWN, 0.0, {}
+
+        # 牌を検出
+        try:
+            detections = self._tile_detector.detect_tiles(frame)
+            areas = self._tile_detector.classify_tile_areas(frame, detections)
+
+            # 検出結果の統計
+            hand_tiles_count = len(areas.get("hand_tiles", []))
+            discarded_tiles_count = len(areas.get("discarded_tiles", []))
+            called_tiles_count = len(areas.get("called_tiles", []))
+            total_tiles = hand_tiles_count + discarded_tiles_count + called_tiles_count
+
+            metadata = {
+                "hand_tiles": hand_tiles_count,
+                "discarded_tiles": discarded_tiles_count,
+                "called_tiles": called_tiles_count,
+                "total_tiles": total_tiles,
+            }
+
+            # パターンベースの判定
+            if total_tiles == 0:
+                # 牌が検出されない → メニューまたは結果画面
+                return SceneType.MENU, 0.7, metadata
+
+            elif hand_tiles_count >= 13 and hand_tiles_count <= 14 and discarded_tiles_count == 0:
+                # 13-14枚の手牌があり、捨て牌がない → 局開始
+                return SceneType.ROUND_START, 0.85, metadata
+
+            elif hand_tiles_count >= 1 and discarded_tiles_count >= 1:
+                # 手牌と捨て牌がある → ゲームプレイ中
+                confidence = min(0.9, 0.5 + (total_tiles / 136) * 0.4)  # 牌の数に応じて信頼度調整
+                return SceneType.GAME_PLAY, confidence, metadata
+
+            elif total_tiles >= 100:
+                # 大量の牌が検出される → 局終了（全ての牌が表示される）
+                return SceneType.ROUND_END, 0.75, metadata
+
+            else:
+                # その他のパターン
+                return SceneType.UNKNOWN, 0.3, metadata
+
+        except Exception as e:
+            self.logger.debug(f"牌配置検出エラー: {e}")
+            return SceneType.UNKNOWN, 0.0, {}
 
     def _integrate_results(
         self,
