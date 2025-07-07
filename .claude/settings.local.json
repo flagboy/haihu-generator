@@ -29,7 +29,9 @@
       "WebFetch(domain:github.com)",
       "Bash(sqlite3:*)",
       "Bash(git checkout:*)",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "Bash(gh workflow view:*)",
+      "Bash(gh run watch:*)"
     ],
     "deny": []
   }

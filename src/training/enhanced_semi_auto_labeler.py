@@ -22,10 +22,10 @@ from ..detection import (
 )
 from ..utils.config import ConfigManager
 from .annotation_data import FrameAnnotation
-from .semi_auto_labeler import SemiAutoLabeler
+from .semi_auto_labeler import PredictionResult, SemiAutoLabeler
 
 
-class EnhancedPredictionResult:
+class EnhancedPredictionResult(PredictionResult):
     """拡張予測結果クラス"""
 
     def __init__(
@@ -48,9 +48,9 @@ class EnhancedPredictionResult:
             score_result: 点数読み取り結果
             player_result: プレイヤー検出結果
         """
-        self.frame_annotation = frame_annotation
-        self.detection_results = detection_results
-        self.classification_results = classification_results
+        # 親クラスの初期化
+        super().__init__(frame_annotation, detection_results, classification_results)
+        # 拡張属性
         self.scene_result = scene_result
         self.score_result = score_result
         self.player_result = player_result
@@ -138,7 +138,7 @@ class EnhancedSemiAutoLabeler(SemiAutoLabeler):
 
     def predict_frame_annotations(
         self, frame_annotation: FrameAnnotation
-    ) -> EnhancedPredictionResult:  # type: ignore[override]
+    ) -> EnhancedPredictionResult:
         """
         拡張フレーム予測
 
