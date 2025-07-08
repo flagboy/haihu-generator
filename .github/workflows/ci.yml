@@ -27,10 +27,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            pyproject.toml
-            uv.lock
 
       - name: Generate cache key
         id: cache-key
