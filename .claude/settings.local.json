@@ -36,7 +36,9 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "Bash(python -m pytest tests/test_simplified_action_detector.py -v)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npm run test:ci:*)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": []
   }

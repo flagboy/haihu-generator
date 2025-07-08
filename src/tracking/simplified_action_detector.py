@@ -8,6 +8,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from ..utils.logger import LoggerMixin
 from .action_inferencer import ActionInferencer
 
@@ -47,12 +49,16 @@ class SimplifiedActionDetector(LoggerMixin):
         self.enable_inference = self.config.get("enable_inference", True)  # 推測機能の有効化
 
         # アクション推測器
-        self.inferencer = ActionInferencer() if self.enable_inference else None
+        enable_frame_save = self.config.get("enable_frame_save", True)
+        self.inferencer = ActionInferencer(enable_frame_save) if self.enable_inference else None
 
         self.logger.info("SimplifiedActionDetector初期化完了")
 
     def detect_hand_change(
-        self, current_hand: list[str], frame_number: int | None = None
+        self,
+        current_hand: list[str],
+        frame_number: int | None = None,
+        frame: np.ndarray | None = None,
     ) -> HandChangeResult:
         """
         手牌の変化からアクションを検出
@@ -60,6 +66,7 @@ class SimplifiedActionDetector(LoggerMixin):
         Args:
             current_hand: 現在検出された手牌
             frame_number: フレーム番号（オプション）
+            frame: 現在のフレーム画像（オプション）
 
         Returns:
             手牌変化の検出結果
@@ -80,7 +87,7 @@ class SimplifiedActionDetector(LoggerMixin):
             # 初回でも推測器に記録
             if self.inferencer:
                 self.inferencer.record_player_hand(
-                    self.current_player, current_hand, self.turn_number
+                    self.current_player, current_hand, self.turn_number, frame, frame_number
                 )
 
             return HandChangeResult(
@@ -111,7 +118,7 @@ class SimplifiedActionDetector(LoggerMixin):
             # 新しいプレイヤーの手牌を記録
             if self.inferencer:
                 self.inferencer.record_player_hand(
-                    self.current_player, current_hand, self.turn_number
+                    self.current_player, current_hand, self.turn_number, frame, frame_number
                 )
 
             # 手牌を更新して早期リターン
@@ -221,7 +228,9 @@ class SimplifiedActionDetector(LoggerMixin):
 
         # 通常のアクションの場合、推測器に手牌を記録
         if result.action_type in ["draw", "discard", "call"] and self.inferencer:
-            self.inferencer.record_player_hand(self.current_player, current_hand, self.turn_number)
+            self.inferencer.record_player_hand(
+                self.current_player, current_hand, self.turn_number, frame, frame_number
+            )
 
         return result
 
@@ -377,3 +386,9 @@ class SimplifiedActionDetector(LoggerMixin):
         tenhou_actions.sort(key=lambda x: x.get("frame", x.get("turn", 0)))
 
         return tenhou_actions
+
+    def get_frame_manager(self):
+        """フレーム管理器を取得"""
+        if self.inferencer:
+            return self.inferencer.get_frame_manager()
+        return None

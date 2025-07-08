@@ -7,7 +7,10 @@
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from ..utils.logger import LoggerMixin
+from .inference_frame_manager import InferenceFrameManager
 
 
 @dataclass
@@ -24,14 +27,33 @@ class InferredAction:
 class ActionInferencer(LoggerMixin):
     """アクション推測クラス"""
 
-    def __init__(self):
-        """初期化"""
+    def __init__(self, enable_frame_save: bool = True):
+        """
+        初期化
+
+        Args:
+            enable_frame_save: 推測フレームの保存を有効にするか
+        """
         self.player_hands_history: list[dict[int, list[str]]] = []  # 各巡の4人の手牌
         self.inferred_actions: list[InferredAction] = []
+        self.enable_frame_save = enable_frame_save
+
+        # フレーム管理器
+        self.frame_manager = InferenceFrameManager() if enable_frame_save else None
+
+        # フレームバッファ（記録時のフレームを保持）
+        self.frame_buffer: dict[int, dict[int, np.ndarray | None]] = {}
 
         self.logger.info("ActionInferencer初期化完了")
 
-    def record_player_hand(self, player_index: int, hand: list[str], turn_number: int):
+    def record_player_hand(
+        self,
+        player_index: int,
+        hand: list[str],
+        turn_number: int,
+        frame: np.ndarray | None = None,
+        frame_number: int | None = None,
+    ):
         """
         プレイヤーの手牌を記録
 
@@ -39,6 +61,8 @@ class ActionInferencer(LoggerMixin):
             player_index: プレイヤー番号（0-3）
             hand: 手牌
             turn_number: 巡目
+            frame: 現在のフレーム画像（オプション）
+            frame_number: フレーム番号（オプション）
         """
         # 必要に応じて履歴を拡張
         while len(self.player_hands_history) <= turn_number:
@@ -46,17 +70,26 @@ class ActionInferencer(LoggerMixin):
 
         self.player_hands_history[turn_number][player_index] = hand.copy()
 
+        # フレームをバッファに保存
+        if self.enable_frame_save and frame is not None:
+            if turn_number not in self.frame_buffer:
+                self.frame_buffer[turn_number] = {}
+            self.frame_buffer[turn_number][player_index] = frame
+
         # 前巡との比較で欠落アクションを推測
         if turn_number >= 1:  # 巡1から推測開始
-            self._infer_missing_actions(player_index, turn_number)
+            self._infer_missing_actions(player_index, turn_number, frame_number)
 
-    def _infer_missing_actions(self, player_index: int, current_turn: int):
+    def _infer_missing_actions(
+        self, player_index: int, current_turn: int, frame_number: int | None = None
+    ):
         """
         欠落したアクションを推測
 
         Args:
             player_index: 現在のプレイヤー番号
             current_turn: 現在の巡目
+            frame_number: フレーム番号（オプション）
         """
         previous_turn = current_turn - 1  # 前巡
 
@@ -91,7 +124,7 @@ class ActionInferencer(LoggerMixin):
 
         # 手牌の変化を分析
         self._analyze_hand_transition(
-            player_index, prev_hand, curr_hand, previous_turn, current_turn
+            player_index, prev_hand, curr_hand, previous_turn, current_turn, frame_number
         )
 
     def _analyze_hand_transition(
@@ -101,6 +134,7 @@ class ActionInferencer(LoggerMixin):
         curr_hand: list[str],
         prev_turn: int,
         curr_turn: int,
+        frame_number: int | None = None,
     ):
         """
         手牌の変化を分析してアクションを推測
@@ -111,6 +145,7 @@ class ActionInferencer(LoggerMixin):
             curr_hand: 現在の手牌
             prev_turn: 前巡の番号
             curr_turn: 現在の巡番号
+            frame_number: フレーム番号（オプション）
         """
         prev_tiles = self._count_tiles(prev_hand)
         curr_tiles = self._count_tiles(curr_hand)
@@ -136,14 +171,32 @@ class ActionInferencer(LoggerMixin):
         if len(added_tiles) == 1 and len(removed_tiles) == 1:
             # 通常のツモ切り
             self._infer_draw_discard(
-                player_index, added_tiles[0], removed_tiles[0], prev_turn, curr_turn
+                player_index,
+                added_tiles[0],
+                removed_tiles[0],
+                prev_turn,
+                curr_turn,
+                prev_hand,
+                curr_hand,
+                frame_number,
             )
         elif len(added_tiles) == 0 and len(removed_tiles) == 0:
             # 手牌に変化なし（リーチ後のツモ切りなど）
-            self._infer_unchanged_hand(player_index, prev_turn, curr_turn)
+            self._infer_unchanged_hand(
+                player_index, prev_turn, curr_turn, prev_hand, curr_hand, frame_number
+            )
         elif len(removed_tiles) > len(added_tiles):
             # 鳴きの可能性
-            self._infer_call_action(player_index, added_tiles, removed_tiles, prev_turn, curr_turn)
+            self._infer_call_action(
+                player_index,
+                added_tiles,
+                removed_tiles,
+                prev_turn,
+                curr_turn,
+                prev_hand,
+                curr_hand,
+                frame_number,
+            )
         else:
             # その他の複雑なケース
             self.logger.debug(
@@ -158,6 +211,9 @@ class ActionInferencer(LoggerMixin):
         discarded_tile: str,
         prev_turn: int,
         curr_turn: int,
+        prev_hand: list[str],
+        curr_hand: list[str],
+        frame_number: int | None = None,
     ):
         """通常のツモ切りを推測"""
         # ツモアクション
@@ -192,7 +248,58 @@ class ActionInferencer(LoggerMixin):
             f"アクション推測: プレイヤー{player_index} ツモ{drawn_tile}→切り{discarded_tile}"
         )
 
-    def _infer_unchanged_hand(self, player_index: int, prev_turn: int, curr_turn: int):
+        # フレームを保存
+        if self.enable_frame_save and self.frame_manager:
+            # 現在の巡のフレームを取得
+            frame = None
+            if curr_turn in self.frame_buffer and player_index in self.frame_buffer[curr_turn]:
+                frame = self.frame_buffer[curr_turn][player_index]
+
+            # ツモアクションのフレームを保存
+            self.frame_manager.save_inference_frame(
+                frame=frame,
+                frame_number=frame_number or -1,
+                turn_number=prev_turn,
+                player_index=player_index,
+                action_type="draw",
+                inferred_tile=drawn_tile,
+                confidence=0.8,
+                reason=f"次巡の手牌から推測（巡{prev_turn}→{curr_turn}）",
+                prev_hand=prev_hand,
+                curr_hand=curr_hand,
+                metadata={
+                    "action": "draw",
+                    "inferred_from_turn": curr_turn,
+                },
+            )
+
+            # 捨て牌アクションのフレームも保存
+            self.frame_manager.save_inference_frame(
+                frame=frame,
+                frame_number=frame_number or -1,
+                turn_number=prev_turn,
+                player_index=player_index,
+                action_type="discard",
+                inferred_tile=discarded_tile,
+                confidence=0.8,
+                reason=f"次巡の手牌から推測（巡{prev_turn}→{curr_turn}）",
+                prev_hand=prev_hand,
+                curr_hand=curr_hand,
+                metadata={
+                    "action": "discard",
+                    "inferred_from_turn": curr_turn,
+                },
+            )
+
+    def _infer_unchanged_hand(
+        self,
+        player_index: int,
+        prev_turn: int,
+        curr_turn: int,
+        prev_hand: list[str],
+        curr_hand: list[str],
+        frame_number: int | None = None,
+    ):
         """手牌変化なしの場合の推測（リーチ後のツモ切りなど）"""
         # ツモ切りを推測（具体的な牌は不明）
         action = InferredAction(
@@ -210,6 +317,29 @@ class ActionInferencer(LoggerMixin):
 
         self.logger.info(f"ツモ切り推測: プレイヤー{player_index}（手牌変化なし）")
 
+        # フレームを保存
+        if self.enable_frame_save and self.frame_manager:
+            frame = None
+            if curr_turn in self.frame_buffer and player_index in self.frame_buffer[curr_turn]:
+                frame = self.frame_buffer[curr_turn][player_index]
+
+            self.frame_manager.save_inference_frame(
+                frame=frame,
+                frame_number=frame_number or -1,
+                turn_number=prev_turn,
+                player_index=player_index,
+                action_type="tsumo_giri",
+                inferred_tile=None,
+                confidence=0.6,
+                reason="手牌変化なし（リーチ後のツモ切りの可能性）",
+                prev_hand=prev_hand,
+                curr_hand=curr_hand,
+                metadata={
+                    "action": "tsumo_giri",
+                    "inferred_from_turn": curr_turn,
+                },
+            )
+
     def _infer_call_action(
         self,
         player_index: int,
@@ -217,6 +347,9 @@ class ActionInferencer(LoggerMixin):
         removed_tiles: list[str],
         prev_turn: int,
         curr_turn: int,
+        prev_hand: list[str],
+        curr_hand: list[str],
+        frame_number: int | None = None,
     ):
         """鳴きアクションを推測"""
         removed_count = len(removed_tiles)
@@ -245,6 +378,32 @@ class ActionInferencer(LoggerMixin):
         self.inferred_actions.append(action)
 
         self.logger.info(f"鳴き推測: プレイヤー{player_index} {call_type}")
+
+        # フレームを保存
+        if self.enable_frame_save and self.frame_manager:
+            frame = None
+            if curr_turn in self.frame_buffer and player_index in self.frame_buffer[curr_turn]:
+                frame = self.frame_buffer[curr_turn][player_index]
+
+            self.frame_manager.save_inference_frame(
+                frame=frame,
+                frame_number=frame_number or -1,
+                turn_number=prev_turn,
+                player_index=player_index,
+                action_type="call",
+                inferred_tile=None,
+                confidence=0.7,
+                reason=f"{removed_count}枚減少（{call_type}の可能性）",
+                prev_hand=prev_hand,
+                curr_hand=curr_hand,
+                metadata={
+                    "action": "call",
+                    "call_type": call_type,
+                    "removed_tiles": removed_tiles,
+                    "added_tiles": added_tiles,
+                    "inferred_from_turn": curr_turn,
+                },
+            )
 
     def _count_tiles(self, tiles: list[str]) -> dict[str, int]:
         """牌の枚数をカウント"""
@@ -276,4 +435,9 @@ class ActionInferencer(LoggerMixin):
         """履歴をクリア"""
         self.player_hands_history.clear()
         self.inferred_actions.clear()
+        self.frame_buffer.clear()
         self.logger.info("推測履歴をクリアしました")
+
+    def get_frame_manager(self) -> InferenceFrameManager | None:
+        """フレーム管理器を取得"""
+        return self.frame_manager
