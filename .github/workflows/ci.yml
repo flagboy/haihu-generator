@@ -15,53 +15,21 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
-  UV_CACHE_DIR: /tmp/.uv-cache
 
 jobs:
-  # 依存関係のキャッシュジョブ
-  prepare-cache:
-    name: Prepare Dependencies Cache
-    runs-on: ubuntu-latest
-    outputs:
-      cache-key: ${{ steps.cache-key.outputs.key }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Generate cache key
-        id: cache-key
-        run: |
-          echo "key=uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}" >> $GITHUB_OUTPUT
-
-      - name: Setup uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ steps.cache-key.outputs.key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
 
   # 高速なLintチェック（並列実行）
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
-    needs: prepare-cache
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ needs.prepare-cache.outputs.cache-key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: false  # カスタムキャッシュを使用
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
@@ -79,24 +47,15 @@ jobs:
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
-    needs: prepare-cache
     continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ needs.prepare-cache.outputs.cache-key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: false
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
@@ -133,24 +92,15 @@ jobs:
   security:
     name: Security Check
     runs-on: ubuntu-latest
-    needs: prepare-cache
     continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ needs.prepare-cache.outputs.cache-key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: false
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
@@ -167,7 +117,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    needs: [prepare-cache, lint]
+    needs: lint
     strategy:
       fail-fast: false
       matrix:
@@ -188,18 +138,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1
 
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ needs.prepare-cache.outputs.cache-key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: false
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
@@ -249,24 +191,16 @@ jobs:
   coverage:
     name: Coverage Report
     runs-on: ubuntu-latest
-    needs: [prepare-cache, test]
+    needs: test
     if: always() && github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ needs.prepare-cache.outputs.cache-key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: false
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
@@ -308,18 +242,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ needs.prepare-cache.outputs.cache-key }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: false
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ env.PYTHON_VERSION }}
