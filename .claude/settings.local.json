@@ -34,7 +34,9 @@
       "Bash(gh run watch:*)",
       "Bash(find:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(python -m pytest tests/test_simplified_action_detector.py -v)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

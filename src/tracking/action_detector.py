@@ -1,5 +1,8 @@
 """
-行動検出クラス
+行動検出クラス - SimplifiedActionDetectorへの移行
+
+このモジュールは後方互換性のために残されています。
+新しい実装はsimplified_action_detector.pyを参照してください。
 """
 
 from dataclasses import dataclass
@@ -8,7 +11,8 @@ from typing import Any
 
 from ..game.player import PlayerPosition
 from ..game.turn import Action, ActionType
-from ..utils.tile_definitions import TileDefinitions
+from ..utils.logger import LoggerMixin
+from .simplified_action_detector import SimplifiedActionDetector
 
 
 class DetectionConfidence(Enum):
@@ -21,7 +25,7 @@ class DetectionConfidence(Enum):
 
 @dataclass
 class TileChange:
-    """牌の変化情報"""
+    """牌の変化情報（後方互換性のため維持）"""
 
     player: PlayerPosition
     tile: str
@@ -33,7 +37,7 @@ class TileChange:
 
 @dataclass
 class DetectionResult:
-    """検出結果"""
+    """検出結果（後方互換性のため維持）"""
 
     actions: list[Action]
     tile_changes: list[TileChange]
@@ -41,23 +45,28 @@ class DetectionResult:
     metadata: dict[str, Any]
 
 
-class ActionDetector:
-    """プレイヤーの行動検出クラス"""
+class ActionDetector(LoggerMixin):
+    """
+    プレイヤーの行動検出クラス
+
+    SimplifiedActionDetectorをラップして後方互換性を提供
+    """
 
     def __init__(self):
         """行動検出クラスを初期化"""
-        self.tile_definitions = TileDefinitions()
+        self.detector = SimplifiedActionDetector()
         self.previous_frame_data: dict[str, Any] | None = None
         self.detection_history: list[DetectionResult] = []
+        self.current_player = 0
 
-        # 検出パラメータ
+        # 検出パラメータ（後方互換性）
         self.min_confidence = 0.3
-        self.hand_size_tolerance = 1  # 手牌枚数の許容誤差
+        self.hand_size_tolerance = 1
         self.discard_detection_threshold = 0.7
 
     def detect_actions(self, current_frame: dict[str, Any], frame_number: int) -> DetectionResult:
         """
-        フレーム間の変化から行動を検出
+        フレーム間の変化から行動を検出（SimplifiedActionDetectorを使用）
 
         Args:
             current_frame: 現在のフレームデータ
@@ -69,38 +78,72 @@ class ActionDetector:
         actions = []
         tile_changes = []
 
-        if self.previous_frame_data is None:
-            # 初回フレームの場合は配牌として処理
-            actions.extend(self._detect_initial_deal(current_frame, frame_number))
-        else:
-            # フレーム間の変化を解析
-            tile_changes = self._analyze_tile_changes(
-                self.previous_frame_data, current_frame, frame_number
-            )
+        # 画面下部の手牌を取得（後方互換性のため）
+        current_hand = []
+        if "player_hands" in current_frame:
+            # 手番プレイヤーの手牌は最初のエントリと仮定
+            hands = current_frame["player_hands"]
+            if hands:
+                first_key = list(hands.keys())[0]
+                current_hand = hands[first_key]
+        elif "bottom_hand" in current_frame:
+            current_hand = current_frame["bottom_hand"]
 
-            # 変化から行動を推定
-            actions = self._infer_actions_from_changes(tile_changes, frame_number)
+        # SimplifiedActionDetectorで手牌変化を検出
+        result = self.detector.detect_hand_change(current_hand, frame_number)
+
+        # 手番切り替えを検出したらプレイヤー番号を更新
+        if result.action_type == "turn_change":
+            self.current_player = (self.current_player + 1) % 4
+
+        # HandChangeResultをActionに変換
+        if result.action_type == "draw":
+            action = Action(
+                action_type=ActionType.DRAW,
+                player=PlayerPosition(self.current_player),
+                tile=result.tile,
+                frame_number=frame_number,
+                confidence=result.confidence,
+                detected_by="hand_change",
+            )
+            actions.append(action)
+        elif result.action_type == "discard":
+            action = Action(
+                action_type=ActionType.DISCARD,
+                player=PlayerPosition(self.current_player),
+                tile=result.tile,
+                frame_number=frame_number,
+                confidence=result.confidence,
+                detected_by="hand_change",
+            )
+            actions.append(action)
 
         # 信頼度を計算
-        confidence_level = self._calculate_confidence_level(actions, tile_changes)
+        if result.confidence > 0.8:
+            confidence_level = DetectionConfidence.HIGH
+        elif result.confidence > 0.5:
+            confidence_level = DetectionConfidence.MEDIUM
+        else:
+            confidence_level = DetectionConfidence.LOW
 
         # 結果を作成
-        result = DetectionResult(
+        detection_result = DetectionResult(
             actions=actions,
             tile_changes=tile_changes,
             confidence_level=confidence_level,
             metadata={
                 "frame_number": frame_number,
                 "detection_count": len(actions),
-                "change_count": len(tile_changes),
+                "hand_change_type": result.action_type,
+                "confidence": result.confidence,
             },
         )
 
         # 履歴に追加
-        self.detection_history.append(result)
+        self.detection_history.append(detection_result)
         self.previous_frame_data = current_frame.copy()
 
-        return result
+        return detection_result
 
     def _detect_initial_deal(self, frame_data: dict[str, Any], frame_number: int) -> list[Action]:
         """
@@ -403,8 +446,10 @@ class ActionDetector:
 
     def reset(self):
         """検出器をリセット"""
+        self.detector.reset()
         self.previous_frame_data = None
         self.detection_history = []
+        self.current_player = 0
 
     def __str__(self) -> str:
         """文字列表現"""
