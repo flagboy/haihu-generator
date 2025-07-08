@@ -22,7 +22,7 @@ loguru==0.7.0
 
 # テスト
 pytest==7.4.0
-pytest-cov==4.1.0
+pytest-cov==6.2.1
 
 # 開発ツール
 black==23.7.0
