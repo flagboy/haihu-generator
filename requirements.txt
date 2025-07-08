@@ -8,7 +8,7 @@ pyyaml==6.0.1
 torch==2.0.1
 torchvision==0.15.2
 ultralytics==8.0.196  # YOLOv8
-scikit-image==0.21.0
+scikit-image==0.25.2
 matplotlib==3.7.2
 
 # データ処理
