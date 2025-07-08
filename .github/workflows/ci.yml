@@ -32,10 +32,15 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
-        run: pip install uv
+        run: |
+          pip install uv
+          echo "UV installed at: $(which uv)"
+          uv --version
 
       - name: Install dependencies (minimal)
-        run: uv sync --dev --no-install-project
+        run: |
+          echo "Running uv sync..."
+          uv sync --dev --no-install-project || (echo "uv sync failed"; exit 1)
 
       - name: Run linting checks in parallel
         run: |
