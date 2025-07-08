@@ -27,41 +27,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            pyproject.toml
-            uv.lock
-          sparse-checkout-cone-mode: false
-
-      - name: Debug - Check files
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Directory contents:"
-          ls -la
-          echo "Checking for required files:"
-          if [ -f "pyproject.toml" ]; then
-            echo "✓ pyproject.toml exists"
-          else
-            echo "✗ pyproject.toml NOT FOUND"
-            exit 1
-          fi
-          if [ -f "uv.lock" ]; then
-            echo "✓ uv.lock exists"
-          else
-            echo "✗ uv.lock NOT FOUND"
-            exit 1
-          fi
 
       - name: Generate cache key
         id: cache-key
         run: |
-          # ファイルが存在することを確認
-          ls -la pyproject.toml uv.lock
-          # 手動でハッシュを生成
-          HASH=$(cat pyproject.toml uv.lock | sha256sum | cut -d' ' -f1)
-          echo "key=uv-${{ runner.os }}-${HASH}" >> $GITHUB_OUTPUT
-          echo "Generated cache key: uv-${{ runner.os }}-${HASH}"
+          echo "key=uv-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}" >> $GITHUB_OUTPUT
 
       - name: Setup uv cache
         uses: actions/cache@v4
