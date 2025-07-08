@@ -171,3 +171,6 @@ Thumbs.db
 *.bmp
 *.tiff
 !sample_*
+
+# 推測フレーム保存ディレクトリ
+inference_frames/
