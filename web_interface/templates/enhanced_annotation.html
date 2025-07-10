@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻雀牌譜アノテーションシステム</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* メインビュー */
+        .main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #2a2a2a;
+        }
+
+        .header {
+            background-color: #333;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #4CAF50;
+        }
+
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background-color: #444;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+
+        /* 画像表示エリア */
+        .image-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: #1a1a1a;
+        }
+
+        .canvas-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #mainCanvas {
+            cursor: crosshair;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ツールバー */
+        .toolbar {
+            background-color: #333;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-top: 1px solid #444;
+        }
+
+        .tool-group {
+            display: flex;
+            gap: 5px;
+            padding: 0 10px;
+            border-right: 1px solid #444;
+        }
+
+        .tool-group:last-child {
+            border-right: none;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background-color: #444;
+            border: none;
+            border-radius: 4px;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #555;
+        }
+
+        .btn.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .btn.primary {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .btn.danger {
+            background-color: #f44336;
+            color: white;
+        }
+
+        /* サイドパネル */
+        .side-panel {
+            width: 400px;
+            background-color: #2a2a2a;
+            border-left: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            background-color: #333;
+            border-bottom: 1px solid #444;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            background-color: transparent;
+            border: none;
+            color: #999;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #4CAF50;
+            background-color: #2a2a2a;
+            border-bottom: 2px solid #4CAF50;
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* アノテーション詳細 */
+        .annotation-section {
+            margin-bottom: 20px;
+        }
+
+        .annotation-section h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+
+        .annotation-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .annotation-item {
+            background-color: #333;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+
+        .annotation-item.full-width {
+            grid-column: span 2;
+        }
+
+        .annotation-item label {
+            display: block;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .annotation-item input,
+        .annotation-item select {
+            width: 100%;
+            padding: 6px;
+            background-color: #444;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #e0e0e0;
+        }
+
+        /* 牌選択パネル */
+        .tile-selector {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .tile-btn {
+            aspect-ratio: 3/4;
+            background-color: #444;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+
+        .tile-btn:hover {
+            background-color: #555;
+            border-color: #666;
+        }
+
+        .tile-btn.selected {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        /* オブジェクトリスト */
+        .object-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .object-item {
+            background-color: #333;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .object-item:hover {
+            background-color: #3a3a3a;
+            border-color: #555;
+        }
+
+        .object-item.selected {
+            border-color: #4CAF50;
+            background-color: #3a4a3a;
+        }
+
+        .object-info {
+            flex: 1;
+        }
+
+        .object-type {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .object-details {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        .confidence-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .confidence-high {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .confidence-medium {
+            background-color: #FF9800;
+            color: white;
+        }
+
+        .confidence-low {
+            background-color: #f44336;
+            color: white;
+        }
+
+        /* ショートカットヘルプ */
+        .shortcuts-panel {
+            background-color: #333;
+            border-radius: 8px;
+            padding: 20px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .shortcuts-panel.show {
+            display: block;
+        }
+
+        .shortcuts-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+            display: none;
+        }
+
+        .shortcuts-overlay.show {
+            display: block;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #444;
+        }
+
+        .shortcut-key {
+            background-color: #444;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        /* ステータスバー */
+        .status-bar {
+            background-color: #333;
+            padding: 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #444;
+        }
+
+        .status-item {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* ローディング */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #444;
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* トースト通知 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .toast.error {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .toast.info {
+            background-color: #2196F3;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- メインビュー -->
+        <div class="main-view">
+            <!-- ヘッダー -->
+            <div class="header">
+                <h1>麻雀牌譜アノテーション</h1>
+                <div class="progress-info">
+                    <span id="frameInfo">フレーム 1 / 1000</span>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn" onclick="showShortcuts()">
+                        ショートカット (?)
+                    </button>
+                    <button class="btn primary" onclick="saveAnnotations()">
+                        保存 (Ctrl+S)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 画像表示エリア -->
+            <div class="image-container">
+                <div class="canvas-wrapper">
+                    <canvas id="mainCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- ツールバー -->
+            <div class="toolbar">
+                <div class="tool-group">
+                    <button class="btn active" id="selectTool" onclick="setTool('select')">
+                        選択 (V)
+                    </button>
+                    <button class="btn" id="drawTool" onclick="setTool('draw')">
+                        描画 (D)
+                    </button>
+                    <button class="btn" id="deleteTool" onclick="setTool('delete')">
+                        削除 (Del)
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <button class="btn" onclick="previousFrame()">
+                        ← 前 (A)
+                    </button>
+                    <button class="btn" onclick="nextFrame()">
+                        次 → (D)
+                    </button>
+                    <button class="btn" onclick="jumpToFrame()">
+                        ジャンプ (G)
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <button class="btn" onclick="autoDetect()">
+                        自動検出 (R)
+                    </button>
+                    <button class="btn" onclick="copyPrevious()">
+                        前フレームコピー (C)
+                    </button>
+                    <button class="btn danger" onclick="clearAll()">
+                        全クリア
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <label style="color: #999; font-size: 14px;">ズーム:</label>
+                    <input type="range" id="zoomSlider" min="50" max="200" value="100"
+                           oninput="setZoom(this.value)" style="width: 100px;">
+                    <span id="zoomLevel" style="color: #999; font-size: 14px;">100%</span>
+                </div>
+            </div>
+
+            <!-- ステータスバー -->
+            <div class="status-bar">
+                <div class="status-item">
+                    <span>シーン: <strong id="sceneType">対局中</strong></span>
+                    <span>局: <strong id="roundInfo">東1局</strong></span>
+                    <span>親: <strong id="dealerPosition">東</strong></span>
+                </div>
+                <div class="status-item">
+                    <span>選択中: <strong id="selectedCount">0</strong> 個</span>
+                    <span>合計: <strong id="totalCount">0</strong> 個</span>
+                    <span id="lastSaved">最終保存: --:--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- サイドパネル -->
+        <div class="side-panel">
+            <!-- タブ -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('annotation')">
+                    アノテーション
+                </button>
+                <button class="tab" onclick="switchTab('objects')">
+                    オブジェクト
+                </button>
+                <button class="tab" onclick="switchTab('history')">
+                    履歴
+                </button>
+            </div>
+
+            <!-- タブコンテンツ -->
+            <div class="tab-content" id="annotationTab">
+                <!-- ゲーム状態 -->
+                <div class="annotation-section">
+                    <h3>ゲーム状態</h3>
+                    <div class="annotation-grid">
+                        <div class="annotation-item">
+                            <label>局情報</label>
+                            <select id="roundSelect">
+                                <option value="東1局">東1局</option>
+                                <option value="東2局">東2局</option>
+                                <option value="東3局">東3局</option>
+                                <option value="東4局">東4局</option>
+                                <option value="南1局">南1局</option>
+                                <option value="南2局">南2局</option>
+                                <option value="南3局">南3局</option>
+                                <option value="南4局">南4局</option>
+                            </select>
+                        </div>
+                        <div class="annotation-item">
+                            <label>本場</label>
+                            <input type="number" id="honbaInput" value="0" min="0" max="10">
+                        </div>
+                        <div class="annotation-item">
+                            <label>親</label>
+                            <select id="dealerSelect">
+                                <option value="東">東</option>
+                                <option value="南">南</option>
+                                <option value="西">西</option>
+                                <option value="北">北</option>
+                            </select>
+                        </div>
+                        <div class="annotation-item">
+                            <label>残り牌数</label>
+                            <input type="number" id="remainingTilesInput" value="70" min="0" max="70">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 牌選択 -->
+                <div class="annotation-section">
+                    <h3>牌選択</h3>
+                    <div class="tile-selector" id="tileSelector">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+
+                <!-- 選択中のオブジェクト -->
+                <div class="annotation-section">
+                    <h3>選択中のアノテーション</h3>
+                    <div class="annotation-grid">
+                        <div class="annotation-item">
+                            <label>牌種</label>
+                            <input type="text" id="selectedTileType" readonly>
+                        </div>
+                        <div class="annotation-item">
+                            <label>信頼度</label>
+                            <input type="number" id="confidenceInput" min="0" max="1" step="0.01" value="1.0">
+                        </div>
+                        <div class="annotation-item">
+                            <label>エリア</label>
+                            <select id="areaTypeSelect">
+                                <option value="hand">手牌</option>
+                                <option value="discard">捨て牌</option>
+                                <option value="call">鳴き牌</option>
+                                <option value="dora">ドラ表示</option>
+                                <option value="unknown">不明</option>
+                            </select>
+                        </div>
+                        <div class="annotation-item">
+                            <label>プレイヤー</label>
+                            <select id="playerSelect">
+                                <option value="">なし</option>
+                                <option value="東">東</option>
+                                <option value="南">南</option>
+                                <option value="西">西</option>
+                                <option value="北">北</option>
+                            </select>
+                        </div>
+                        <div class="annotation-item full-width">
+                            <label>メモ</label>
+                            <input type="text" id="notesInput" placeholder="メモを入力...">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn primary" onclick="updateSelected()">
+                            更新
+                        </button>
+                        <button class="btn danger" onclick="deleteSelected()">
+                            削除
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="objectsTab" style="display: none;">
+                <div class="annotation-section">
+                    <h3>検出されたオブジェクト</h3>
+                    <div class="object-list" id="objectList">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="historyTab" style="display: none;">
+                <div class="annotation-section">
+                    <h3>操作履歴</h3>
+                    <div id="historyList">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ショートカットヘルプ -->
+    <div class="shortcuts-overlay" id="shortcutsOverlay" onclick="hideShortcuts()"></div>
+    <div class="shortcuts-panel" id="shortcutsPanel">
+        <h2 style="margin-bottom: 20px;">キーボードショートカット</h2>
+        <div class="shortcut-item">
+            <span>選択ツール</span>
+            <span class="shortcut-key">V</span>
+        </div>
+        <div class="shortcut-item">
+            <span>描画ツール</span>
+            <span class="shortcut-key">D</span>
+        </div>
+        <div class="shortcut-item">
+            <span>削除</span>
+            <span class="shortcut-key">Delete</span>
+        </div>
+        <div class="shortcut-item">
+            <span>前のフレーム</span>
+            <span class="shortcut-key">A / ←</span>
+        </div>
+        <div class="shortcut-item">
+            <span>次のフレーム</span>
+            <span class="shortcut-key">D / →</span>
+        </div>
+        <div class="shortcut-item">
+            <span>フレームジャンプ</span>
+            <span class="shortcut-key">G</span>
+        </div>
+        <div class="shortcut-item">
+            <span>自動検出</span>
+            <span class="shortcut-key">R</span>
+        </div>
+        <div class="shortcut-item">
+            <span>前フレームコピー</span>
+            <span class="shortcut-key">C</span>
+        </div>
+        <div class="shortcut-item">
+            <span>保存</span>
+            <span class="shortcut-key">Ctrl + S</span>
+        </div>
+        <div class="shortcut-item">
+            <span>元に戻す</span>
+            <span class="shortcut-key">Ctrl + Z</span>
+        </div>
+        <div class="shortcut-item">
+            <span>やり直し</span>
+            <span class="shortcut-key">Ctrl + Y</span>
+        </div>
+        <div class="shortcut-item">
+            <span>全選択</span>
+            <span class="shortcut-key">Ctrl + A</span>
+        </div>
+        <div class="shortcut-item">
+            <span>ズームイン</span>
+            <span class="shortcut-key">Ctrl + +</span>
+        </div>
+        <div class="shortcut-item">
+            <span>ズームアウト</span>
+            <span class="shortcut-key">Ctrl + -</span>
+        </div>
+        <div class="shortcut-item">
+            <span>ズームリセット</span>
+            <span class="shortcut-key">Ctrl + 0</span>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ローディング -->
+    <div class="loading" id="loading" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p style="margin-top: 20px; color: #999;">読み込み中...</p>
+    </div>
+
+    <script>
+        // グローバル変数
+        let currentTool = 'select';
+        let currentFrame = 0;
+        let totalFrames = 1000;
+        let annotations = [];
+        let selectedObjects = [];
+        let canvas, ctx;
+        let zoom = 1.0;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let currentRect = null;
+        let history = [];
+        let historyIndex = -1;
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            initCanvas();
+            initTileSelector();
+            loadFrame(0);
+            setupKeyboardShortcuts();
+            setupAutoSave();
+        });
+
+        function initCanvas() {
+            canvas = document.getElementById('mainCanvas');
+            ctx = canvas.getContext('2d');
+
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('wheel', onWheel);
+        }
+
+        function initTileSelector() {
+            const selector = document.getElementById('tileSelector');
+            const tiles = [
+                // 萬子
+                '1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m',
+                // 筒子
+                '1p', '2p', '3p', '4p', '5p', '6p', '7p', '8p', '9p',
+                // 索子
+                '1s', '2s', '3s', '4s', '5s', '6s', '7s', '8s', '9s',
+                // 字牌
+                '東', '南', '西', '北', '白', '發', '中'
+            ];
+
+            tiles.forEach(tile => {
+                const btn = document.createElement('button');
+                btn.className = 'tile-btn';
+                btn.textContent = tile;
+                btn.onclick = () => selectTile(tile);
+                selector.appendChild(btn);
+            });
+        }
+
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // ツール切り替え
+                if (e.key === 'v') setTool('select');
+                else if (e.key === 'd' && !e.ctrlKey) setTool('draw');
+                else if (e.key === 'Delete') deleteSelected();
+
+                // ナビゲーション
+                else if (e.key === 'a' || e.key === 'ArrowLeft') previousFrame();
+                else if (e.key === 'd' || e.key === 'ArrowRight') nextFrame();
+                else if (e.key === 'g') jumpToFrame();
+
+                // アクション
+                else if (e.key === 'r') autoDetect();
+                else if (e.key === 'c' && !e.ctrlKey) copyPrevious();
+
+                // 保存・元に戻す
+                else if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    saveAnnotations();
+                }
+                else if (e.ctrlKey && e.key === 'z') undo();
+                else if (e.ctrlKey && e.key === 'y') redo();
+                else if (e.ctrlKey && e.key === 'a') {
+                    e.preventDefault();
+                    selectAll();
+                }
+
+                // ズーム
+                else if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+                    e.preventDefault();
+                    setZoom(Math.min(zoom * 100 + 10, 200));
+                }
+                else if (e.ctrlKey && e.key === '-') {
+                    e.preventDefault();
+                    setZoom(Math.max(zoom * 100 - 10, 50));
+                }
+                else if (e.ctrlKey && e.key === '0') {
+                    e.preventDefault();
+                    setZoom(100);
+                }
+
+                // ヘルプ
+                else if (e.key === '?') showShortcuts();
+            });
+        }
+
+        function setupAutoSave() {
+            setInterval(() => {
+                if (annotations.length > 0) {
+                    localStorage.setItem('annotations', JSON.stringify(annotations));
+                    updateLastSaved();
+                }
+            }, 30000); // 30秒ごと
+        }
+
+        // ツール関連
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.toolbar .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(tool + 'Tool').classList.add('active');
+
+            // カーソル変更
+            if (tool === 'select') canvas.style.cursor = 'default';
+            else if (tool === 'draw') canvas.style.cursor = 'crosshair';
+            else if (tool === 'delete') canvas.style.cursor = 'not-allowed';
+        }
+
+        // フレーム操作
+        function loadFrame(frameNumber) {
+            showLoading();
+
+            // APIからフレームデータを取得
+            fetch(`/api/annotation/frame/${frameNumber}`)
+                .then(response => response.json())
+                .then(data => {
+                    currentFrame = frameNumber;
+                    displayFrame(data);
+                    updateProgress();
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error('フレーム読み込みエラー:', error);
+                    showToast('フレームの読み込みに失敗しました', 'error');
+                    hideLoading();
+                });
+        }
+
+        function displayFrame(frameData) {
+            // 画像表示
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                // アノテーション描画
+                drawAnnotations();
+            };
+            img.src = frameData.imagePath;
+
+            // フレーム情報更新
+            document.getElementById('sceneType').textContent = frameData.sceneType || '不明';
+            document.getElementById('roundInfo').textContent = frameData.roundInfo || '-';
+            document.getElementById('dealerPosition').textContent = frameData.dealerPosition || '-';
+
+            // アノテーション読み込み
+            annotations = frameData.annotations || [];
+            updateObjectList();
+        }
+
+        function previousFrame() {
+            if (currentFrame > 0) {
+                saveCurrentAnnotations();
+                loadFrame(currentFrame - 1);
+            }
+        }
+
+        function nextFrame() {
+            if (currentFrame < totalFrames - 1) {
+                saveCurrentAnnotations();
+                loadFrame(currentFrame + 1);
+            }
+        }
+
+        function jumpToFrame() {
+            const frameNumber = prompt('フレーム番号を入力:', currentFrame);
+            if (frameNumber !== null) {
+                const num = parseInt(frameNumber);
+                if (num >= 0 && num < totalFrames) {
+                    saveCurrentAnnotations();
+                    loadFrame(num);
+                }
+            }
+        }
+
+        // アノテーション操作
+        function drawAnnotations() {
+            annotations.forEach((anno, index) => {
+                const isSelected = selectedObjects.includes(index);
+                drawBoundingBox(anno.bbox, anno.type, anno.confidence, isSelected);
+            });
+        }
+
+        function drawBoundingBox(bbox, type, confidence, isSelected) {
+            ctx.save();
+
+            // 信頼度による色分け
+            let color;
+            if (confidence >= 0.8) color = '#4CAF50';
+            else if (confidence >= 0.5) color = '#FF9800';
+            else color = '#f44336';
+
+            // 選択時は太く
+            ctx.lineWidth = isSelected ? 3 : 2;
+            ctx.strokeStyle = color;
+            ctx.strokeRect(bbox.x1, bbox.y1, bbox.x2 - bbox.x1, bbox.y2 - bbox.y1);
+
+            // ラベル表示
+            ctx.fillStyle = color;
+            ctx.fillRect(bbox.x1, bbox.y1 - 20, 60, 20);
+            ctx.fillStyle = 'white';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(`${type} ${(confidence * 100).toFixed(0)}%`, bbox.x1 + 5, bbox.y1 - 5);
+
+            ctx.restore();
+        }
+
+        function autoDetect() {
+            showLoading();
+
+            fetch(`/api/annotation/auto-detect/${currentFrame}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                annotations = data.annotations;
+                drawAnnotations();
+                updateObjectList();
+                showToast(`${data.annotations.length}個の牌を検出しました`, 'success');
+                hideLoading();
+                addToHistory('auto-detect');
+            })
+            .catch(error => {
+                showToast('自動検出に失敗しました', 'error');
+                hideLoading();
+            });
+        }
+
+        function copyPrevious() {
+            if (currentFrame === 0) {
+                showToast('最初のフレームです', 'info');
+                return;
+            }
+
+            fetch(`/api/annotation/frame/${currentFrame - 1}`)
+                .then(response => response.json())
+                .then(data => {
+                    annotations = data.annotations || [];
+                    drawAnnotations();
+                    updateObjectList();
+                    showToast('前フレームからコピーしました', 'success');
+                    addToHistory('copy-previous');
+                });
+        }
+
+        function clearAll() {
+            if (confirm('すべてのアノテーションを削除しますか？')) {
+                annotations = [];
+                selectedObjects = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                loadFrame(currentFrame);
+                showToast('すべて削除しました', 'info');
+                addToHistory('clear-all');
+            }
+        }
+
+        // マウスイベント
+        function onMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / zoom;
+            const y = (e.clientY - rect.top) / zoom;
+
+            if (currentTool === 'select') {
+                // オブジェクト選択
+                const clickedIndex = findObjectAt(x, y);
+                if (clickedIndex !== -1) {
+                    if (e.ctrlKey) {
+                        // 複数選択
+                        if (selectedObjects.includes(clickedIndex)) {
+                            selectedObjects = selectedObjects.filter(i => i !== clickedIndex);
+                        } else {
+                            selectedObjects.push(clickedIndex);
+                        }
+                    } else {
+                        selectedObjects = [clickedIndex];
+                    }
+                    updateSelectedInfo();
+                    drawAnnotations();
+                } else {
+                    selectedObjects = [];
+                    updateSelectedInfo();
+                    drawAnnotations();
+                }
+            } else if (currentTool === 'draw') {
+                isDragging = true;
+                dragStart = { x, y };
+            } else if (currentTool === 'delete') {
+                const clickedIndex = findObjectAt(x, y);
+                if (clickedIndex !== -1) {
+                    annotations.splice(clickedIndex, 1);
+                    drawAnnotations();
+                    updateObjectList();
+                    showToast('削除しました', 'info');
+                    addToHistory('delete');
+                }
+            }
+        }
+
+        function onMouseMove(e) {
+            if (!isDragging) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / zoom;
+            const y = (e.clientY - rect.top) / zoom;
+
+            // 描画中の矩形を表示
+            drawAnnotations();
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(
+                dragStart.x,
+                dragStart.y,
+                x - dragStart.x,
+                y - dragStart.y
+            );
+            ctx.setLineDash([]);
+        }
+
+        function onMouseUp(e) {
+            if (!isDragging) return;
+            isDragging = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / zoom;
+            const y = (e.clientY - rect.top) / zoom;
+
+            // 新しいアノテーション作成
+            const bbox = {
+                x1: Math.min(dragStart.x, x),
+                y1: Math.min(dragStart.y, y),
+                x2: Math.max(dragStart.x, x),
+                y2: Math.max(dragStart.y, y)
+            };
+
+            if (bbox.x2 - bbox.x1 > 10 && bbox.y2 - bbox.y1 > 10) {
+                const selectedTile = document.querySelector('.tile-btn.selected');
+                const newAnnotation = {
+                    bbox: bbox,
+                    type: selectedTile ? selectedTile.textContent : '?',
+                    confidence: 1.0,
+                    area: 'unknown',
+                    player: null
+                };
+
+                annotations.push(newAnnotation);
+                drawAnnotations();
+                updateObjectList();
+                showToast('アノテーションを追加しました', 'success');
+                addToHistory('add');
+            }
+        }
+
+        function onWheel(e) {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+
+            const delta = e.deltaY > 0 ? -10 : 10;
+            setZoom(Math.max(50, Math.min(200, zoom * 100 + delta)));
+        }
+
+        // ヘルパー関数
+        function findObjectAt(x, y) {
+            for (let i = annotations.length - 1; i >= 0; i--) {
+                const bbox = annotations[i].bbox;
+                if (x >= bbox.x1 && x <= bbox.x2 && y >= bbox.y1 && y <= bbox.y2) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function updateProgress() {
+            const progress = ((currentFrame + 1) / totalFrames) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('frameInfo').textContent =
+                `フレーム ${currentFrame + 1} / ${totalFrames}`;
+        }
+
+        function updateObjectList() {
+            const list = document.getElementById('objectList');
+            list.innerHTML = '';
+
+            annotations.forEach((anno, index) => {
+                const item = document.createElement('div');
+                item.className = 'object-item' + (selectedObjects.includes(index) ? ' selected' : '');
+                item.innerHTML = `
+                    <div class="object-info">
+                        <div class="object-type">${anno.type}</div>
+                        <div class="object-details">
+                            ${anno.area} | ${anno.player || 'なし'}
+                        </div>
+                    </div>
+                    <div class="confidence-badge confidence-${getConfidenceLevel(anno.confidence)}">
+                        ${(anno.confidence * 100).toFixed(0)}%
+                    </div>
+                `;
+                item.onclick = () => {
+                    selectedObjects = [index];
+                    updateSelectedInfo();
+                    drawAnnotations();
+                };
+                list.appendChild(item);
+            });
+
+            document.getElementById('selectedCount').textContent = selectedObjects.length;
+            document.getElementById('totalCount').textContent = annotations.length;
+        }
+
+        function getConfidenceLevel(confidence) {
+            if (confidence >= 0.8) return 'high';
+            if (confidence >= 0.5) return 'medium';
+            return 'low';
+        }
+
+        function updateSelectedInfo() {
+            if (selectedObjects.length === 0) {
+                document.getElementById('selectedTileType').value = '';
+                document.getElementById('confidenceInput').value = '1.0';
+                document.getElementById('areaTypeSelect').value = 'unknown';
+                document.getElementById('playerSelect').value = '';
+                document.getElementById('notesInput').value = '';
+                return;
+            }
+
+            const anno = annotations[selectedObjects[0]];
+            document.getElementById('selectedTileType').value = anno.type;
+            document.getElementById('confidenceInput').value = anno.confidence;
+            document.getElementById('areaTypeSelect').value = anno.area || 'unknown';
+            document.getElementById('playerSelect').value = anno.player || '';
+            document.getElementById('notesInput').value = anno.notes || '';
+        }
+
+        function updateSelected() {
+            if (selectedObjects.length === 0) return;
+
+            selectedObjects.forEach(index => {
+                annotations[index].confidence = parseFloat(document.getElementById('confidenceInput').value);
+                annotations[index].area = document.getElementById('areaTypeSelect').value;
+                annotations[index].player = document.getElementById('playerSelect').value;
+                annotations[index].notes = document.getElementById('notesInput').value;
+            });
+
+            drawAnnotations();
+            updateObjectList();
+            showToast('更新しました', 'success');
+            addToHistory('update');
+        }
+
+        function deleteSelected() {
+            if (selectedObjects.length === 0) return;
+
+            selectedObjects.sort((a, b) => b - a);
+            selectedObjects.forEach(index => {
+                annotations.splice(index, 1);
+            });
+
+            selectedObjects = [];
+            drawAnnotations();
+            updateObjectList();
+            updateSelectedInfo();
+            showToast('削除しました', 'info');
+            addToHistory('delete-selected');
+        }
+
+        function selectAll() {
+            selectedObjects = annotations.map((_, index) => index);
+            updateSelectedInfo();
+            drawAnnotations();
+            updateObjectList();
+        }
+
+        function selectTile(tile) {
+            document.querySelectorAll('.tile-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+
+            if (selectedObjects.length > 0) {
+                selectedObjects.forEach(index => {
+                    annotations[index].type = tile;
+                });
+                drawAnnotations();
+                updateObjectList();
+                updateSelectedInfo();
+            }
+        }
+
+        function setZoom(value) {
+            zoom = value / 100;
+            document.getElementById('zoomSlider').value = value;
+            document.getElementById('zoomLevel').textContent = value + '%';
+
+            const wrapper = document.querySelector('.canvas-wrapper');
+            wrapper.style.transform = `translate(-50%, -50%) scale(${zoom})`;
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Tab').style.display = 'block';
+        }
+
+        // 保存関連
+        function saveAnnotations() {
+            saveCurrentAnnotations();
+
+            fetch('/api/annotation/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    videoId: 'current_video',
+                    frameNumber: currentFrame,
+                    annotations: annotations,
+                    gameState: {
+                        round: document.getElementById('roundSelect').value,
+                        honba: parseInt(document.getElementById('honbaInput').value),
+                        dealer: document.getElementById('dealerSelect').value,
+                        remainingTiles: parseInt(document.getElementById('remainingTilesInput').value)
+                    }
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showToast('保存しました', 'success');
+                updateLastSaved();
+            })
+            .catch(error => {
+                showToast('保存に失敗しました', 'error');
+            });
+        }
+
+        function saveCurrentAnnotations() {
+            const frameData = {
+                frameNumber: currentFrame,
+                annotations: annotations,
+                timestamp: new Date().toISOString()
+            };
+
+            let savedData = JSON.parse(localStorage.getItem('annotationData') || '{}');
+            if (!savedData[currentFrame]) {
+                savedData[currentFrame] = [];
+            }
+            savedData[currentFrame] = frameData;
+            localStorage.setItem('annotationData', JSON.stringify(savedData));
+        }
+
+        function updateLastSaved() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ja-JP', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('lastSaved').textContent = `最終保存: ${timeStr}`;
+        }
+
+        // 履歴管理
+        function addToHistory(action) {
+            // 現在位置以降の履歴を削除
+            history = history.slice(0, historyIndex + 1);
+
+            // 新しい履歴を追加
+            history.push({
+                action: action,
+                annotations: JSON.parse(JSON.stringify(annotations)),
+                timestamp: new Date()
+            });
+
+            historyIndex = history.length - 1;
+            updateHistoryList();
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                annotations = JSON.parse(JSON.stringify(history[historyIndex].annotations));
+                drawAnnotations();
+                updateObjectList();
+                showToast('元に戻しました', 'info');
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                annotations = JSON.parse(JSON.stringify(history[historyIndex].annotations));
+                drawAnnotations();
+                updateObjectList();
+                showToast('やり直しました', 'info');
+            }
+        }
+
+        function updateHistoryList() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = '';
+
+            history.slice(-10).reverse().forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'object-item';
+                div.innerHTML = `
+                    <div class="object-info">
+                        <div class="object-type">${item.action}</div>
+                        <div class="object-details">
+                            ${item.timestamp.toLocaleTimeString()}
+                        </div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // UI関連
+        function showShortcuts() {
+            document.getElementById('shortcutsOverlay').classList.add('show');
+            document.getElementById('shortcutsPanel').classList.add('show');
+        }
+
+        function hideShortcuts() {
+            document.getElementById('shortcutsOverlay').classList.remove('show');
+            document.getElementById('shortcutsPanel').classList.remove('show');
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
