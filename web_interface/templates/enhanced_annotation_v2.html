@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻雀牌譜アノテーション - 効率化版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ヘッダー */
+        .header {
+            background-color: #333;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #4CAF50;
+        }
+
+        /* 効率化統計 */
+        .efficiency-stats {
+            display: flex;
+            gap: 20px;
+            background-color: #2a2a2a;
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .stat-value.warning {
+            color: #FF9800;
+        }
+
+        .stat-value.danger {
+            color: #f44336;
+        }
+
+        /* メインビュー */
+        .main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #2a2a2a;
+        }
+
+        /* 画像表示エリア */
+        .image-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: #1a1a1a;
+        }
+
+        .canvas-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #mainCanvas {
+            cursor: crosshair;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 類似度警告 */
+        .similarity-warning {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #FF9800;
+            z-index: 100;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateX(-50%) translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .similarity-score {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .similarity-very-high {
+            color: #f44336;
+        }
+
+        .similarity-high {
+            color: #FF9800;
+        }
+
+        .similarity-medium {
+            color: #FFC107;
+        }
+
+        .similarity-type {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+
+        .similarity-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .similarity-actions button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .similarity-actions button:first-child {
+            background-color: #FF9800;
+            color: white;
+        }
+
+        .similarity-actions button:last-child {
+            background-color: #444;
+            color: #e0e0e0;
+        }
+
+        .similarity-actions button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        /* ツールバー */
+        .toolbar {
+            background-color: #333;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-top: 1px solid #444;
+        }
+
+        .tool-group {
+            display: flex;
+            gap: 5px;
+            padding: 0 10px;
+            border-right: 1px solid #444;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background-color: #444;
+            border: none;
+            border-radius: 4px;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: #555;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        /* サイドパネル */
+        .side-panel {
+            width: 400px;
+            background-color: #2a2a2a;
+            border-left: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 設定パネル */
+        .settings-section {
+            background-color: #333;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+
+        .settings-section h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+
+        .setting-item {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        .threshold-slider {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .threshold-value {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 14px;
+            color: #999;
+        }
+
+        /* スキップフレーム表示 */
+        .skipped-frame .image-container {
+            opacity: 0.7;
+        }
+
+        .skipped-frame .toolbar {
+            background-color: #555;
+        }
+
+        .skip-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(255, 152, 0, 0.9);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        /* ステータスバー */
+        .status-bar {
+            background-color: #333;
+            padding: 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #444;
+        }
+
+        /* トースト通知 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .toast.error {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .toast.info {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        /* ローディング */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+            background-color: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 8px;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #444;
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- メインビュー -->
+        <div class="main-view">
+            <!-- ヘッダー -->
+            <div class="header">
+                <h1>麻雀牌譜アノテーション - 効率化版</h1>
+                <div class="efficiency-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">総フレーム</span>
+                        <span class="stat-value" id="totalFrames">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">アノテーション済</span>
+                        <span class="stat-value" id="annotatedFrames">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">スキップ</span>
+                        <span class="stat-value warning" id="skippedFrames">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">スキップ率</span>
+                        <span class="stat-value" id="skipRate">0%</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn" onclick="annotationSystem.saveAnnotations()">
+                        保存 (Ctrl+S)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 画像表示エリア -->
+            <div class="image-container">
+                <div class="canvas-wrapper">
+                    <canvas id="mainCanvas"></canvas>
+                </div>
+                <div class="skip-indicator" id="skipIndicator" style="display: none;">
+                    スキップされたフレーム
+                </div>
+            </div>
+
+            <!-- ツールバー -->
+            <div class="toolbar">
+                <div class="tool-group">
+                    <button class="btn" id="prevButton" onclick="annotationSystem.previousFrame()">
+                        ← 前 (A)
+                    </button>
+                    <button class="btn" id="nextButton" onclick="annotationSystem.nextFrame()">
+                        次 → (D)
+                    </button>
+                    <button class="btn" onclick="annotationSystem.jumpToFrame()">
+                        ジャンプ (G)
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <button class="btn" onclick="annotationSystem.autoDetect()">
+                        自動検出 (R)
+                    </button>
+                    <button class="btn" onclick="annotationSystem.skipCurrentFrame()">
+                        スキップ (S)
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <span style="color: #999; font-size: 14px;">
+                        フレーム: <span id="frameInfo">1 / 1000</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- ステータスバー -->
+            <div class="status-bar">
+                <div class="status-item">
+                    <span>シーン: <strong id="sceneType">対局中</strong></span>
+                    <span>局: <strong id="roundInfo">東1局</strong></span>
+                    <span>親: <strong id="dealerPosition">東</strong></span>
+                </div>
+                <div class="status-item">
+                    <span id="lastSaved">最終保存: --:--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- サイドパネル -->
+        <div class="side-panel">
+            <!-- 効率化設定 -->
+            <div class="settings-section">
+                <h3>効率化設定</h3>
+
+                <div class="setting-item">
+                    <span class="setting-label">類似度チェック</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="similarityCheckToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <span class="setting-label">類似フレーム自動スキップ</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="skipSimilarToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <span class="setting-label">類似度閾値</span>
+                </div>
+                <input type="range" class="threshold-slider" id="similarityThreshold"
+                       min="80" max="99" value="95">
+                <div class="threshold-value" id="thresholdValue">95%</div>
+            </div>
+
+            <!-- ゲーム状態 -->
+            <div class="settings-section">
+                <h3>ゲーム状態</h3>
+                <div class="setting-item">
+                    <label>局情報</label>
+                    <select id="roundSelect">
+                        <option value="東1局">東1局</option>
+                        <option value="東2局">東2局</option>
+                        <option value="東3局">東3局</option>
+                        <option value="東4局">東4局</option>
+                        <option value="南1局">南1局</option>
+                        <option value="南2局">南2局</option>
+                        <option value="南3局">南3局</option>
+                        <option value="南4局">南4局</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>本場</label>
+                    <input type="number" id="honbaInput" value="0" min="0" max="10">
+                </div>
+                <div class="setting-item">
+                    <label>親</label>
+                    <select id="dealerSelect">
+                        <option value="東">東</option>
+                        <option value="南">南</option>
+                        <option value="西">西</option>
+                        <option value="北">北</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>残り牌数</label>
+                    <input type="number" id="remainingTilesInput" value="70" min="0" max="70">
+                </div>
+            </div>
+
+            <!-- アノテーション情報 -->
+            <div class="settings-section">
+                <h3>現在のフレーム</h3>
+                <div id="frameDetails">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 進捗バー -->
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; height: 4px; background-color: #333;">
+        <div id="progressFill" style="height: 100%; background-color: #4CAF50; width: 0%; transition: width 0.3s;"></div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ローディング -->
+    <div class="loading" id="loading" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p style="color: #999;">読み込み中...</p>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/enhanced_annotation.js"></script>
+</body>
+</html>
